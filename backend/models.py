@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -41,6 +42,15 @@ class User(Base):
     influence_score = Column(Integer, default=0)
     political_party = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    # Required for COPPA compliance — users under 13 cannot register
+    date_of_birth = Column(Date, nullable=False)
+    # Tracks when user invoked their data export right (User Sovereignty, constitution §6)
+    data_export_requested_at = Column(DateTime(timezone=True), nullable=True)
+    # Retained after deletion to satisfy legal compliance records; PII is erased separately
+    deletion_requested_at = Column(DateTime(timezone=True), nullable=True)
+    # Legal consent record — timestamp and version stored so we know exactly what was agreed to
+    agreed_to_terms_at = Column(DateTime(timezone=True), nullable=False)
+    agreed_to_terms_version = Column(String, nullable=False)
 
     posts = relationship("Post", back_populates="author")
     votes = relationship("Vote", back_populates="user")
