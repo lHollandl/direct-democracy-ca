@@ -7,6 +7,16 @@ name = "pypi"
 fastapi = "*"
 uvicorn = "*"
 python-dotenv = "*"
+sqlalchemy = "*"
+asyncpg = "*"
+psycopg2-binary = "*"
+redis = "*"
+alembic = "*"
+passlib = {extras = ["bcrypt"], version = "*"}
+python-jose = {extras = ["cryptography"], version = "*"}
+slowapi = "*"
+email-validator = "*"
+pydantic = {extras = ["email"], version = "*"}
 
 [dev-packages]
 
