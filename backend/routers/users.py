@@ -1,8 +1,8 @@
 import re
 from datetime import date, datetime, timezone
 
+import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request
-from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 
@@ -11,8 +11,6 @@ from limiter import limiter
 from models import Label, Post, User, Vote
 
 router = APIRouter()
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class UserCreate(BaseModel):
@@ -81,7 +79,7 @@ async def create_user(
     user = User(
         username=user_data.username,
         email=user_data.email,
-        hashed_password=pwd_context.hash(user_data.password),
+        hashed_password=bcrypt.hashpw(user_data.password.encode(), bcrypt.gensalt()).decode(),
         date_of_birth=user_data.date_of_birth,
         agreed_to_terms_at=datetime.now(timezone.utc),
         agreed_to_terms_version=user_data.agreed_to_terms_version,
