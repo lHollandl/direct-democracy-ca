@@ -138,7 +138,13 @@ async def export_user_data(user_id: int, db: Session = Depends(get_db)):
                 "id": p.id,
                 "title": p.title,
                 "content": p.content,
-                "governance_level": p.governance_level.value,
+                "locations": [
+                    {
+                        "location_type": loc.location_type.value,
+                        "location_id": loc.location_id,
+                    }
+                    for loc in p.locations
+                ],
                 "created_at": p.created_at.isoformat(),
                 "ai_contribution_percentage": p.ai_contribution_percentage,
                 "content_hash": p.content_hash,

@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from auth import get_current_user
 from database import get_db
-from models import Label
+from models import Label, User
 
 router = APIRouter()
 
@@ -27,7 +28,10 @@ class LabelResponse(BaseModel):
 
 @router.patch("/labels/{label_id}/correct", response_model=LabelResponse)
 async def correct_label(
-    label_id: int, correction: LabelCorrection, db: Session = Depends(get_db)
+    label_id: int,
+    correction: LabelCorrection,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Citizens use this to correct AI labels they disagree with.

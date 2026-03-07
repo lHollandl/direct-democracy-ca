@@ -141,6 +141,8 @@ code written in this project.
   and stop using them (protects historical civic data)
 - ALWAYS use Alembic migrations for schema changes — never
   modify tables directly
+- All schema changes require an Alembic migration. Never use
+  create_all in production. Never modify existing migrations.
 - ALWAYS index foreign keys and frequently queried columns
 - ALWAYS use transactions when multiple tables are updated together
 - The content_hash column on posts is permanent public record —
@@ -219,3 +221,20 @@ to this: We are giving ordinary California citizens the tools
 that only well-funded political organizations currently have.
 Every feature should feel like handing power to someone who
 did not have it before.
+
+---
+
+## Session Law
+
+At the start of every Claude Code session:
+1. Read CLAUDE.md fully
+2. Read TODO.md fully
+3. Confirm current status before writing any code
+
+At the end of every completed prompt:
+1. Update TODO.md — mark completed items ✅
+2. Add any new technical debt discovered
+3. Add any new future tasks that came up
+4. Update the Current Status table
+5. Append one line to the Session Log at the bottom of TODO.md
+   Format: [Day X — Prompt Y] Brief description of what was built

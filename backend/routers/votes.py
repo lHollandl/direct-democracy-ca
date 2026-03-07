@@ -3,22 +3,27 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from auth import get_current_user
 from database import get_db
-from models import Vote, VoteType
+from models import User, Vote, VoteType
 
 router = APIRouter()
 
 
 class VoteCreate(BaseModel):
-    user_id: int
+    # user_id comes from the authenticated token, not the request body
     post_id: int
     vote_type: VoteType
 
 
 @router.post("/votes")
-async def cast_vote(vote_data: VoteCreate, db: Session = Depends(get_db)):
+async def cast_vote(
+    vote_data: VoteCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     vote = Vote(
-        user_id=vote_data.user_id,
+        user_id=current_user.id,
         post_id=vote_data.post_id,
         vote_type=vote_data.vote_type,
     )

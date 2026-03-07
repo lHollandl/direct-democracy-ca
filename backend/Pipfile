@@ -17,6 +17,7 @@ python-jose = {extras = ["cryptography"], version = "*"}
 slowapi = "*"
 email-validator = "*"
 pydantic = {extras = ["email"], version = "*"}
+httpx = "*"
 
 [dev-packages]
 
