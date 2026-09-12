@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -94,6 +95,10 @@ class User(Base):
     # Legal consent record — timestamp and version stored so we know exactly what was agreed to
     agreed_to_terms_at = Column(DateTime(timezone=True), nullable=False)
     agreed_to_terms_version = Column(String, nullable=False)
+    # Home location — set during signup or profile update.
+    # NULL for users who skip location entry or were created before this field existed.
+    county_id = Column(Integer, ForeignKey("counties.id"), nullable=True, index=True)
+    city_id = Column(Integer, ForeignKey("cities.id"), nullable=True, index=True)
 
     posts = relationship("Post", back_populates="author")
     votes = relationship("Vote", back_populates="user")
@@ -122,8 +127,8 @@ class Post(Base):
     votes = relationship("Vote", back_populates="post")
     locations = relationship("PostLocation", back_populates="post")
     umbrella_issues = relationship("PostUmbrellaIssue", back_populates="post")
-    # uselist=False enforces the one-solution-per-post constraint at the ORM layer
-    solution = relationship("Solution", back_populates="post", uselist=False)
+    # uselist=True — posts now support multiple solutions (one per governance level)
+    solutions = relationship("Solution", back_populates="post")
 
 
 class PostLocation(Base):
@@ -238,14 +243,22 @@ class Solution(Base):
     __tablename__ = "solutions"
 
     id = Column(Integer, primary_key=True)
-    # unique=True enforces one solution per post; the unique constraint also serves as an index
-    post_id = Column(Integer, ForeignKey("posts.id"), unique=True, nullable=False)
+    # unique=True removed — posts may now have multiple solutions (one per governance level)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False, index=True)
     # Set by AI labeling pipeline after the post is assigned to an umbrella issue
     umbrella_issue_id = Column(Integer, ForeignKey("umbrella_issues.id"), nullable=True, index=True)
     # Must match the post author — enforced at the application layer
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    title = Column(String(200), nullable=False)
+    # DEPRECATED — title was the original solution title field, superseded by the
+    # post title field. Kept per database law (never delete columns). Do not write
+    # to this column in new code; reads may return NULL for solutions created after
+    # this deprecation.
+    title = Column(String(200), nullable=True)
     content = Column(String(5000), nullable=False)
+    # Which governance levels (city, county, state, federal) this solution targets.
+    # Stored as a PostgreSQL text array. NULL for solutions created before this
+    # field was added (pre-migration).
+    governance_levels = Column(ARRAY(String), nullable=True)
     # Indexed — solutions are sorted by upvote_count descending in umbrella panels
     upvote_count = Column(Integer, default=0, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -254,7 +267,7 @@ class Solution(Base):
     # Constitution law: content_hash is permanent public record — never modified after creation
     content_hash = Column(String, nullable=True)
 
-    post = relationship("Post", back_populates="solution")
+    post = relationship("Post", back_populates="solutions")
     umbrella_issue = relationship("UmbrellaIssue", back_populates="solutions")
     author = relationship("User", back_populates="solutions")
     votes = relationship("SolutionVote", back_populates="solution")

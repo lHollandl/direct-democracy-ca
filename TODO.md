@@ -1,324 +1,211 @@
-# Direct Democracy Cali — TODO & Future Notes
+# TODO.md — Task Tracker
 
-> This document tracks known gaps, future tasks, and important technical notes 
-> that need to be addressed before launch. Organized by priority.
-
----
-
-## 🔴 Required Before Any Real Users Touch This
-
-- [ ] **Email verification on signup** — right now anyone can sign up with a fake email. Need to send a confirmation link and keep the account inactive until clicked.
-- [ ] **Password reset flow** — there is currently no way for a user to recover a forgotten password. Needs a "forgot password" email flow.
-- [ ] **HTTPS / SSL certificates** — everything runs on http://localhost. Before deploying to a real server, SSL is mandatory. No exceptions.
-- [ ] **Privacy Policy page** — legally required before real users. Must cover data collection, CCPA rights, and AI labeling disclosure.
-- [ ] **Terms of Service page** — legally required before real users.
-- [ ] **Cookie consent banner** — required for CCPA compliance.
-- [ ] **Account deletion flow** — required by the constitution §6 (User Sovereignty). Must anonymize all posts (preserve civic record) but erase all PII. Not yet implemented.
+> The living task tracker. Every task has a phase, an id, a status, and
+> a home in the documents. Design decisions live in DEMOCRACY.md,
+> DATABASE.md, ARCHITECTURE.md. History lives in HISTORY.md. Rules live
+> in CLAUDE.md.
+>
+> Claude Code reads this at the start of every session and updates it
+> at the end. Status symbols: `[ ]` not started · `[~]` in progress ·
+> `[x]` done · `[!]` blocked · `[-]` dropped (reason in HISTORY).
 
 ---
 
-## 🟡 Authentication — Phase 2 Tasks
+## Current Status Snapshot
 
-- [ ] **Refresh tokens** — JWT access tokens currently expire after 30 minutes. This is the correct secure default but will frustrate real users who get logged out mid-session.
-  - The fix: implement a second "refresh token" that lives 7–30 days and silently obtains a new 30-minute access token without forcing the user to log in again.
-  - **Do NOT change the 30-minute expiry without building refresh tokens first.** Changing it alone just trades security for convenience with no proper solution.
-  
-- [ ] **Redis token blacklist for logout** — POST /auth/logout currently just tells the client to delete the token. A determined person could reuse the token for up to 30 minutes after logging out.
-  - The fix: store invalidated tokens in Redis with a TTL matching the token expiry.
-  - Already noted in the code comments as a Phase 3 task.
+*As of 2026-09-11. Nothing has been built against the new documents
+yet. The "legacy" code (`main`, commit 263d4c6) works but predates the
+constitution's laws; Demo 1 replaces it.*
 
----
-
-## 🟡 Database
-
-- [ ] **Expand city seed data** — currently only 10 major California cities are seeded. Residents outside those cities can't select their city. Needs expansion before launch.
-
-- [ ] **Running Alembic migrations** — Alembic is fully set up. Every future schema change (adding a column, renaming something, adding a table) must use this workflow:
-  ```bash
-  cd ~/direct-democracy-ca/backend
-  pipenv run alembic revision --autogenerate -m "describe your change here"
-  pipenv run alembic upgrade head
-  ```
-  Never modify the database directly. Never use create_all. Never edit existing migrations.
-
----
-
-## 🟡 Features That Exist in the Schema But Aren't Implemented Yet
-
-- [ ] **Influence score** — the `influence_score` column exists on the User model but nothing calculates or updates it. Needs a design decision: what actions earn influence? What does it affect?
-
-- [ ] **Political party** — the `political_party` column exists on User but nothing uses it. Needs UI for users to set it and logic for how it affects the experience (if at all).
-
-- ✅ **Umbrella issue assignment** — AI labeling pipeline now sets `umbrella_issue_id` on Solution and creates PostUmbrellaIssue rows. Labeling and umbrella assignment are the same action.
-
----
-
-## 🟠 Constitution Requirements Not Yet Built
-
-These are laws from CLAUDE.md that haven't been implemented yet:
-
-- [ ] **§4 Small Voice — evolutionary/mutation algorithm** — the feed ranking algorithm needs to be designed *before* the feed is built out further. The visibility threshold for minority viewpoints must be a configurable public setting, never hardcoded. Do not build a complex feed UI before this is designed.
-
-- [ ] **§3 Democratic Neutrality — sorting algorithm documentation** — when the feed sorting algorithm is written, it must be documented in plain English alongside the code. Not after. Not in a separate doc. Right next to the code itself.
-
-- [ ] **§5 AI Accountability — Merkle tree hashing** — the `content_hash` column exists on Post and Solution but nothing populates it yet. When the AI labeling pipeline is complete, the Merkle tree hash requirement from the constitution kicks in for full transparency.
+| Layer | Half | Status | Notes |
+|---|---|---|---|
+| Documents | — | CLAUDE, PROJECT, DEMOCRACY, DATABASE, ARCHITECTURE, TODO, HISTORY, AUDIT drafted | SANDBOX.md and Demo 1 brief pending |
+| Sandbox | — | Not set up | Docker Sandboxes on Ubuntu; SANDBOX.md pending |
+| GitHub | — | Public repo; `main` protected by ruleset; leaked token revoked | Sandbox token not yet created |
+| Infra (Docker Postgres + Redis) | F | Legacy, working | Secrets to be regenerated in Demo 1 |
+| Backend skeleton | F | Legacy: sync ORM, routers hit DB directly | Replaced by layered async build |
+| Auth | F | Legacy: JWT login only | Refresh, verification, reset not built |
+| Accounts / identity / display | F | Not built | |
+| Verification levels | F | Not built | `unverified` only in Demo 1 |
+| User rights (export, delete) | F | Not built | |
+| Legal pages | F | Not built | Placeholder text, marked draft |
+| Geography seed | F | Legacy: 58 counties, 10 cities | Full city list needed |
+| Officials directory | F | Not built | |
+| Settings table + public page | F | Not built | |
+| Admin role + log | F | Not built | |
+| AI action log | F | Not built | |
+| Umbrellas | I | Legacy: one test umbrella via raw SQL | Seed file needed |
+| Posts + labeling | I | Legacy: works, violates Laws 7/10/11 | Rebuild |
+| Feed | I | Legacy: newest first, no filters | feed-v0 |
+| Solutions / versions / amendments | I | Legacy: solutions only, upvote-only | Rebuild |
+| Comments | I | Not built | |
+| Votes / net score / statuses | I | Not built | |
+| Similarity | I | Not built | |
+| References | I | Not built | |
+| Jury | I | Not built | |
+| Cycles / ballot | I | Not built | |
+| Summary document | I | Not built | |
+| Director controls | I | Not built | |
+| Frontend | I/F | Legacy: signup, login, feed, post form | Rebuild per style brief |
 
 ---
 
-## 🟡 Frontend — Known Gaps After Prompt 3
+## Phase 0 — Migration to the New Framework
 
-- [ ] **Post creation form** — `/posts/new` is a placeholder. Full form needs: title, content, solution_title, solution_content, location picker (state → county → city cascade). To be built in Prompt 4 alongside AI labeling.
-- [ ] **Author username on posts** — the feed shows `user_id` from the API but not the username. The backend `GET /posts` response doesn't include the username — either add it to `PostResponse` (preferred) or make a separate `/users/{id}` call per post (expensive). Should be fixed when post creation is built.
-- [ ] **Location display** — the feed currently shows `City #1` instead of the actual city name. The `/states`, `/counties`, `/cities` endpoints are available — build a location lookup cache on the frontend when the post creation form is built.
-- [ ] **useRouter.refresh() on logout** — calling `router.refresh()` after logout keeps the page but re-renders server components; client state (current user) is already cleared locally. Works correctly for now.
+Done in Claude.ai planning sessions; no Claude Code involved.
 
----
-
-## 🟡 AI Labeling — Known Gaps After Prompt 4
-
-- [ ] **Ollama must be running for live labeling** — if Ollama is not running, posts save but get "Unlabeled / Pending Review" labels. No retry mechanism exists yet. Consider a periodic retry job for posts with confidence=0 and category="Unlabeled".
-- [ ] **ai/labeler.py is imported via sys.path manipulation** — `backend/routers/posts.py` adds the repo root to sys.path so it can import `ai.labeler`. This works but is fragile. A cleaner solution would be a proper Python package layout (pyproject.toml at repo root). Acceptable for now.
-- [ ] **Test umbrella is manually seeded via raw SQL** — the "Road Damage and Pothole Repair" umbrella was inserted directly. The democratic proposal and approval system that will create future umbrellas is not yet built (see Future Features section).
-- [ ] **No retry for failed labels** — if Ollama returns garbage JSON or times out, the post gets a fallback "Unlabeled" label. No background job exists to retry these. Add a periodic task (cron or Celery) to re-label posts with confidence=0 once the AI is back.
-- [ ] **httpx added to Pipfile** — `httpx` was added to the backend Pipfile for Ollama HTTP calls. Pipfile.lock was updated.
-
----
-
-## 🧠 Future Features — Designed but Not Yet Built
-
-### Core Architecture — Category and Umbrella System
-
-Categories and umbrella problems are the same thing,
-structured in two layers:
-
-MAIN CATEGORY = broad topic bucket controlled by the
-platform and grown by community approval
-(Examples: Roads and Infrastructure, Public Safety)
-
-SUBCATEGORY = the umbrella problem itself. Every
-subcategory IS an umbrella problem. Posts are assigned
-to subcategories/umbrellas. Solutions aggregate inside
-umbrellas. Votes happen inside umbrellas.
-
-This means labeling a post and assigning it to an
-umbrella problem are the same single action — not
-two separate steps.
-
-Three ways a post gets categorized:
-1. AI automatically picks the closest matching main
-   category and existing subcategory/umbrella —
-   always assigns to highest similarity match,
-   no matter the score
-2. User manually selects from approved lists
-3. User disagrees and proposes a brand new subcategory
-   or main category — enters democratic approval pipeline
-
-The AI is a sorting assistant, not a decision maker.
-AI never creates new umbrella problems automatically.
-Only humans create new umbrella problems through
-the proposal and approval system.
-
-### Democratic Category and Umbrella Proposal System
-
-This is a core feature of the platform. Citizens propose
-new main categories and new subcategories/umbrella problems.
-Communities vote to approve them. The category taxonomy
-is itself democratic.
-
-Proposing a new subcategory/umbrella problem:
-- User disagrees with AI label
-- Browses existing subcategories under a main category
-- Nothing fits — they propose a new subcategory name
-- Must attach to an existing approved main category
-- Subcategory cannot be placed under a proposed main
-  category — main category must be approved first
-- Selects which governance levels the proposal applies to
-  (city, county, state, federal — checkboxes)
-- Proposal enters Pending Approval for those governance levels
-
-Proposing a new main category:
-- User can also propose an entirely new main category
-- Goes through the same approval process
-- No subcategories can be added under it until it
-  is fully approved
-
-Similarity grouping of proposals — two layer approach:
-- Layer 1: AI flags new proposals similar to existing
-  pending proposals above a similarity threshold
-- Layer 2: Users confirm or reject the suggested merge —
-  AI suggests, humans decide
-- This prevents duplicate umbrella problems from
-  cluttering the system
-
-Approval threshold (dynamic by governance level):
-- City — 2% of active users OR 50 votes minimum,
-  whichever is lower
-- County — 1.5% of active users OR 100 votes minimum
-- State — 1% of active users OR 500 votes minimum
-- Federal — 0.5% of active users OR 1000 votes minimum
-- Minimum 7 day window before anything can be approved
-- Proposals with no new votes for 30 days go dormant
-  (not deleted — revivable if someone new votes)
-
-When a proposal is approved:
-- It becomes an official subcategory/umbrella problem
-  in the selected governance levels
-- The AI labeling pipeline immediately starts routing
-  new matching posts to it
-- Users can immediately select it when submitting posts
-- Posts previously assigned to a similar umbrella may
-  be surfaced for re-review
-
-Reputation points — early contribution model:
-- Reputation is cosmetic only — classic clout, no spending
-- Points awarded on time-decay curve when a proposal passes:
-  Day 1 supporter = 100 points
-  Day 7 supporter = 70 points
-  Day 30 supporter = 30 points
-  After approval = 5 points (for spreading awareness)
-- Original proposer gets a founder bonus multiplier
-- Failed proposals = 0 points for everyone
-- The risk makes the reward meaningful
-- If similar proposals are merged, all early supporters
-  of both proposals earn points — first proposer of
-  the winning name gets the founder bonus
-
-Open design decisions still needed before building:
-- Exact reputation point values and decay curve numbers
-- AI similarity score threshold for proposal grouping
-- Whether dormant proposals can be re-proposed by
-  someone else
-- What happens to posts assigned to an umbrella whose
-  proposal is later rejected — revert to AI suggestion?
-- Final fixed main category list
-
-### Fixed Main Category List — Needs Design Work
-
-The AI currently uses free text categories. Before
-launch this needs to be replaced with a curated fixed list.
-
-Plan:
-- A config file at backend/config/categories.py holds
-  the official list
-- Every entry is a main category only — subcategories
-  are umbrella problems created through the democratic
-  proposal system
-- The AI must choose a main category from this list
-- The AI assigns to the closest existing approved
-  subcategory/umbrella within that main category
-- If no subcategories exist yet for a main category,
-  AI assigns to main category only and flags for
-  human review
-
-Placeholder main categories to use until real list
-is designed:
-Roads and Infrastructure, Housing and Homelessness,
-Public Safety, Environmental Issues, Education,
-Public Transit, Water and Utilities, Parks and
-Recreation, Economic Development,
-Government Accountability
-
-This list grows through the democratic proposal system
-after launch. Platform owner controls the seed list.
-
-### Post Creation Flow — Full Vision
-
-When a user creates a post the UI should offer:
-
-1. Write your problem description
-2. Write your proposed solution
-3. Select governance levels (city, county, state, federal)
-4. Category assignment — three options:
-   a. Let AI decide (default)
-   b. Pick from existing approved categories yourself
-   c. Propose a new category or umbrella problem
-
-Option c launches the proposal flow inline. The post
-still gets submitted immediately. The proposal enters
-the approval pipeline separately.
-
-This makes proposing new ideas feel fast and natural —
-not like a bureaucratic side process.
+- [x] **P0-01** CLAUDE.md rewritten and approved (2026-09-07)
+- [x] **P0-02** PROJECT.md written
+- [x] **P0-03** DEMOCRACY.md written
+- [x] **P0-04** DATABASE.md written
+- [x] **P0-05** ARCHITECTURE.md written
+- [x] **P0-06** TODO.md restructured (this file)
+- [x] **P0-07** HISTORY.md converted to the new format
+- [x] **P0-08** AUDIT.md written
+- [ ] **P0-09** SANDBOX.md written (Docker Sandboxes on Ubuntu, Ollama from the VM, scoped token, worktree-per-trial)
+- [ ] **P0-10** Demo 1 build brief written
+- [ ] **P0-11** New Claude.ai project instructions written (document-writer and reviewer role, not prompt-writer)
+- [~] **P0-12** Seed files (DATABASE.md §5): geography (counties), settings, officials, umbrellas drafted 2026-09-11 in `seeds/`; **director still owes** `seed_cities.csv` (full city list from CA DOF E-1) and a review of the umbrella placeholders
+- [ ] **P0-13** Director obtains a web search API key and names the provider (ARCHITECTURE §8.2)
+- [ ] **P0-14** Repo housekeeping on `main` by PR: move HOPES.md, the Summary, and old `docs/design/` to `archive/`; delete `files(2)`, `files(3)`, `files(4)`; add the new documents; add `.env.example`; regenerate `infra/.env` and `backend/.env` secrets locally
+- [ ] **P0-15** Sandbox set up on the workstation and verified: Ollama reachable, `main` push refused, `demo/01` push accepted
 
 ---
 
-## 🔵 Phase 3 Tasks (Blockchain / IPFS)
+## Phase 1 — Foundation, first build (in Demo 1)
 
-- [ ] IPFS content storage for posts
-- [ ] Polygon blockchain trust layer
-- [ ] Web3 transparency layer for AI impact tracking
-- [ ] Redis token blacklist (also listed above under auth)
-- [ ] Merkle tree hashing for post content
+Full rigor. Built by a long run; audited by AUDIT.md procedure; merged
+to `main` by PR when the audit passes. Each id is a unit the brief and
+the audit refer to.
 
----
+### Infrastructure
+- [ ] **F-01** `pyproject.toml` at repo root; `backend` as a package; layer directories per ARCHITECTURE §2
+- [ ] **F-02** `settings_env.py` with every key in ARCHITECTURE §3; startup refuses on missing keys; `.env.example`
+- [ ] **F-03** Async engine + session (asyncpg); Alembic with `foundation` and `iteration` branch labels
+- [ ] **F-04** Redis client; rate limiter; typed exceptions and the single error handler
+- [ ] **F-05** Structured logging with request ids
 
-## 📋 Day 3 Remaining Prompts
+### Accounts and auth
+- [ ] **F-06** `users`, `user_display_settings`, `terms_versions`, `terms_acceptances` (DATABASE §3.1, 3.2, 3.5)
+- [ ] **F-07** Signup with terms acceptance and email verification token; `console` email backend
+- [ ] **F-08** Login; access JWT with `jti`; refresh token rotation and reuse detection (DATABASE §3.3)
+- [ ] **F-09** Logout with Redis `jti` blacklist
+- [ ] **F-10** Password reset flow
+- [ ] **F-11** `verified_user`, `admin_user`, `community_member` dependencies; `last_active_at` debounce
+- [ ] **F-12** Display settings endpoint and author-display rendering rule
+- [ ] **F-13** Data export (async job, JSON, expiring file)
+- [ ] **F-14** Account deletion with the anonymization procedure (DATABASE §3.1)
 
-If picking up development, these prompts still need to be run in Claude Code in order:
+### Reference data and record
+- [ ] **F-15** Geography tables and seed from `seed_geography.yaml` (all incorporated cities)
+- [ ] **F-16** Officials table and seed
+- [ ] **F-17** Settings table, seed, `services/settings.py` with cache, public `GET /settings` and history
+- [ ] **F-18** `admin_actions` and `ai_actions` tables; public read endpoints
+- [ ] **F-19** Seed runner `python -m backend.seed --dry-run/--apply` with two-way coverage report
+- [ ] **F-20** `verify_schema.py`; `reconcile.py` skeleton (Foundation checks only)
 
-1. ✅ **Prompt 3 — Connect the Frontend** — signup page, login page, and feed page built and verified
-2. ✅ **Prompt 4 — AI Labeling Pipeline** — labeler built in ai/labeler.py; background task wired into POST /posts; four verification tests passed
+### Legal and frontend
+- [ ] **F-21** Privacy policy, terms, cookie consent pages with placeholder text marked DRAFT; terms version recorded at signup
+- [ ] **F-22** Frontend: signup, login, verify, forgot/reset, `/me`, legal pages; `api.ts` with in-memory access token and cookie refresh
 
----
-
-## 🛠️ Useful Commands
-
-```bash
-# Start everything for a dev session
-cd ~/direct-democracy-ca/infra && docker compose up -d
-cd ../backend && pipenv run uvicorn main:app --port 8000 &
-cd ../frontend && npm run dev
-
-# Shut everything down
-pkill -f "uvicorn main:app"
-cd ~/direct-democracy-ca/infra && docker compose down
-
-# Run a database migration after a schema change
-cd ~/direct-democracy-ca/backend
-pipenv run alembic revision --autogenerate -m "your description"
-pipenv run alembic upgrade head
-
-# Check current Alembic migration version
-pipenv run alembic current
-
-# Check what's in the database
-docker exec infra-postgres-1 psql -U ddcuser -d directdemocracy -c "\dt"
-```
+### Tests
+- [ ] **F-23** Auth tests (rotation, reuse, blacklist); anonymization test; every endpoint's 401/403
 
 ---
 
-## 📍 Current Status
+## Phase 2 — Iteration, Demo 1
 
-| Layer | Status |
-|-------|--------|
-| Database (PostgreSQL + Redis) | ✅ Running in Docker |
-| Backend API (FastAPI) | ✅ 20+ endpoints live at localhost:8000 |
-| Authentication (JWT) | ✅ Login, logout, /auth/me all working |
-| Alembic migrations | ✅ Set up, create_all removed |
-| Database indexes | ✅ 11 indexes in place |
-| Rate limiting | ✅ On all write endpoints |
-| Error handling | ✅ No stack traces leaked to client |
-| California geography seed | ✅ 1 state, 58 counties, 10 cities |
-| Frontend (Next.js) | ✅ Connected — signup, login, feed pages live at localhost:3000 |
-| AI labeling pipeline | ✅ Live — ai/labeler.py; background task on POST /posts; Ollama llama3.2 |
-| Category config | ✅ backend/config/categories.py — 10 main categories |
-| Umbrella assignment | ✅ Labeling and umbrella assignment are the same action — PostUmbrellaIssue + Solution.umbrella_issue_id both set |
-| Refresh tokens | ❌ Not built |
-| Email verification | ❌ Not built |
-| Account deletion | ❌ Not built |
-| Feed algorithm | ❌ Not designed yet |
+Demo mode. Built by a long run on `demo/01`. Rebuilt in Demo 2 from the
+documents, not from this code.
+
+### Data
+- [ ] **I-01** Iteration schema, single fresh migration (DATABASE §4); `main_categories` sync from config
+- [ ] **I-02** Umbrella seed from `seed_umbrellas.yaml`
+
+### Posts and labeling
+- [ ] **I-03** `POST /posts` per DEMOCRACY §4.1 (AI or pick; no propose); `content_hash`; `label_status`
+- [ ] **I-04** Ollama client; `ai/prompts/labeler.md`; `label_post` job writing `ai_actions` → `labels` → `post_communities`
+- [ ] **I-05** Confirm / correct label; `label_retry` job
+- [ ] **I-06** `GET /feed` feed-v0 with filters and the printed ranking explanation
+
+### Workshop
+- [ ] **I-07** Solutions with versions; author-edit rule; `GET /solutions/{id}`
+- [ ] **I-08** Votes table; `PUT/DELETE /votes`; net-score recompute; `rules.py` with `threshold()` and docstring; `RULES_VERSION`
+- [ ] **I-09** Dominant evaluation on vote and nightly; `dominant_since`
+- [ ] **I-10** Amendments: create (dominant only), withdraw, absorption → new version, supersede others
+- [ ] **I-11** Similarity: embed client, `similarity_check` job, `same`/`different` decisions, merged supporter counting
+- [ ] **I-12** Comments: threaded, depth cap, edit window, soft remove, votes
+- [ ] **I-13** References: user-added; AI recommendation pipeline with search client and two prompt files; useful/not-useful; rejection
+- [ ] **I-14** Umbrella page endpoint assembling every DEMOCRACY §3.3 section including the AI action list
+
+### Cycle
+- [ ] **I-15** Cycles with state machine and `settings_snapshot`; one-open-per-community constraint
+- [ ] **I-16** Prepare: qualification snapshot, frozen ballot items, jury draw with logged pool and random bytes
+- [ ] **I-17** Jury: duties endpoint, accept/decline with replacement, hold-back with category and text, majority computation, re-qualification rules
+- [ ] **I-18** Ballot: open/close, yes/no votes with verification level stamp, results with `simple_majority` and quorum
+- [ ] **I-19** After close: `last_ballot_*` on solutions; "needs new version to return" rule
+- [ ] **I-20** Summary: canonical JSON, SHA-256, `summaries` row, public page data, `/verify`, `/hashes`, `/results`
+- [ ] **I-21** PDF export with hash in footer
+- [ ] **I-22** `mailto:` send-to-representatives with directory recipients
+- [ ] **I-23** Admin endpoints for every director control (DEMOCRACY §13), each logging to `admin_actions`
+- [ ] **I-24** `reconcile.py` Iteration checks (net scores, dominance, orphans, hashes)
+
+### Frontend
+- [ ] **I-25** `/feed`, `/posts/new`, `/umbrellas/[id]`, `/solutions/[id]`
+- [ ] **I-26** `/ballot`, `/jury`, `/results`, `/summaries/...`
+- [ ] **I-27** `/settings`, `/ai/actions`, `/admin/log`, `/admin`
+- [ ] **I-28** Style brief applied; images-off check; keyboard and screen-reader pass on every page
+
+### Tests
+- [ ] **I-29** `rules.py` table-driven tests at boundaries
+- [ ] **I-30** Full-cycle integration test (ARCHITECTURE §10)
+- [ ] **I-31** Hash round-trip test on summaries and solution versions
 
 ---
 
-*Last updated: Day 3 — after completing Prompts 1, 2, 3, and 4*
+## Phase 3 — Demo 2 candidates
 
-## 📝 Session Log
-Claude Code appends a one-line entry here after every 
-completed prompt so there is a permanent record of what 
-changed and when.
+Not scheduled. Pulled forward by the director after Demo 1 is used.
 
-Format: [Day X — Prompt Y] Brief description of what was built
+- [ ] **D2-01** Proposal system (PROJECT.md parking lot) — "propose a new umbrella" in the post form; proposal tables; thresholds; dormancy; similarity grouping
+- [ ] **D2-02** Comment moderation (needed before the friends beta)
+- [ ] **D2-03** Real quorum decision and implementation
+- [ ] **D2-04** Hysteresis on dominant status, if the audit shows flapping
+- [ ] **D2-05** AI writing assist on the post form (makes AI influence real)
+- [ ] **D2-06** Email notifications for jury duty and ballot open
+- [ ] **D2-07** Timers firing for jury review and ballot window (replacing director controls)
+- [ ] **D2-08** Deployment for the friends beta; HTTPS; invite gate; final legal text
 
-[Day 3 — Prompt 3] Connected Next.js frontend — signup, login, and feed pages built and verified; axios API client with JWT auth; root redirects to /feed
-[Day 3 — Design Session] Finalized category + umbrella architecture. Subcategory = umbrella problem. AI always assigns to highest similarity existing umbrella, never creates new ones. Only humans create new umbrellas through proposal system. Full democratic proposal system designed and saved to TODO.md.
-[Day 3 — Prompt 4] Built AI labeling + umbrella assignment pipeline. Subcategory = umbrella problem. AI always assigns to closest existing umbrella. Background task wired into POST /posts. Four verification tests passed.
+---
+
+## Director Decisions Pending
+
+Questions the documents flag; Demo 1 proceeds with the stated default.
+
+| # | Question | Default | Where |
+|---|---|---|---|
+| 1 | Hysteresis on dominant status | none | DEMOCRACY §7.1 |
+| 2 | Real ballot quorum | 1 | DEMOCRACY §10.4 |
+| 3 | Jury for tiny communities | proceed with fewer/none, say so | DEMOCRACY §8.1 |
+| 4 | Amendment absorbed by a single upvote on an unsupported solution | allowed | DEMOCRACY §15 |
+| 5 | "Strong" votes anywhere | no | DEMOCRACY §15 |
+| 6 | Keep home city/county on deleted accounts | keep | DATABASE §3.1 |
+| 7 | Web search provider | unchosen; 503 until set | ARCHITECTURE §8.2 |
+| 8 | Hosting for friends beta | local only | PROJECT.md parking lot |
+
+---
+
+## Technical Debt
+
+What makes it bite, not only what it is.
+
+- **Legacy code on `main` violates Laws 7, 10, 11** (inline prompt string, module-level Ollama constants, sync sessions in async handlers). Bites the moment anything is built on top of it. Resolved by Demo 1 replacing it; until then, nothing new is built on `main`.
+- **Polymorphic community reference** `(community_level, community_entity_id)` cannot be a database FK. Orphans are possible on a bad write. Mitigated by `services/community.py::resolve` on every write and the nightly orphan check. Bites if a write path bypasses the service.
+- **Denormalized `net_score` and `is_dominant`** can drift from the vote rows under concurrent votes. Mitigated by recompute-on-vote inside the transaction and nightly reconcile. Bites at scale; acceptable for demos.
+- **`console` email backend** means no real verification email; Demo 1 reads links from the log. Bites at the friends beta — SMTP must be configured and tested first.
+- **Redis loss fails rate-limiting open.** Acceptable locally; must be revisited before deployment.
+- **Iteration ids restart per demo**; `ai_actions.demo_build` disambiguates but nothing else does. Bites if any Foundation table ever stores an Iteration id without the build label — the audit checks for this.
+
+---
+
+*Last updated: 2026-09-11 — framework migration, Phase 0.*

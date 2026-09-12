@@ -1,240 +1,376 @@
-# Direct Democracy Cali — Developer Constitution
+# CLAUDE.md — Direct Democracy Cali Constitution
 
-## Mission
-We are building a civic engagement platform that gives California
-communities the power to document problems, debate solutions, and
-hold government accountable through transparent, democratic processes.
-Every line of code we write serves that mission.
+> This document is the constitution. It holds the principles and universal
+> laws that govern every design decision and every line of code.
+>
+> Constitutional principles are stable. They are not revised casually. Any
+> change to this document requires explicit director approval.
+>
+> When CLAUDE.md and any other document conflict, CLAUDE.md wins. The
+> other document is corrected.
+>
+> Read this first when reorienting on the project.
 
 ---
 
-## Core Principles
+## The Mission
 
-### 1. The Platform Serves the People
-Every technical decision must ask: does this serve the community
-or does this serve us? Features that extract value from users,
-manipulate behavior, or prioritize engagement over wellbeing are
-forbidden. We are not building an addictive app. We are building
-a civic tool.
+Direct Democracy Cali is a civic engagement platform that gives ordinary
+California citizens the tools that only well-funded political
+organizations currently have. Citizens document problems in their
+communities, workshop solutions together, vote on the solutions that
+earn broad agreement, and deliver the results to the people who
+represent them.
 
-### 2. Radical Transparency
-Nothing on this platform is hidden from the people who use it.
-- All algorithms that affect what users see must be explainable
-  in plain language and publicly documented
-- AI involvement in any content must be disclosed and measurable
-- Platform revenue and expenses are publicly displayed
-- Moderation decisions must be documented and appealable
-- Every rule in this constitution is published publicly for
-  the community to read and challenge
+The platform is built to maximize democratic output, not engagement:
+real problems documented, real solutions debated, real pressure applied
+to the right level of government. Where those two goals conflict, the
+platform chooses democracy.
 
-### 3. Democratic Neutrality
+For the current scope, see PROJECT.md. For how a problem becomes
+pressure, see DEMOCRACY.md.
+
+---
+
+## The Principles
+
+**1. The platform serves the people.**
+Every technical decision must ask: does this serve the community or
+does this serve us? Features that extract value from users, manipulate
+behavior, or prioritize engagement over wellbeing are forbidden. We are
+not building an addictive app. We are building a civic tool. When in
+doubt, build the version that gives the citizen more power.
+
+**2. Radical transparency.**
+Nothing on this platform is hidden from the people who use it. Every
+algorithm that affects what users see is explainable in plain language
+and publicly documented. Every AI action is disclosed and logged. Every
+threshold, rule, and setting that shapes a democratic outcome is a
+public value, printed wherever it is applied. Platform revenue and
+expenses are publicly displayed. Moderation decisions are documented
+and appealable. This constitution is published for the community to
+read and challenge.
+
+Transparency includes transparency about weakness. Where the platform
+cannot verify something — that a voter is a resident, that text was
+written without outside AI — it says so plainly rather than implying a
+certainty it does not have.
+
+**3. Democratic neutrality.**
 The rules are identical. The experience is personal.
 
-- Every vote carries equal weight regardless of who cast it
-- The ranking formula is identical for all content — no post
-  receives a secret algorithmic boost or penalty
-- Influence Score never affects the ranking or visibility
-  of a user's posts — it affects only reward payouts
-- Personalized feeds exist and are expected — users see
-  different content based on their own chosen preferences,
-  follows, and governance filters
-- The platform never silently personalizes based on
-  demographics, inferred political identity, or behavioral
-  profiling without the user's explicit knowledge and consent
-- All personalization settings are visible, adjustable,
-  and owned by the user
-- We do not accept advertising that could bias content
-- The one declared exception to equal ranking is the Small
-  Voice protection — this rule is publicly stated, applies
-  to all content equally, and is a democratic principle
-  not a manipulation
+- Every vote carries equal weight regardless of who cast it. Account
+  verification level is disclosed in aggregate and never used to weight
+  a vote.
+- The ranking formula is identical for all content. No post, solution,
+  or comment receives a secret boost or penalty.
+- Personalized feeds exist and are expected — users see different
+  content based on their own chosen preferences, follows, and
+  governance filters. All personalization settings are visible,
+  adjustable, and owned by the user.
+- The platform never personalizes based on demographics, inferred
+  political identity, or behavioral profiling without the user's
+  explicit knowledge and consent. Gender and political party are
+  collected for aggregate public reporting only; they never influence
+  what any individual sees.
+- We do not accept advertising that could bias content.
+- The one declared exception to equal ranking is the Small Voice
+  protection (Principle 4). It is publicly stated and applies to all
+  content equally.
 
-### 4. The Small Voice Matters
-Democracy fails when majority opinion silences all dissent.
-- The evolutionary algorithm must surface outlier viewpoints
-  even when they have fewer votes
-- Mutation posts with unique perspectives receive a documented
-  minimum visibility threshold regardless of vote count
-- This protection applies equally to all political directions —
-  a conservative minority view in a liberal community gets the
-  same protection as a liberal minority view in a conservative one
-- The exact visibility threshold is a public platform setting
-  that the community can vote to adjust
+**4. The Small Voice matters.**
+Democracy fails when majority opinion silences all dissent. Minority
+viewpoints receive a documented minimum visibility regardless of vote
+count. This protection applies equally to all political directions — a
+conservative minority in a liberal community gets the same protection
+as a liberal minority in a conservative one. The exact visibility rule
+is a public platform setting that the community can vote to adjust.
+Downvotes lower a ranking; they never hide content.
 
-### 5. AI Accountability
+**5. AI accountability.**
 AI is a tool that serves human judgment, never the other way around.
-- Every post must track and display its AI contribution percentage
-- AI-generated labels can always be corrected by users
-- The AI's suggestions are advisory, never authoritative
-- All AI impact data must be cryptographically hashed and
-  permanently recorded — users have the right to know how much
-  AI influenced civic discourse
-- The AI cannot take any action that affects the democratic
-  weight of a vote
 
-### 6. User Sovereignty
+- AI sorts, suggests, summarizes, and recommends. It never decides.
+  AI never creates a category or umbrella, never casts or weights a
+  vote, never advances a solution through any threshold, and never
+  takes an action that affects the democratic weight of anything.
+- Every AI action is labeled where it appears and recorded in a
+  permanent public log: what acted, on what, when, and with what
+  result.
+- Every post and solution displays its AI-influence figure, defined in
+  DEMOCRACY.md as the share of its text produced by AI the platform
+  provided. Every umbrella displays the list of AI actions taken on it.
+- AI-generated labels and suggestions can always be corrected by users,
+  and every correction is recorded.
+- AI impact data is cryptographically hashed and permanently recorded.
+  Users have the right to know how much AI influenced civic discourse.
+
+**6. User sovereignty.**
 Users own their identity. The civic record belongs to the community.
-- Users can export all their personal data at any time
-- Users can delete their account at any time — when deleted,
-  all personal identifying information (name, email, password)
-  is permanently erased
-- Posts and AI correction data from deleted accounts are
-  anonymized and attributed to "Former Community Member" —
-  the civic record is preserved but the identity is removed
-- Content hashes are never deleted because they are public
-  cryptographic proofs, not personal data — users are informed
-  of this distinction at signup
-- No dark patterns — no manipulative UI that tricks users
-  into unintended actions
-- Users control their own feed and the platform cannot
-  override their preferences without consent
 
-### 7. Security as a Civic Duty
-Real people will trust this platform with their political views.
-That trust is sacred.
-- Never store raw passwords — always bcrypt hash
-- Never hardcode credentials — always use environment variables
-- Always sanitize user input before storing
-- Rate limit all endpoints that create or modify data
-- When in doubt, choose the more secure option even if it
-  takes longer to build
+- Real name is collected at signup for integrity. Users control what is
+  shown publicly, including full anonymity. The public display is a
+  setting, not an account type.
+- Users can export all their personal data at any time.
+- Users can delete their account at any time. All personal identifying
+  information — name, email, password, location — is permanently
+  erased. Posts, solutions, comments, votes, and AI-correction data are
+  anonymized and attributed to "Former Community Member." The civic
+  record is preserved; the identity is removed.
+- Content hashes are never deleted. They are public cryptographic
+  proofs, not personal data. Users are told this at signup.
+- Solutions are community-owned once posted. Authorship is recorded;
+  control is not retained.
+- No dark patterns. Users control their own feed, and the platform
+  cannot override their preferences without consent.
 
-### 8. Accessibility and Inclusion
-Democracy only works when everyone can participate.
-- All frontend components must be accessible (ARIA labels,
-  keyboard navigation, screen reader support)
-- Plain language over technical jargon in all UI copy
-- The platform must work on low-end devices and slow connections
-- Never assume the user is technical
-- Complex concepts like blockchain and AI hashing must be
-  explained in plain language wherever they appear in the UI
+**7. Security as a civic duty.**
+Real people will trust this platform with their political views. That
+trust is sacred. Never store raw passwords. Never hardcode credentials.
+Always sanitize input. Rate limit every write. When in doubt, choose
+the more secure option even if it takes longer to build.
+
+**8. Accessibility and inclusion.**
+Democracy only works when everyone can participate. Every component is
+accessible — ARIA labels, keyboard navigation, screen readers. Plain
+language over jargon in all UI copy. The platform works on low-end
+devices and slow connections, and every page works with images off.
+Never assume the user is technical. Complex concepts — hashing, AI
+influence, verification levels — are explained in plain language
+wherever they appear.
 
 ---
 
-## Technical Laws
+## The Two Halves of the Codebase
 
-These are non-negotiable rules that apply to every piece of
-code written in this project.
+The project is built in two halves that move on different clocks.
+Every prompt states which half it belongs to.
 
-### Security Laws
-- NEVER commit .env files or any file containing credentials
-- ALWAYS hash passwords with bcrypt before storing
-- ALWAYS validate and sanitize user input before saving to database
-- ALWAYS use parameterized queries — never string-interpolate SQL
-- ALWAYS rate limit endpoints that create or modify data
-- Passwords must be minimum 8 characters with uppercase and number
-- NEVER expose internal error details to the client — log them
-  server-side and return a generic message to the user
+**Foundation** is built once, kept, and evolved carefully. It holds
+everything a real person trusts the platform with: infrastructure,
+accounts, authentication, verification, user rights, legal pages,
+email, geography, and deployment. Foundation is under full rigor from
+the day this constitution is adopted: numbered immutable migrations,
+pre-checks before every edit, evidence pasted for every claim.
 
-### Code Quality Laws
-- ALWAYS use TypeScript on the frontend — never plain JavaScript
-- ALWAYS use async/await in Python — never synchronous blocking calls
-- ALWAYS write descriptive variable names — code is read more
-  than it is written
-- ALWAYS add a comment explaining WHY when doing something non-obvious
-- NEVER leave TODO comments in committed code — either fix it
-  or create a GitHub issue
-- ALWAYS handle errors explicitly — never silently swallow exceptions
+**Iteration** is the civic machinery — posts, umbrellas, the workshop,
+the jury, the ballot, the summary document, and all of their UI. It is
+rebuilt freely, demo after demo, and each rebuild starts from the
+documents rather than the previous code. Iteration schema is
+regenerated fresh for each demo. When a demo build becomes worth
+keeping, the director declares it the **keeper**, and from that build
+onward Iteration is under the same rigor as Foundation.
 
-### Database Laws
-- NEVER delete columns from the database — mark them deprecated
-  and stop using them (protects historical civic data)
-- ALWAYS use Alembic migrations for schema changes — never
-  modify tables directly
-- All schema changes require an Alembic migration. Never use
-  create_all in production. Never modify existing migrations.
-- ALWAYS index foreign keys and frequently queried columns
-- ALWAYS use transactions when multiple tables are updated together
-- The content_hash column on posts is permanent public record —
-  it is never modified or deleted after creation
+The boundary rule: Iteration code may read Foundation tables but never
+migrates them. Foundation prompts never touch Iteration tables. The
+two halves share one repository and one database, and the split is
+recorded table by table in DATABASE.md.
 
-### AI Transparency Laws
-- EVERY post saved to the database must record ai_contribution_percentage
-- EVERY AI label must record whether it was confirmed or corrected
-  by the user
-- AI correction data is anonymized but never deleted when a
-  user leaves — it is part of the platform's learning record
-- The Merkle tree hash of post content plus AI metadata must be
-  generated at post creation and is immutable from that point forward
-- AI must never influence vote weight, vote count, or vote visibility
+---
 
-### Democratic Algorithm Laws
-- The sorting algorithm must be documented in plain English
-  in the codebase alongside the code itself
-- Any change to how content is ranked must be logged, versioned,
-  and reversible
-- A/B testing on any feature that affects vote weight or content
-  ranking is permanently forbidden
-- A/B testing is permitted only on visual design, layout, and
-  non-ranking UI elements
-- Mutation post visibility threshold is a configurable public
-  setting — it is never hardcoded silently
-- The algorithm treats all political viewpoints identically —
-  no viewpoint receives preferential ranking treatment
+## The Universal Laws
+
+The principles are the values. The laws are the operational rules that
+follow from them. They apply to every line of code in the project.
+
+**1. Every post has a solution.** A post cannot be saved without at
+least one solution. Citizens propose what they want done; they do not
+only complain. This is enforced in the application and reflected in
+the schema.
+
+**2. Schema changes are Alembic migrations.** Every change to the
+database is a migration file, applied in order. No ad-hoc
+`ALTER TABLE`, no `create_all` outside a test. Foundation migrations
+are immutable once applied. Iteration migrations are immutable from
+the keeper build onward.
+
+**3. Columns are deprecated, never deleted.** Applies to every table
+under rigor. A deprecated column is commented as such in `models.py`
+and no new code writes to it. This protects historical civic data.
+
+**4. Foreign keys and queried columns are indexed.** Always.
+
+**5. Multi-table writes are transactions.** Always.
+
+**6. `content_hash` is permanent.** Generated at creation for every
+post, solution, and summary document from the content plus its AI
+metadata. Never modified or deleted afterward.
+
+**7. Every AI action is a row.** Labels, recommendations, groupings,
+summaries — each one is recorded before its result is shown, with
+model, input, output, and whether a user later confirmed or corrected
+it. AI prompts are files under `ai/prompts/`, never strings in Python.
+
+**8. Thresholds and rules are public settings.** Every number that
+decides a democratic status — dominant, absorbed, qualified, active
+user, jury size, ballot window — lives in the settings table, is
+displayed on a public page, and is printed in every summary document
+it produced. Never a constant in code. Any change is logged and
+versioned.
+
+**9. Ranking is documented beside the code.** Every ordering rule has
+a plain-English explanation in the same file as the code, and a
+version number. A/B testing on anything that affects ranking or vote
+weight is permanently forbidden; on visual design and layout it is
+permitted.
+
+**10. Configuration is centralized.** Ports, URLs, model names,
+secrets, and anything that differs between machines live in `.env` and
+are read through `backend/config/`. No module reads the environment
+directly. No `.env` file is ever committed.
+
+**11. Async all the way down.** Every IO operation is `async`.
+Database access is through SQLAlchemy's async session on asyncpg;
+HTTP through httpx's async client. No blocking calls inside `async`
+code.
+
+**12. Errors are explicit.** Never swallowed, never exposed. Caught
+where they can be handled, logged server-side with full detail,
+returned to the client as a generic message. No `except: pass`. No
+`TODO` or `FIXME` in committed code — open items belong in TODO.md.
+
+**13. Input is validated and parameterized.** Every request body is a
+Pydantic model. Every query is parameterized. Passwords are bcrypt
+hashed, minimum 8 characters with an uppercase letter and a number.
+Every endpoint that creates or modifies data is rate limited.
+
+**14. The backend is independent of the frontend.** Every action is
+invocable from the API alone. The UI is a view onto the backend and
+never a venue for business logic. The frontend is TypeScript, always.
 
 ---
 
 ## The Stack
 
 | Layer | Technology | Location |
-|-------|-----------|----------|
-| Frontend Web | Next.js + TypeScript + Tailwind | /frontend |
-| Mobile App | Expo (React Native) | /mobile |
-| Backend API | Python FastAPI | /backend |
-| Database | PostgreSQL | Docker via /infra |
-| Cache | Redis | Docker via /infra |
-| AI Labeling | Ollama llama3.2 (local RTX 5090) | /ai |
-| Content Storage | IPFS | Phase 3 |
-| Trust Layer | Polygon blockchain | Phase 3 |
-| Auth | JWT tokens + bcrypt | /backend |
+|---|---|---|
+| Frontend | Next.js + TypeScript + Tailwind | `/frontend` |
+| Backend API | Python FastAPI, async SQLAlchemy | `/backend` |
+| Database | PostgreSQL | Docker via `/infra` |
+| Cache | Redis | Docker via `/infra` |
+| Migrations | Alembic | `/backend/alembic` |
+| Auth | JWT + refresh tokens + bcrypt | `/backend` |
+| AI labeling and recommendation | Ollama on the local GPU | `/ai` |
+| AI reference search | Web search API (provider is configuration) | `/ai` |
+| Mobile | Expo (React Native) | Deferred |
+| Content storage / trust layer | IPFS, Polygon | Deferred |
+
+File structure: routes in `/backend/routers/`, models in
+`/backend/models.py`, configuration in `/backend/config/`, AI code and
+prompt files in `/ai/`, pages in `/frontend/src/app/`, components in
+`/frontend/src/components/`, Docker in `/infra/`. `main.py` is for app
+initialization and route registration only.
 
 ---
 
-## File Structure Laws
-- All new backend routes go in /backend/routers/ as separate files
-- All database models stay in /backend/models.py
-- All frontend pages go in /frontend/src/app/
-- All reusable frontend components go in /frontend/src/components/
-- All AI scripts go in /ai/
-- All Docker configs go in /infra/
-- Never put business logic in main.py — it is only for
-  app initialization and route registration
+## Before Every Feature
+
+1. Does this give users more power or less?
+2. Is the AI's role transparent and correctable?
+3. Could this be used to manipulate a democratic outcome?
+4. Does this work on a slow phone in a low-income neighborhood?
+5. If a bad actor abused this, what is the worst case?
+6. Is this serving the community or an engagement metric?
+7. Does this treat every political viewpoint identically?
+8. If we disappeared tomorrow, could the community understand and audit
+   everything this does?
 
 ---
 
-## Before Every Feature Ask These Questions
-1. Does this feature give users more power or less?
-2. Is the AI's role in this feature transparent and correctable?
-3. Could this feature be used to manipulate democratic outcomes?
-4. Does this work for someone on a slow phone in a low-income neighborhood?
-5. If this feature were abused by a bad actor, what is the worst case?
-6. Is this serving the community or serving engagement metrics?
-7. Does this treat all political viewpoints identically?
-8. If we disappeared tomorrow, could the community understand
-   and audit everything this feature does?
+## The Document Map
+
+Seven documents define this project. Each has a single job. They do not
+overlap.
+
+| Document | Scope | Edit cadence | Approval |
+|---|---|---|---|
+| **CLAUDE.md** | Constitution. Principles and laws. | Rare. | Director required. |
+| **PROJECT.md** | Mission, scope, the parking lot. | When scope changes. | Director required. |
+| **DEMOCRACY.md** | The civic process. How a problem becomes pressure: umbrellas, workshop, thresholds, jury, ballot, summary document, AI roles. | When the process changes. | Director for process philosophy. |
+| **ARCHITECTURE.md** | Backend shape, layer boundaries, external services. | When the durable layer evolves. | Director for design philosophy. |
+| **DATABASE.md** | Schema, the Foundation/Iteration split, migration practice. | When schema evolves. | Director for design philosophy. |
+| **TODO.md** | Phase-aligned task tracker and technical debt. | Per session. | Routine. |
+| **HISTORY.md** | Append-only session log. | Per session. | Append-only — no edits. |
+
+Plus **archive/** — superseded documents kept for reference, not
+authoritative. `HOPES.md`, `DirectDemocracyCali_ProjectSummary_v2.md`,
+and the pre-2026-09-05 `docs/design/` files live there once PROJECT.md
+and DEMOCRACY.md have absorbed them.
 
 ---
 
-## The North Star
-When confused about what to build or how to build it, return
-to this: We are giving ordinary California citizens the tools
-that only well-funded political organizations currently have.
-Every feature should feel like handing power to someone who
-did not have it before.
+## How HISTORY.md Works
+
+HISTORY.md is the project's running journal. TODO holds the checklist
+of what is to be done; HISTORY holds the narrative of what was decided,
+encountered, and learned. Both Claude.ai planning sessions and Claude
+Code build sessions produce entries. Build sessions are where the
+highest-value detail lives — bugs, surprises, rejected approaches.
+
+Every entry records, where applicable: completed work with paths and
+function names; decisions made that the documents did not pre-resolve,
+with rationale; issues encountered and how they were resolved;
+deviations from the prompt and why; document changes flagged; open
+follow-ups.
+
+```
+## YYYY-MM-DD — Session M (which half — Foundation or Iteration)
+
+**Completed:**
+**Decisions made:**
+**Issues encountered:**
+**Notes:**
+**Document changes flagged:**
+```
+
+Sections with nothing to record are omitted.
+
+Rules: append-only, never edit a past entry — a reversal is recorded in
+the current entry. One entry per session. The director provides the
+date; the session uses it as-is. The session drafts its own entry at the
+end of its work; the director reviews and accepts it. The last two
+entries are read at the start of every session.
 
 ---
 
 ## Session Law
 
-At the start of every Claude Code session:
-1. Read CLAUDE.md fully
-2. Read TODO.md fully
-3. Confirm current status before writing any code
+At the start of every session:
+1. Read CLAUDE.md fully.
+2. Read TODO.md fully — the Current Status Snapshot says what state the
+   project is actually in.
+3. Read the last two entries of HISTORY.md.
+4. Read the sections of PROJECT.md, DEMOCRACY.md, ARCHITECTURE.md, and
+   DATABASE.md relevant to the task.
+5. Confirm current status against the actual files before writing any
+   code.
 
 At the end of every completed prompt:
-1. Update TODO.md — mark completed items ✅
-2. Add any new technical debt discovered
-3. Add any new future tasks that came up
-4. Update the Current Status table
-5. Append one line to the Session Log at the bottom of TODO.md
-   Format: [Day X — Prompt Y] Brief description of what was built
+1. Update TODO.md — mark completed items, update the snapshot, record
+   new technical debt.
+2. Append the HISTORY.md entry.
+3. Do not edit CLAUDE.md, PROJECT.md, DEMOCRACY.md, ARCHITECTURE.md, or
+   DATABASE.md unless the prompt explicitly asks. Flag needed changes in
+   HISTORY.md instead.
+
+---
+
+## Editing This Document
+
+CLAUDE.md changes only with explicit director approval. The proposed
+change is described in a planning session; the director approves the
+exact wording, requests revisions, or declines; only then does the
+document change, and the change is recorded in HISTORY.md with its
+rationale. If the change is structural — a new principle, a removed
+law, a renumbering — every referring document is updated to match.
+Typo fixes that don't change meaning may be made without ceremony but
+are still noted in HISTORY.md.
+
+---
+
+## The North Star
+
+When confused about what to build or how to build it, return to this:
+we are giving ordinary California citizens the tools that only
+well-funded political organizations currently have. Every feature
+should feel like handing power to someone who did not have it before.

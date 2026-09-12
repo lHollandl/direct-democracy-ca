@@ -1,0 +1,11 @@
+county,city,incorporated,fips
+# DIRECTOR: replace this file with the full list of California incorporated cities.
+# Source: California Department of Finance, "E-1 Population Estimates for Cities, Counties, and the State"
+#   (https://dof.ca.gov → Forecasting → Demographics → Estimates) — the E-1 spreadsheet lists every
+#   incorporated city under its county. Export the city/county columns to this CSV.
+# Columns: county (must match a name in seed_geography.yaml), city, incorporated (true), fips (7-digit place code, optional — leave blank if unknown).
+# The seed runner stops if this file has only these header/comment lines.
+Santa Clara,San Jose,true,0668000
+Santa Clara,Santa Clara,true,0669084
+Santa Clara,Sunnyvale,true,0677000
+Solano,Vallejo,true,0681666

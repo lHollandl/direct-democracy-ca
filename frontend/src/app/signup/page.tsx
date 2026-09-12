@@ -1,20 +1,55 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signup } from '@/lib/api';
+import { signup, getCounties, getCities, County, City } from '@/lib/api';
 import axios from 'axios';
 
 export default function SignupPage() {
   const router = useRouter();
+
+  // Account fields
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Location fields — optional
+  const [counties, setCounties] = useState<County[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
+  const [selectedCountyId, setSelectedCountyId] = useState<number | ''>('');
+  const [selectedCityId, setSelectedCityId] = useState<number | ''>('');
+  const [loadingCounties, setLoadingCounties] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
+
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Load all 58 California counties once on mount (state_id=1)
+  useEffect(() => {
+    setLoadingCounties(true);
+    getCounties(1)
+      .then(setCounties)
+      .catch(() => {/* silently skip — location is optional */})
+      .finally(() => setLoadingCounties(false));
+  }, []);
+
+  // Reload cities whenever the selected county changes
+  useEffect(() => {
+    if (!selectedCountyId) {
+      setCities([]);
+      setSelectedCityId('');
+      return;
+    }
+    setLoadingCities(true);
+    setSelectedCityId('');
+    getCities(selectedCountyId)
+      .then(setCities)
+      .catch(() => {/* silently skip */})
+      .finally(() => setLoadingCities(false));
+  }, [selectedCountyId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,7 +62,14 @@ export default function SignupPage() {
 
     setSubmitting(true);
     try {
-      await signup(username, email, password, dateOfBirth);
+      await signup(
+        username,
+        email,
+        password,
+        dateOfBirth,
+        selectedCountyId !== '' ? selectedCountyId : undefined,
+        selectedCityId !== '' ? selectedCityId : undefined,
+      );
       router.push('/login?message=Account+created!+Please+log+in.');
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.data?.detail) {
@@ -40,6 +82,9 @@ export default function SignupPage() {
     }
   }
 
+  const inputClass = 'w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500';
+  const selectClass = 'w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed';
+
   return (
     <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -47,7 +92,7 @@ export default function SignupPage() {
         <p className="text-gray-400 mb-8">Join the civic conversation in California.</p>
 
         {error && (
-          <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded mb-6">
+          <div role="alert" className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded mb-6">
             {error}
           </div>
         )}
@@ -63,7 +108,7 @@ export default function SignupPage() {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              className={inputClass}
             />
           </div>
 
@@ -77,7 +122,7 @@ export default function SignupPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              className={inputClass}
             />
           </div>
 
@@ -91,7 +136,7 @@ export default function SignupPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              className={inputClass}
             />
             <p className="text-gray-500 text-xs mt-1">
               At least 8 characters, one uppercase letter, and one number.
@@ -101,9 +146,7 @@ export default function SignupPage() {
           <div>
             <label htmlFor="dob" className="block text-sm font-medium text-gray-300 mb-1">
               Date of birth{' '}
-              <span className="text-gray-500 font-normal">
-                (required by law for users under 13)
-              </span>
+              <span className="text-gray-500 font-normal">(required by law for users under 13)</span>
             </label>
             <input
               id="dob"
@@ -111,8 +154,71 @@ export default function SignupPage() {
               required
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              className={inputClass}
             />
+          </div>
+
+          {/* Location — optional, warm conversational copy per design intent */}
+          <div className="pt-2 pb-1 border-t border-gray-800">
+            <p className="text-gray-200 font-medium mb-1">Where do you live?</p>
+            <p className="text-gray-400 text-sm mb-4">
+              This helps us show you what&apos;s happening in your community. You can skip
+              this and set it later.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="county" className="block text-sm font-medium text-gray-300 mb-1">
+                  County <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <select
+                  id="county"
+                  value={selectedCountyId}
+                  onChange={(e) => setSelectedCountyId(e.target.value ? Number(e.target.value) : '')}
+                  disabled={loadingCounties}
+                  aria-busy={loadingCounties}
+                  className={selectClass}
+                >
+                  <option value="">
+                    {loadingCounties ? 'Loading…' : 'Skip for now'}
+                  </option>
+                  {counties.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} County
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="city" className="block text-sm font-medium text-gray-300 mb-1">
+                  City <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <select
+                  id="city"
+                  value={selectedCityId}
+                  onChange={(e) => setSelectedCityId(e.target.value ? Number(e.target.value) : '')}
+                  disabled={!selectedCountyId || loadingCities}
+                  aria-busy={loadingCities}
+                  className={selectClass}
+                >
+                  <option value="">
+                    {!selectedCountyId
+                      ? 'Choose a county first'
+                      : loadingCities
+                      ? 'Loading…'
+                      : cities.length === 0
+                      ? 'No cities listed for this county yet'
+                      : 'Skip for now'}
+                  </option>
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-start gap-3">

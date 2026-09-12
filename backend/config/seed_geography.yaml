@@ -1,0 +1,125 @@
+# seed_geography.yaml — California state and counties.
+# Cities are loaded from seed_cities.csv (see DATABASE.md §5 and the note in HISTORY 2026-09-11 Session 2).
+# County FIPS codes: California is state 06; counties are odd numbers 001–115 in alphabetical order.
+
+state:
+  name: California
+  abbreviation: CA
+
+counties:
+  - name: Alameda
+    fips: "06001"
+  - name: Alpine
+    fips: "06003"
+  - name: Amador
+    fips: "06005"
+  - name: Butte
+    fips: "06007"
+  - name: Calaveras
+    fips: "06009"
+  - name: Colusa
+    fips: "06011"
+  - name: Contra Costa
+    fips: "06013"
+  - name: Del Norte
+    fips: "06015"
+  - name: El Dorado
+    fips: "06017"
+  - name: Fresno
+    fips: "06019"
+  - name: Glenn
+    fips: "06021"
+  - name: Humboldt
+    fips: "06023"
+  - name: Imperial
+    fips: "06025"
+  - name: Inyo
+    fips: "06027"
+  - name: Kern
+    fips: "06029"
+  - name: Kings
+    fips: "06031"
+  - name: Lake
+    fips: "06033"
+  - name: Lassen
+    fips: "06035"
+  - name: Los Angeles
+    fips: "06037"
+  - name: Madera
+    fips: "06039"
+  - name: Marin
+    fips: "06041"
+  - name: Mariposa
+    fips: "06043"
+  - name: Mendocino
+    fips: "06045"
+  - name: Merced
+    fips: "06047"
+  - name: Modoc
+    fips: "06049"
+  - name: Mono
+    fips: "06051"
+  - name: Monterey
+    fips: "06053"
+  - name: Napa
+    fips: "06055"
+  - name: Nevada
+    fips: "06057"
+  - name: Orange
+    fips: "06059"
+  - name: Placer
+    fips: "06061"
+  - name: Plumas
+    fips: "06063"
+  - name: Riverside
+    fips: "06065"
+  - name: Sacramento
+    fips: "06067"
+  - name: San Benito
+    fips: "06069"
+  - name: San Bernardino
+    fips: "06071"
+  - name: San Diego
+    fips: "06073"
+  - name: San Francisco
+    fips: "06075"
+  - name: San Joaquin
+    fips: "06077"
+  - name: San Luis Obispo
+    fips: "06079"
+  - name: San Mateo
+    fips: "06081"
+  - name: Santa Barbara
+    fips: "06083"
+  - name: Santa Clara
+    fips: "06085"
+  - name: Santa Cruz
+    fips: "06087"
+  - name: Shasta
+    fips: "06089"
+  - name: Sierra
+    fips: "06091"
+  - name: Siskiyou
+    fips: "06093"
+  - name: Solano
+    fips: "06095"
+  - name: Sonoma
+    fips: "06097"
+  - name: Stanislaus
+    fips: "06099"
+  - name: Sutter
+    fips: "06101"
+  - name: Tehama
+    fips: "06103"
+  - name: Trinity
+    fips: "06105"
+  - name: Tulare
+    fips: "06107"
+  - name: Tuolumne
+    fips: "06109"
+  - name: Ventura
+    fips: "06111"
+  - name: Yolo
+    fips: "06113"
+  - name: Yuba
+    fips: "06115"
