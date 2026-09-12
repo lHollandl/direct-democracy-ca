@@ -1,0 +1,31 @@
+# seed_officials.yaml — officials directory for the Demo 1 test communities.
+# Every email is the placeholder ${OFFICIALS_TEST_EMAIL}; the seed runner substitutes the value from .env.
+# Real names and addresses are a parking-lot task (PROJECT.md, "Delivery"). Holder names are left blank on purpose.
+officials:
+  - community_level: city
+    community: San Jose            # resolved to cities.id via county below
+    county: Santa Clara
+    office: Mayor
+    holder_name: ""
+    email: ${OFFICIALS_TEST_EMAIL}
+  - community_level: city
+    community: San Jose
+    county: Santa Clara
+    office: City Council (all districts)
+    holder_name: ""
+    email: ${OFFICIALS_TEST_EMAIL}
+  - community_level: county
+    community: Santa Clara         # resolved to counties.id
+    office: Board of Supervisors
+    holder_name: ""
+    email: ${OFFICIALS_TEST_EMAIL}
+  - community_level: state
+    community: California
+    office: State Assembly Member
+    holder_name: ""
+    email: ${OFFICIALS_TEST_EMAIL}
+  - community_level: state
+    community: California
+    office: State Senator
+    holder_name: ""
+    email: ${OFFICIALS_TEST_EMAIL}

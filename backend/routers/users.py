@@ -21,6 +21,9 @@ class UserCreate(BaseModel):
     agreed_to_terms: bool
     agreed_to_terms_version: str
     political_party: str | None = None
+    # Home location — optional at signup; users can set or update later
+    county_id: int | None = None
+    city_id: int | None = None
 
     @field_validator("password")
     @classmethod
@@ -84,6 +87,8 @@ async def create_user(
         agreed_to_terms_at=datetime.now(timezone.utc),
         agreed_to_terms_version=user_data.agreed_to_terms_version,
         political_party=user_data.political_party,
+        county_id=user_data.county_id,
+        city_id=user_data.city_id,
     )
     db.add(user)
     db.commit()

@@ -1,0 +1,63 @@
+# seed_umbrellas.yaml — umbrellas for the Demo 1 test communities.
+# Three communities: (city, San Jose), (county, Santa Clara), (state, California).
+# main_category is the slug from backend/config/categories.py.
+# Statements are one paragraph, written as a problem, not a solution.
+# DIRECTOR: edit freely; these are placeholders to make the demo usable. Change the city to yours if San Jose is not it.
+umbrellas:
+  # ---- City: San Jose ----
+  - community_level: city
+    community: San Jose
+    county: Santa Clara
+    main_category: roads_and_infrastructure
+    name: Road Damage and Pothole Repair
+    statement: Many San Jose streets have potholes, cracked pavement, and faded lane markings that damage vehicles, endanger cyclists, and go unrepaired for months after being reported.
+  - community_level: city
+    community: San Jose
+    county: Santa Clara
+    main_category: public_safety
+    name: Pedestrian Safety Near Schools
+    statement: Intersections and crossings near schools lack crosswalks, signals, or crossing guards, and drivers routinely speed through them during drop-off and pick-up hours.
+  - community_level: city
+    community: San Jose
+    county: Santa Clara
+    main_category: housing_and_homelessness
+    name: Encampments Along Creeks and Trails
+    statement: Encampments along the creeks and trails create health and safety concerns for residents living there and for the neighborhoods around them, and the city's response has been inconsistent.
+  - community_level: city
+    community: San Jose
+    county: Santa Clara
+    main_category: parks_and_recreation
+    name: Park Maintenance and Restroom Access
+    statement: Neighborhood parks have broken equipment, locked or unmaintained restrooms, and irregular cleaning, which keeps families from using them.
+  # ---- County: Santa Clara ----
+  - community_level: county
+    community: Santa Clara
+    main_category: public_transit
+    name: Bus and Light Rail Frequency
+    statement: Bus and light rail service is too infrequent outside commute hours for residents who depend on it to reach work, school, and medical appointments.
+  - community_level: county
+    community: Santa Clara
+    main_category: housing_and_homelessness
+    name: Affordable Housing Supply
+    statement: Rents and home prices across the county have outpaced wages, and the number of new affordable units approved each year is far below the documented need.
+  - community_level: county
+    community: Santa Clara
+    main_category: environmental_issues
+    name: Wildfire Smoke and Air Quality Response
+    statement: During wildfire smoke events, residents lack clear guidance and clean-air spaces, and schools and workplaces make inconsistent decisions about staying open.
+  # ---- State: California ----
+  - community_level: state
+    community: California
+    main_category: water_and_utilities
+    name: Electricity Costs and Reliability
+    statement: Electricity rates keep rising while planned outages and wildfire-prevention shutoffs leave households and small businesses without power for hours or days.
+  - community_level: state
+    community: California
+    main_category: government_accountability
+    name: Public Access to Government Records
+    statement: Public records requests are routinely delayed or denied, and there is no consistent, enforceable timeline for agencies to respond.
+  - community_level: state
+    community: California
+    main_category: education
+    name: Teacher Retention and Classroom Funding
+    statement: Schools struggle to keep qualified teachers because pay has not kept up with housing costs, and classroom budgets depend heavily on local fundraising.

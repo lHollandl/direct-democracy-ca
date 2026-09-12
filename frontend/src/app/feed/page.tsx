@@ -2,13 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getPosts, getMe, logout, Post, UserProfile } from '@/lib/api';
+import { getPosts, getMe, getCities, logout, Post, City, UserProfile } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
-function formatLocations(locations: Post['locations']): string {
+// Resolves a post's locations to a human-readable string using a pre-loaded
+// city name map. Falls back to "City #N" for any city not yet in the map.
+function formatLocations(
+  locations: Post['locations'],
+  cityMap: Map<number, string>,
+): string {
   if (!locations || locations.length === 0) return 'Unspecified location';
   return locations
     .map((loc) => {
+      if (loc.location_type === 'city' && loc.location_id !== null) {
+        return cityMap.get(loc.location_id ?? -1) ?? `City #${loc.location_id}`;
+      }
       const type = loc.location_type.charAt(0).toUpperCase() + loc.location_type.slice(1);
       return loc.location_id ? `${type} #${loc.location_id}` : type;
     })
@@ -19,13 +27,19 @@ export default function FeedPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  // Map of city_id → city name, populated on mount from GET /cities
+  const [cityMap, setCityMap] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     async function load() {
       try {
-        const [fetchedPosts, me] = await Promise.allSettled([getPosts(), getMe()]);
+        const [fetchedPosts, me, cities] = await Promise.allSettled([
+          getPosts(),
+          getMe(),
+          getCities(),
+        ]);
 
         if (fetchedPosts.status === 'fulfilled') {
           setPosts(fetchedPosts.value);
@@ -37,6 +51,11 @@ export default function FeedPage() {
           setCurrentUser(me.value);
         }
         // Silently ignore auth failure — anonymous browsing is allowed
+
+        if (cities.status === 'fulfilled') {
+          setCityMap(new Map(cities.value.map((c: City) => [c.id, c.name])));
+        }
+        // Silently ignore city lookup failure — feed still works, just shows "City #N"
       } finally {
         setLoading(false);
       }
@@ -127,15 +146,16 @@ export default function FeedPage() {
                   : post.content}
               </p>
 
-              {post.solution && (
+              {post.solutions.length > 0 && (
                 <div className="bg-gray-700 rounded px-3 py-2 mb-3 text-sm">
                   <span className="text-gray-400">Proposed solution: </span>
-                  <span className="text-gray-200">{post.solution.title}</span>
+                  <span className="text-gray-200">{post.solutions[0].content.slice(0, 100)}{post.solutions[0].content.length > 100 ? '…' : ''}</span>
                 </div>
               )}
 
               <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>{formatLocations(post.locations)}</span>
+                <span>Posted by {post.username}</span>
+                <span>{formatLocations(post.locations, cityMap)}</span>
                 <span>{post.vote_count} vote{post.vote_count !== 1 ? 's' : ''}</span>
                 <span>
                   {new Date(post.created_at).toLocaleDateString('en-US', {

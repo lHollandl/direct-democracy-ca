@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from auth import create_access_token, get_current_user
 from database import get_db
 from limiter import limiter
-from models import User
+from models import City, County, User
 
 router = APIRouter(prefix="/auth")
 
@@ -40,6 +40,12 @@ class UserProfile(BaseModel):
     created_at: datetime
     influence_score: int
     political_party: str | None
+    # Home location IDs — set during signup, used to pre-fill the post form
+    county_id: int | None
+    city_id: int | None
+    # Human-readable names — resolved from the DB by get_me and set as transient attrs
+    county_name: str | None
+    city_name: str | None
 
     model_config = {"from_attributes": True}
 
@@ -82,10 +88,30 @@ async def logout(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/me", response_model=UserProfile)
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Returns the profile of the currently authenticated user.
     The frontend calls this on page load to confirm the stored token is still valid.
+    Includes county_name and city_name so the post form can display the user's
+    home location without an extra round-trip.
     Never returns hashed_password or any internal security fields.
     """
+    county_name = None
+    city_name = None
+
+    if current_user.county_id:
+        county = db.query(County).filter(County.id == current_user.county_id).first()
+        county_name = county.name if county else None
+
+    if current_user.city_id:
+        city = db.query(City).filter(City.id == current_user.city_id).first()
+        city_name = city.name if city else None
+
+    # Set as transient attributes — Pydantic reads these via from_attributes
+    current_user.county_name = county_name
+    current_user.city_name = city_name
+
     return current_user

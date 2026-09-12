@@ -24,6 +24,18 @@ export default apiClient;
 
 // --- Types ---
 
+export interface County {
+  id: number;
+  name: string;
+  state_id: number;
+}
+
+export interface City {
+  id: number;
+  name: string;
+  county_id: number;
+}
+
 export interface UserProfile {
   id: number;
   username: string;
@@ -31,6 +43,10 @@ export interface UserProfile {
   created_at: string;
   influence_score: number;
   political_party: string | null;
+  county_id: number | null;
+  city_id: number | null;
+  county_name: string | null;
+  city_name: string | null;
 }
 
 export interface PostLocation {
@@ -41,8 +57,9 @@ export interface PostLocation {
 
 export interface SolutionSummary {
   id: number;
-  title: string;
+  title: string | null; // deprecated — nullable since migration 9ad861d88d23
   content: string;
+  governance_levels: string[] | null;
   upvote_count: number;
   ai_contribution_percentage: number;
   content_hash: string | null;
@@ -51,6 +68,7 @@ export interface SolutionSummary {
 export interface Post {
   id: number;
   user_id: number;
+  username: string;
   title: string;
   content: string;
   created_at: string;
@@ -60,7 +78,7 @@ export interface Post {
   label_count: number;
   vote_count: number;
   locations: PostLocation[];
-  solution: SolutionSummary | null;
+  solutions: SolutionSummary[];
 }
 
 // --- API functions ---
@@ -70,6 +88,8 @@ export async function signup(
   email: string,
   password: string,
   dateOfBirth: string,
+  countyId?: number,
+  cityId?: number,
 ): Promise<void> {
   await apiClient.post('/users', {
     username,
@@ -78,6 +98,8 @@ export async function signup(
     date_of_birth: dateOfBirth,
     agreed_to_terms: true,
     agreed_to_terms_version: '1.0',
+    ...(countyId !== undefined ? { county_id: countyId } : {}),
+    ...(cityId !== undefined ? { city_id: cityId } : {}),
   });
 }
 
@@ -103,14 +125,26 @@ export async function getPosts(locationFilter?: {
   return response.data;
 }
 
+export async function getCounties(stateId: number): Promise<County[]> {
+  const response = await apiClient.get('/counties', { params: { state_id: stateId } });
+  return response.data;
+}
+
+export async function getCities(countyId?: number): Promise<City[]> {
+  const response = await apiClient.get('/cities', {
+    params: countyId !== undefined ? { county_id: countyId } : undefined,
+  });
+  return response.data;
+}
+
 export async function createPost(data: {
   title: string;
   content: string;
-  solution_title: string;
-  solution_content: string;
+  solutions: Array<{ content: string; governance_levels: string[] }>;
   locations: Array<{ location_type: string; location_id?: number | null }>;
   ai_contribution_percentage?: number;
   ai_model_used?: string | null;
+  manual_category?: string | null;
 }): Promise<Post> {
   const response = await apiClient.post('/posts', data);
   return response.data;

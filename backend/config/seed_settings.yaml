@@ -1,0 +1,24 @@
+# seed_settings.yaml — Demo 1 defaults for every setting in DEMOCRACY.md §7.4.
+# Every value is a string; backend/services/settings.py parses by key.
+# Seeded as the first row per key with changed_by = null (seed) and reason = "Demo 1 default".
+settings:
+  active_user_window_days: "30"
+  dominant_pct: "5"
+  dominant_min: "3"
+  amendment_pct: "25"
+  amendment_min: "3"
+  ballot_pct: "10"
+  ballot_min: "5"
+  ballot_min_dominant_days: "3"
+  similarity_threshold: "0.85"
+  similarity_confirm_min: "2"
+  jury_size: "3"
+  jury_no_repeat_cycles: "0"
+  jury_review_days: "2"
+  ballot_window_days: "7"
+  ballot_pass_rule: "simple_majority"
+  ballot_quorum_min: "1"
+  comment_max_depth: "3"
+  comment_edit_minutes: "15"
+  label_retry_minutes: "10"
+  references_ai_max_per_umbrella: "5"
