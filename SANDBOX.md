@@ -7,9 +7,9 @@
 > prove the boundary holds.
 >
 > Commands marked **verified** come from Docker's documentation as of
-> 2026-09-10. Items marked **confirm on first setup** are things the
-> docs did not settle; the director records the answer in HISTORY.md
-> and this document is updated.
+> 2026-09-10 or were confirmed on the director's workstation on
+> 2026-09-12 (**confirmed**). Items still marked **confirm on first
+> setup** remain open.
 
 ---
 
@@ -43,10 +43,11 @@ above, or the ability to reach the internet at large.
 - The director's user in the `kvm` group:
   `sudo usermod -aG kvm $USER`, then log out and in.
 - Ollama installed and running on the host, serving on its default
-  port (11434), with `OLLAMA_MODEL` and `EMBED_MODEL` pulled. **Confirm
-  on first setup:** whether Ollama must bind to `0.0.0.0` rather than
-  `127.0.0.1` for the VM to reach it (set `OLLAMA_HOST=0.0.0.0` in
-  Ollama's service environment if so).
+  port (11434), with `OLLAMA_MODEL` and `EMBED_MODEL` pulled.
+  **Confirmed:** Ollama must bind to all interfaces. `sudo systemctl
+  edit ollama`, add `[Service]` / `Environment="OLLAMA_HOST=0.0.0.0"`,
+  restart. The VM reaches it at the host's LAN address (the
+  `192.168.x.x` line of `ip -4 addr show`), not `localhost`.
 
 ---
 
@@ -60,10 +61,11 @@ sbx login
 ```
 
 `sbx login` opens a browser for Docker sign-in (a Docker account is
-required; free). Then confirm:
+required; free). Then confirm (`sbx --version` is not a flag; the bare command prints
+help):
 
 ```
-sbx --version
+sbx
 ```
 
 ---
@@ -79,10 +81,12 @@ sandbox authenticates on its own.
 ### 4.2 GitHub
 The fine-grained token from the security cleanup (repo:
 `direct-democracy-ca`; Contents and Pull requests read/write; 30-day
-expiry). **Confirm on first setup:** the exact `sbx secret` or
-`sbx settings` mechanism for a GitHub token in clone mode (Docker's
-"Authenticate tools" and "Credentials" pages). The token is set once
-per sandbox and lives nowhere on the host filesystem in plain text.
+expiry). **Confirmed:** stored once with `sbx secret set github` (paste
+when prompted; `sbx secret ls` shows names only). It is a *service
+secret*: the sandbox proxy attaches it to GitHub requests on the
+agent's behalf and **the token never enters the sandbox filesystem or
+process** — Claude Code cannot read it or leak it. Renew every 30
+days with the same command.
 
 The `main` ruleset (require PR, block force push, restrict deletions)
 is what stops this token reaching `main`. If the ruleset is ever
@@ -94,7 +98,14 @@ every Foundation run.
 ## 5. Network Policy
 
 Default-deny with an explicit allowlist. Set once on the host; applies
-to every sandbox on this machine (verified command form):
+to every sandbox on this machine. **Confirmed:** the base posture must
+be initialized first or every `allow` fails with 412:
+
+```
+sbx policy init deny-all
+```
+
+Then the allowlist (confirmed 2026-09-12; each prints "Rule added"):
 
 ```
 sbx policy allow network api.anthropic.com
@@ -111,17 +122,15 @@ sbx policy allow network production.cloudflare.docker.com
 sbx policy allow network <host-ollama-address>:11434
 ```
 
-**Confirm on first setup:**
-- Whether `sbx` is deny-by-default or allow-by-default when no rules
-  exist. If allow-by-default, add `sbx policy deny network 0.0.0.0/0`
-  first, then the allows (Docker's "Local policy" page covers presets
-  and precedence).
-- The address the VM uses to reach the host — Docker's docs for the
-  `--model --provider ollama` flag show that `sbx` can connect to a
-  host Ollama, which implies a host address exists; record it. The
-  app's `OLLAMA_BASE_URL` in the sandbox `.env` is that address.
-- Whether the web search provider's domain needs adding (it does, once
-  chosen — TODO P0-13).
+**Confirmed:** `<host-ollama-address>` is the host's LAN IP (currently
+`192.168.1.165`; re-check with `ip -4 addr show` if the router
+reassigns it, and update the rule). A blocked request returns
+"Blocked by network policy: domain … — no matching allow rule", which
+is the expected result for anything not listed. The app's
+`OLLAMA_BASE_URL` in the sandbox `.env` is `http://<that address>:11434`.
+
+**Still open:** the web search provider's domain must be added once a
+provider is chosen (TODO P0-13).
 
 Nothing else is allowed. In particular: no SMTP, no arbitrary web. A
 build that "needs" another domain stops and reports; the director adds
@@ -205,10 +214,11 @@ a `HIGH` finding against the auditor.
 
 ---
 
-## 7. Boundary Checks (run once after setup, record in HISTORY.md)
+## 7. Boundary Checks (run 2026-09-12 — all seven passed; screenshots held by the director)
 
 Inside a throwaway sandbox (`sbx run --clone --name boundary-test
-shell .`):
+shell .`). The sandbox user is `agent`, home is `/home/agent`, and the
+clone is at `/home/agent/workspace`.
 
 1. `curl -sS https://api.anthropic.com` — reachable (any HTTP response).
 2. `curl -sS https://example.com` — **blocked**.
@@ -222,7 +232,12 @@ shell .`):
 7. `git push origin HEAD:demo/boundary-test` — accepted; delete the
    branch on GitHub afterwards.
 
-All seven must pass before the first real run. TODO P0-15.
+All seven passed on 2026-09-12: 1 → HTTP 404 (reachable); 2 → blocked
+by policy; 3 → model list including `llama3.2` and `nomic-embed-text`;
+4 → only `workspace`, no `.ssh`; 5 → empty container list; 6 → rejected
+with GH013 "Changes must be made through a pull request"; 7 → new
+branch created (deleted afterwards). Re-run after any change to the
+policy, the ruleset, or the token. TODO P0-15 done.
 
 ---
 
@@ -242,13 +257,10 @@ All seven must pass before the first real run. TODO P0-15.
 
 Recorded in TODO P0-15's HISTORY entry when resolved:
 
-- Host address for Ollama from the VM; whether `OLLAMA_HOST=0.0.0.0` is
-  needed.
-- Default network posture (deny vs allow) and the exact deny-all rule.
-- GitHub token injection mechanism in clone mode.
 - Port exposure for using the demo from the host browser.
 - Read-only filesystem policy for the audit sandbox.
-- `sbx` subcommands for listing and removing sandboxes.
+- `sbx` subcommands for listing and removing sandboxes (`sbx --help`
+  lists them; record the exact names when first used).
 
 Sources: Docker Sandboxes docs — Install, Claude Code agent page,
 Network access policies (all dated 2026-09-10); Anthropic, "Choose a
