@@ -62,13 +62,13 @@ Done in Claude.ai planning sessions; no Claude Code involved.
 - [x] **P0-06** TODO.md restructured (this file)
 - [x] **P0-07** HISTORY.md converted to the new format
 - [x] **P0-08** AUDIT.md written
-- [ ] **P0-09** SANDBOX.md written (Docker Sandboxes on Ubuntu, Ollama from the VM, scoped token, worktree-per-trial)
-- [ ] **P0-10** Demo 1 build brief written
-- [ ] **P0-11** New Claude.ai project instructions written (document-writer and reviewer role, not prompt-writer)
+- [x] **P0-09** SANDBOX.md written (Docker Sandboxes on Ubuntu, Ollama from the VM, scoped token, worktree-per-trial)
+- [x] **P0-10** Demo 1 build brief written
+- [x] **P0-11** New Claude.ai project instructions written (PROJECT_INSTRUCTIONS.md; director installs it in the project settings) (document-writer and reviewer role, not prompt-writer)
 - [~] **P0-12** Seed files (DATABASE.md §5): geography (counties), settings, officials, umbrellas drafted 2026-09-11 in `seeds/`; **director still owes** `seed_cities.csv` (full city list from CA DOF E-1) and a review of the umbrella placeholders
 - [ ] **P0-13** Director obtains a web search API key and names the provider (ARCHITECTURE §8.2)
-- [ ] **P0-14** Repo housekeeping on `main` by PR: move HOPES.md, the Summary, and old `docs/design/` to `archive/`; delete `files(2)`, `files(3)`, `files(4)`; add the new documents; add `.env.example`; regenerate `infra/.env` and `backend/.env` secrets locally
-- [ ] **P0-15** Sandbox set up on the workstation and verified: Ollama reachable, `main` push refused, `demo/01` push accepted
+- [x] **P0-14** Repo housekeeping (PR #1 merged 2026-09-12; follow-up PR swaps in the full city list and removes PROJECT_INSTRUCTIONS.md from the repo) on `main` by PR: move HOPES.md, the Summary, and old `docs/design/` to `archive/`; delete `files(2)`, `files(3)`, `files(4)`; add the new documents; add `.env.example`; regenerate `infra/.env` and `backend/.env` secrets locally
+- [x] **P0-15** Sandbox set up and verified 2026-09-12: all seven boundary checks passed (SANDBOX.md §7)
 
 ---
 
@@ -192,6 +192,7 @@ Questions the documents flag; Demo 1 proceeds with the stated default.
 | 6 | Keep home city/county on deleted accounts | keep | DATABASE §3.1 |
 | 7 | Web search provider | unchosen; 503 until set | ARCHITECTURE §8.2 |
 | 8 | Hosting for friends beta | local only | PROJECT.md parking lot |
+| 9 | Residents of unincorporated areas have no city to select at signup (~10% of Californians) | blocked at signup | proposed: selectable "Unincorporated [County] County" → county + state communities only; decide before friends beta |
 
 ---
 

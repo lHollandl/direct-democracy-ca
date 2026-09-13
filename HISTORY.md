@@ -400,3 +400,28 @@ smart feed / cluster mechanics; Small Voice implementation; real representative 
 
 **Document changes flagged:**
 - The seed runner must support the `${VAR}` substitution and the CSV input; ARCHITECTURE.md does not yet say so explicitly — add to §7 or DATABASE §5 in the next planning pass, or let the build record it.
+
+---
+
+## 2026-09-12 — Session 1 (Director + Claude.ai — sandbox setup and verification)
+
+**Completed:**
+- Docker Engine 29.8.0 and `sbx` installed on the workstation; `sbx login` done; KVM confirmed.
+- Ollama bound to all interfaces (`OLLAMA_HOST=0.0.0.0`); models present: `llama3.2`, `llama3.1:8b`, `nomic-embed-text`, `qwen2.5vl:7b`, `qwen2.5vl:32b`.
+- Network policy initialized `deny-all`; twelve allow rules added (Anthropic, GitHub ×4, PyPI ×2, npm, Docker Hub ×3, host Ollama at `192.168.1.165:11434`).
+- GitHub fine-grained token `ddc-sandbox` (repo-scoped, Contents + Pull requests, 30 days, expires 2026-10-12) stored as `sbx secret set github`.
+- All seven boundary checks passed (SANDBOX.md §7). Push to `main` from the sandbox rejected by ruleset GH013; push to `demo/boundary-test` accepted and the branch deleted.
+- PR #1 merged: the eight documents, `briefs/demo-01.md`, seed files, `.env.example`, `archive/`, stray folders removed.
+- `seed_cities.csv` generated from the CA Department of Finance E-1 2026 list: 483 incorporated cities, 58 counties; "El Paso de Robles (Paso Robles)" → Paso Robles, "San Buenaventura (Ventura)" → Ventura; San Francisco added as a city under its county; Alpine, Mariposa, Trinity have none (correct).
+
+**Decisions made:**
+- `sbx --version` is not a flag; the bare `sbx` prints help. SANDBOX.md corrected.
+- The GitHub token is a proxy-attached service secret and never enters the sandbox; SANDBOX.md updated to say so.
+
+**Issues encountered:**
+- First allowlist attempt failed with 412 because no base policy existed; `sbx policy init deny-all` resolved it. Recorded in SANDBOX.md §5.
+- Gap found while building the city seed: residents of unincorporated areas have no city to choose and signup requires one. Added as Director Decision Pending #9.
+
+**Document changes flagged:**
+- Follow-up PR: full `seed_cities.csv`, remove `PROJECT_INSTRUCTIONS.md` from the repo, updated SANDBOX.md / TODO.md / HISTORY.md.
+- Remaining before Demo 1: search provider (optional), Anthropic `/login` inside the first sandbox, project instructions installed in Claude.ai.
