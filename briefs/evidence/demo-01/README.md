@@ -14,6 +14,7 @@ originals, including the parts too long to put in the session log.
 | `pages.txt` | every frontend route in ARCHITECTURE.md §9 served by `next start` with the API running |
 | `a11y.txt` | the images-off and accessibility checks (I-28) |
 | `reconcile.json` | `backend/scripts/reconcile.py --dry-run` against the data the walkthrough produced |
+| `restore-ballot-min-dominant-days.txt` | the settings change putting `ballot_min_dominant_days` back to 3 after the walkthrough, with the resulting public history and a read-only check that the rule bites again |
 
 Two things these files cannot show, both recorded in HISTORY.md:
 

@@ -49,6 +49,7 @@ comes next. Phase 0 remains complete except the optional search provider.*
 | Summary document | I | Built: canonical JSON, SHA-256, verifier, hash list, PDF, `mailto:` | |
 | Director controls | I | Built; every one writes to the public admin log | |
 | Frontend | I/F | Every route in ARCHITECTURE §9 built and rendering | No browser available, so no screenshots |
+| Demo database | — | Loaded by the build walkthrough; `ballot_min_dominant_days` back to 3 | Cycle 2 in San Jose is `prepared` with zero items and blocks the next prepare until the director publishes it |
 
 ---
 
@@ -239,7 +240,9 @@ What makes it bite, not only what it is.
 - **`ballot_min_dominant_days` has to be lowered to walk through a demo in one
   day.** The walkthrough does this as a logged settings change, which is the
   right mechanism, but it means the build's own evidence never exercises the
-  three-day rule. Bites if the rule is wrong: nothing here would show it.
+  three-day rule. Bites if the rule is wrong: nothing here would show it. The
+  setting was put back to 3 the same way at the end of the run, so the public
+  history reads 3 → 0 → 3; the *habit* is the debt, not the value.
 - **A three-person community cannot produce a three-person jury.** The draw
   excludes the authors of every qualified solution and every administrator, so
   the demo's jury was one person and a hold-back needed one voice. The

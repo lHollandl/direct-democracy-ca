@@ -2016,3 +2016,133 @@ None of the five protected documents were edited. The six observations above are
 for the director to decide on. TODO.md was updated as the session law requires:
 every F and I id marked, the status snapshot rewritten, and nine new
 technical-debt entries added with what makes each of them bite.
+
+
+**Addendum (same session, later) — `ballot_min_dominant_days` restored to 3.**
+The open follow-up above is closed. The build lowered the setting to 0 so the
+walkthrough could reach a ballot inside one day; it is back to 3, changed the
+same way it was lowered — through `POST /admin/settings`, by an administrator,
+with a reason written for the community rather than for the build. The settings
+table is append-only, so the public history now reads **3 → 0 → 3** with all
+three reasons attached, and the change is row 8 of the public administrator log.
+Nothing in code was touched; the value only ever lived in the `settings` table
+(Law 8).
+
+The last block below is a read-only check, and it is the part that matters: it
+reads the live setting through `services/settings.py` and asks `rules.py` what
+would qualify now. Solutions 1 and 2 are still dominant and still above the
+ballot threshold, but `dominant_long_enough` is **NOT met** for either — they
+became dominant today. Under 0 that condition passed. The rule is genuinely
+back in force, not merely a different number on a page.
+
+```
+$ curl -X POST http://127.0.0.1:8000/admin/settings   (Maria, administrator)
+{"key":"ballot_min_dominant_days","old_value":0,"new_value":3,"message":"Changed. The new value is on the public settings page and the change is in the public admin log."}
+HTTP 200
+
+--- the public settings history, no login needed: 3 -> 0 -> 3 ---
+$ curl http://127.0.0.1:8000/settings/history?key=ballot_min_dominant_days
+[
+    {
+        "key": "ballot_min_dominant_days",
+        "value": "3",
+        "effective_from": "2026-09-14T02:50:56.593978Z",
+        "changed_by": "MariaD",
+        "reason": "Restoring the Demo 1 default. It was lowered to 0 so the build walkthrough could reach a ballot inside a single day; that walkthrough is finished and its results are published, so the three-day dominance requirement is back in force. No result published while it was 0 should be read as one a real community could have produced."
+    },
+    {
+        "key": "ballot_min_dominant_days",
+        "value": "0",
+        "effective_from": "2026-09-14T02:05:41.310828Z",
+        "changed_by": "MariaD",
+        "reason": "This walkthrough runs inside a single day, and the three-day dominance requirement would make a ballot unreachable. Restore it to 3 before any real community uses this."
+    },
+    {
+        "key": "ballot_min_dominant_days",
+        "value": "3",
+        "effective_from": "2026-09-14T02:03:40.563309Z",
+        "changed_by": "the platform seed",
+        "reason": "Demo 1 default"
+    }
+]
+
+--- the value now in force ---
+$ curl http://127.0.0.1:8000/settings
+{
+  "key": "ballot_min_dominant_days",
+  "value": 3,
+  "raw_value": "3",
+  "meaning": "How many days a solution must have been dominant before it can go on a ballot.",
+  "defined_in": "DEMOCRACY.md \u00a77.2",
+  "effective_from": "2026-09-14T02:50:56.593978Z",
+  "changed_by_user_id": 1,
+  "reason": "Restoring the Demo 1 default. It was lowered to 0 so the build walkthrough could reach a ballot inside a single day; that walkthrough is finished and its results are published, so the three-day dominance requirement is back in force. No result published while it was 0 should be read as one a real community could have produced.",
+  "set_by": "an administrator"
+}
+
+--- the public administrator log, no login needed ---
+$ curl http://127.0.0.1:8000/admin/log?limit=2
+[
+  {
+    "id": 8,
+    "administrator": "MariaD",
+    "action": "change_setting",
+    "subject_type": "setting",
+    "subject_id": null,
+    "old_value": {
+      "key": "ballot_min_dominant_days",
+      "value": 0
+    },
+    "new_value": {
+      "key": "ballot_min_dominant_days",
+      "value": 3
+    },
+    "reason": "Restoring the Demo 1 default. It was lowered to 0 so the build walkthrough could reach a ballot inside a single day; that walkthrough is finished and its results are published, so the three-day dominance requirement is back in force. No result published while it was 0 should be read as one a real community could have produced.",
+    "at": "2026-09-14T02:50:56.593978Z"
+  },
+  {
+    "id": 7,
+    "administrator": "MariaD",
+    "action": "prepare_ballot",
+    "subject_type": "cycle",
+    "subject_id": 2,
+    "old_value": null,
+    "new_value": {
+      "items": 0,
+      "community": "city:408",
+      "active_users": 3
+    },
+    "reason": null,
+    "at": "2026-09-14T02:05:46.814468Z"
+  }
+]
+
+--- the restored rule, evaluated read-only against the solutions in the demo database ---
+$ python  (reads the live setting through services/settings.py and asks rules.py)
+ballot_min_dominant_days in force: 3
+
+solution 3: would qualify now = False
+    NOT met  dominant
+    NOT met  dominant_long_enough
+    NOT met  score_at_or_above_ballot_threshold
+    met      newer_than_last_ballot_version
+solution 1: would qualify now = False
+    met      dominant
+    NOT met  dominant_long_enough
+    met      score_at_or_above_ballot_threshold
+    NOT met  newer_than_last_ballot_version
+solution 2: would qualify now = False
+    met      dominant
+    NOT met  dominant_long_enough
+    met      score_at_or_above_ballot_threshold
+    NOT met  newer_than_last_ballot_version
+```
+
+Full output at `briefs/evidence/demo-01/restore-ballot-min-dominant-days.txt`.
+
+One loose end is deliberately left alone: cycle 2 in San Jose sits in
+`prepared` with zero items, where the walkthrough left it after demonstrating
+that nothing returns to the ballot unchanged. Publishing it is a director
+control (DEMOCRACY §13), and the next cycle cannot be prepared until it is
+published, so the director may want to do that before using the demo. This run
+did not, because it is their action to take, not the build's.
