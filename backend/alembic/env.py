@@ -1,64 +1,84 @@
-import os
+"""Alembic environment. Two branch labels in one versions directory.
+
+    alembic upgrade foundation@head
+    alembic upgrade iteration@head
+
+The database URL is read through backend/config/settings_env.py, never from
+alembic.ini and never from the environment directly (CLAUDE.md Law 10).
+Migrations are schema-only (DATABASE.md §6); seeds live in backend/seed.py.
+"""
+
+from __future__ import annotations
+
 import sys
 from logging.config import fileConfig
+from pathlib import Path
 
-from sqlalchemy import engine_from_config, pool
 from alembic import context
-from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
 
-# Make sure backend/ is on sys.path so 'from models import Base' works
-# regardless of which directory alembic is invoked from.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-load_dotenv()
+from backend.config.settings_env import get_env_settings  # noqa: E402
+from backend.models import (  # noqa: E402
+    FOUNDATION_TABLES,
+    ITERATION_TABLES,
+    Base,
+)
 
-# Alembic Config object — gives access to alembic.ini values
 config = context.config
-
-# Override sqlalchemy.url from the environment — never hardcode credentials.
-# DATABASE_URL must be set in backend/.env before running any migration.
-config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
-
-# Set up Python logging as defined in alembic.ini [loggers] section
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import all models so autogenerate can detect the full schema.
-# Every new model file must be imported here — a missing import means
-# autogenerate will not see those tables and migrations will be incomplete.
-from models import Base  # noqa: E402  — must come after sys.path insert
-
 target_metadata = Base.metadata
+config.set_main_option("sqlalchemy.url", get_env_settings().sync_database_url)
+
+
+#: `alembic -x half=foundation revision --autogenerate` restricts autogenerate
+#: to one half's tables, so each chain only ever describes its own (DATABASE.md
+#: §2). Running an upgrade never passes it, and then nothing is filtered.
+_HALVES = {"foundation": set(FOUNDATION_TABLES), "iteration": set(ITERATION_TABLES)}
+_half = context.get_x_argument(as_dictionary=True).get("half")
+
+
+def _include_object(obj, name, type_, reflected, compare_to):
+    if type_ == "table" and name == "alembic_version":
+        return False
+    if _half and type_ == "table" and name not in _HALVES[_half]:
+        return False
+    if _half and type_ in ("index", "column", "unique_constraint", "foreign_key_constraint"):
+        table = getattr(obj, "table", None)
+        table_name = getattr(table, "name", None)
+        if table_name and table_name not in _HALVES[_half]:
+            return False
+    return True
 
 
 def run_migrations_offline() -> None:
-    """
-    Emit SQL to stdout without a live DB connection.
-    Useful for reviewing what a migration will do before applying it.
-    """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=_include_object,
+        compare_type=True,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Apply migrations against the live database."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
-        # NullPool is correct for migrations — no persistent connection reuse
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_object=_include_object,
+            compare_type=True,
         )
         with context.begin_transaction():
             context.run_migrations()

@@ -1,0 +1,22 @@
+# Secrets — never committed (CLAUDE.md Law 10)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+
+# Runtime artifacts
+var/
+backend/var/
+*.log
