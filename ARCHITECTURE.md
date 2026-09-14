@@ -1,344 +1,253 @@
-# ARCHITECTURE.md — System Shape
+# ARCHITECTURE.md — AnimationDirector Technical Blueprint
 
-> How the system is put together: layers, boundaries, endpoints,
-> background work, and the external services it talks to. This
-> document describes the **target** shape that every demo is built
-> toward. Where the current code differs, the code is wrong.
+> This document is the single source of truth for the tech stack, external
+> dependencies, folder layout, API surface, pipeline state definitions,
+> and hardware context. It evolves as the project grows.
+> Principles and laws live in CLAUDE.md.
 >
-> Changes to design philosophy require director approval.
+> Claude Code must update this document whenever a new endpoint, dependency,
+> folder, pipeline state, or stack component is added or changed.
 
 ---
 
-## 1. Overview
+## The Stack
 
-```
- ┌──────────────────────────────────────────────────────────────┐
- │  Browser — Next.js (TypeScript, Tailwind)        /frontend    │
- └────────────────────────────┬─────────────────────────────────┘
-                              │ HTTPS/JSON, JWT bearer
- ┌────────────────────────────▼─────────────────────────────────┐
- │  FastAPI                                          /backend    │
- │  routers/  ──▶  services/  ──▶  repositories/  ──▶ Postgres   │
- │                    │                                          │
- │                    ├──▶ clients/ollama      (host GPU, HTTP)  │
- │                    ├──▶ clients/search      (web search API)  │
- │                    ├──▶ clients/email       (SMTP / console)  │
- │                    └──▶ Redis  (rate limits, token blacklist) │
- │  jobs/  (background: labeling, retries, nightly reconcile)    │
- └──────────────────────────────────────────────────────────────┘
-        ai/prompts/*.md   backend/config/*.yaml   .env
-```
-
-One repository, one database, two halves (CLAUDE.md). Foundation and
-Iteration share this architecture; they differ only in which tables and
-routers they own (DATABASE.md §2; §6 below).
-
----
-
-## 2. Layers and Boundaries
-
-| Layer | Directory | May call | Must not |
-|---|---|---|---|
-| **Routers** | `backend/routers/` | services | repositories, clients, the database, each other |
-| **Services** | `backend/services/` | repositories, clients, other services | routers, raw SQL |
-| **Repositories** | `backend/repositories/` | the database (async session) | services, clients, anything else |
-| **Clients** | `backend/clients/` | external processes over HTTP | the database |
-| **Jobs** | `backend/jobs/` | services | routers, repositories directly |
-| **Config** | `backend/config/` | `.env`, YAML | anything |
-
-Rules:
-
-- A router parses the request into a Pydantic model, calls one service
-  function, and shapes the response. No logic.
-- A service owns a transaction. Every multi-table write happens in one
-  service function inside one session (Law 5).
-- A repository is the only place that touches a table. One module per
-  aggregate: `users.py`, `solutions.py` (with versions and amendments),
-  `cycles.py` (with ballot items, votes, juries), etc.
-- Ranking and threshold code lives in `backend/services/rules.py`, with
-  its plain-English explanation as the module docstring and a
-  `RULES_VERSION` constant printed in every summary (Law 9).
-- Nothing reads `os.environ` except `backend/config/settings_env.py`
-  (Law 10). Runtime settings (DEMOCRACY §7.4) come from the `settings`
-  table via `backend/services/settings.py`, cached for 60 seconds.
-- `main.py` registers routers and lifespan hooks. Nothing else.
-
-The current code (`routers/posts.py` etc.) hits the ORM directly from
-routers and imports `ai.labeler` via a `sys.path` hack. Both are
-replaced: repositories for data, `backend/clients/ollama.py` for
-inference, `ai/` holds prompt files and evaluation scripts only.
-
----
-
-## 3. Configuration
-
-`.env` (never committed; `.env.example` is) read by `settings_env.py`
-into a single `Settings` object:
-
-| Key | Purpose |
-|---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://…` |
-| `REDIS_URL` | |
-| `JWT_SECRET`, `ACCESS_TOKEN_MINUTES` (30), `REFRESH_TOKEN_DAYS` (14) | |
-| `EMAIL_VERIFY_HOURS` (24), `PASSWORD_RESET_MINUTES` (30) | |
-| `EMAIL_BACKEND` (`console` / `smtp`), `SMTP_*`, `EMAIL_FROM` | `console` prints emails to the log — Demo 1 default |
-| `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `EMBED_MODEL`, `OLLAMA_TIMEOUT_SECONDS` | host GPU |
-| `SEARCH_PROVIDER`, `SEARCH_API_KEY`, `SEARCH_BASE_URL` | reference recommendation |
-| `OFFICIALS_TEST_EMAIL` | Demo 1 directory address |
-| `BUILD_LABEL` | `demo-01`; stamped on `ai_actions` |
-| `CORS_ORIGINS` | |
-| `RATE_LIMIT_WRITE_PER_MINUTE` (30) | |
-| `LOG_LEVEL` | |
-
-Startup validates every key and refuses to start on a missing one, with
-the key name in the error.
-
----
-
-## 4. Authentication and Authorization
-
-- Signup creates the user, a `terms_acceptances` row, and an email
-  verification token; sends the verification email; returns 201 with
-  no tokens. The account can log in but every write endpoint returns
-  403 `email_not_verified` until the link is used.
-- Login returns a 30-minute access JWT (`sub`, `exp`, `iat`, `jti`) and
-  an opaque refresh token (random 32 bytes, base64url), stored hashed.
-- `POST /auth/refresh` rotates: the old refresh token is marked
-  `replaced_by`; presenting a replaced token revokes its whole chain.
-- `POST /auth/logout` revokes the refresh token and puts the access
-  token's `jti` in Redis with TTL = remaining lifetime; the auth
-  dependency rejects blacklisted `jti`s.
-- Dependencies: `current_user` (valid JWT, not deleted),
-  `verified_user` (+ `email_verified_at`), `admin_user` (+ `is_admin`),
-  `community_member(level, entity_id)` (user's home community matches).
-- Passwords: bcrypt, cost 12, policy per Law 13.
-- Every authenticated request updates `users.last_active_at` at most
-  once per minute (Redis debounce) — the active-user source.
-
----
-
-## 5. Rate Limiting and Errors
-
-- Every `POST`/`PUT`/`PATCH`/`DELETE` passes through a Redis
-  token-bucket keyed by user id (or IP when unauthenticated), limit
-  `RATE_LIMIT_WRITE_PER_MINUTE`. 429 with `Retry-After`.
-- Errors: services raise typed exceptions (`NotFound`, `Forbidden`,
-  `Conflict`, `ValidationFailed`, `ExternalServiceDown`); one exception
-  handler maps them to status codes and a body `{error: <code>, message:
-  <plain English>}`. Anything else is logged with a request id and
-  returned as 500 `{error: "internal", request_id}`. No stack traces
-  to the client (Law 12).
-
----
-
-## 6. Endpoints
-
-`F` = Foundation, `I` = Iteration. All JSON. All list endpoints paginate
-with `?cursor=&limit=` (default 25, max 100).
-
-### Auth and account (F)
-| | |
-|---|---|
-| `POST /auth/signup` | body per DATABASE §3.1; returns user id |
-| `POST /auth/verify-email` | token |
-| `POST /auth/login`, `/auth/refresh`, `/auth/logout` | |
-| `POST /auth/forgot-password`, `/auth/reset-password` | |
-| `GET /auth/me` | user, display settings, home communities with names, verification level |
-| `PATCH /me/display` | `public_name_mode` |
-| `POST /me/export` → `GET /me/export/{id}` | async export |
-| `DELETE /me` | password confirm; runs anonymization |
-
-### Geography and officials (F)
-`GET /geo/counties`, `GET /geo/counties/{id}/cities`,
-`GET /communities/{level}/{id}` (name, active user count with definition,
-officials list), `GET /communities/{level}/{id}/officials`.
-
-### Settings and logs (F, public read)
-`GET /settings` (current values with definitions and effective_from),
-`GET /settings/history?key=`, `GET /admin/log`, `GET /ai/actions?subject_type=&subject_id=`.
-
-### Posts and labels (I)
-| | |
-|---|---|
-| `POST /posts` | problem, solutions[], communities[], category_choice, optional umbrella per community |
-| `GET /posts/{id}` | |
-| `GET /feed?community=&category=&cursor=` | newest first; response includes `ranking: "feed-v0", explanation` |
-| `POST /posts/{id}/label/confirm`, `.../label/correct` | author only |
-
-### Umbrellas (I)
-`GET /umbrellas?community=`, `GET /umbrellas/{id}` (the whole page data:
-DEMOCRACY §3.3 sections, including the AI action list),
-`GET /umbrellas/{id}/solutions`, `GET /umbrellas/{id}/comments`,
-`GET /umbrellas/{id}/references`.
-
-### Solutions, amendments, comments, votes (I)
-| | |
-|---|---|
-| `POST /umbrellas/{id}/solutions` | member |
-| `GET /solutions/{id}` (with versions), `PATCH /solutions/{id}` (author, only while unvoted/unamended) | |
-| `POST /solutions/{id}/amendments`, `GET /solutions/{id}/amendments` | dominant only |
-| `POST /amendments/{id}/withdraw` | author |
-| `POST /similarity/{id}/decide` | `same` / `different` |
-| `POST /comments` (target_type, target_id, parent_id), `PATCH /comments/{id}`, `DELETE /comments/{id}` | |
-| `PUT /votes` (target_type, target_id, direction) / `DELETE /votes` | member; returns new net_score and any status change |
-| `POST /umbrellas/{id}/references`, `PUT /references/{id}/feedback` | |
-
-### Cycles, ballot, jury (I)
-| | |
-|---|---|
-| `GET /communities/{level}/{id}/cycles`, `GET /cycles/{id}` | |
-| `GET /cycles/{id}/ballot` | items with frozen text; member's own votes if any |
-| `PUT /cycles/{id}/ballot/{item_id}/vote` | `yes`/`no`; member; state `open` only |
-| `GET /juries/mine` | current juror duties |
-| `POST /jurors/{id}/accept`, `/decline` | |
-| `POST /ballot-items/{id}/holdback` | juror; category + text |
-
-### Summaries (I, public)
-`GET /summaries/{level}/{id}/{number}` (page data), `.../{number}/json`,
-`.../{number}/pdf`, `.../{number}/verify`, `GET /summaries/hashes`,
-`GET /results` (logged-in: the user's three communities).
-
-### Admin (F for settings; I for cycle controls)
-`POST /admin/settings` (key, value, reason), `POST /admin/cycles/prepare`,
-`/admin/cycles/{id}/redraw-jury`, `/open`, `/close`, `/publish`,
-`POST /admin/umbrellas/{id}/recommend-references`,
-`POST /admin/posts/{id}/relabel`, `GET /admin/users/{id}` (verification,
-jury history; never ballot votes).
-
----
-
-## 7. Background Work
-
-`backend/jobs/` — asyncio tasks started in the app lifespan; no Celery.
-
-| Job | Trigger | Does |
+| Layer | Technology | Location |
 |---|---|---|
-| `label_post` | after `POST /posts` commits | calls Ollama; writes `ai_actions` then `labels` then `post_communities.umbrella_id`; sets `label_status` |
-| `label_retry` | every `label_retry_minutes` | re-queues `unlabeled` posts |
-| `similarity_check` | after amendment create | embeds, compares, writes `amendment_similarity` |
-| `recommend_references` | admin trigger | DEMOCRACY §9.4 |
-| `reconcile` | 03:00 daily and on demand | DATABASE §7 |
-| `evaluate_dominance` | inside `reconcile`, and after every solution vote | DEMOCRACY §7.1 |
-| `expire_exports` | hourly | delete export files past `expires_at` (files only; rows stay) |
-
-Each job logs start, end, counts, and failures with a job id; a failure
-never crashes the app and never swallows the exception (Law 12).
+| Frontend | React + TypeScript + Tailwind | /frontend |
+| Backend API | Python FastAPI + WebSockets | /backend |
+| Script AI | Ollama llama4 (local) | port 11434 |
+| Vision AI | Ollama qwen2.5vl:7b (local) | port 11434 |
+| Image Gen | ComfyUI + FLUX.1-dev + Sketch Pad LoRA | port 8188 |
+| Session State | JSON files | /outputs/sessions |
+| LoRA files | .safetensors | /loras |
+| Config | Environment variables via .env | /.env |
 
 ---
 
-## 8. External Services
+## External Dependencies
 
-### 8.1 Ollama — `backend/clients/ollama.py`
-Async httpx client. `generate(prompt_file, variables) -> str` renders a
-prompt file from `ai/prompts/` with the variables, calls
-`/api/generate` with `OLLAMA_MODEL`, returns text; `embed(text) ->
-list[float]` calls `/api/embeddings` with `EMBED_MODEL`. Every call
-records the prompt file and its hash so the `ai_actions` row can cite
-them. Timeouts raise `ExternalServiceDown`; the caller decides (labeling
-→ `unlabeled` and retry; similarity → skip and log).
+This is the authoritative list of external dependencies and their status.
+TODO.md holds only the installation-status checkboxes and points here for details.
 
-Prompt files: `ai/prompts/labeler.md`, `reference_queries.md`,
-`reference_select.md`. Each has a header block stating its inputs, its
-required output JSON shape, and its version. Output is parsed strictly;
-malformed output is logged as an `ai_actions` row with
-`output.error` and treated as failure.
-
-### 8.2 Web search — `backend/clients/search.py`
-One interface, `search(query) -> list[Result{title, url, snippet}]`,
-with one implementation per `SEARCH_PROVIDER`. The raw provider
-response is stored on the `ai_actions` row. Provider choice is
-configuration; the first implementation is whichever the director
-selects when the key is obtained. If `SEARCH_API_KEY` is unset, the
-admin trigger returns 503 `search_not_configured` and nothing else
-breaks.
-
-### 8.3 Email — `backend/clients/email.py`
-`send(to, subject, text_body)`. Backends: `console` (logs the message —
-Demo 1) and `smtp`. Only Foundation sends email: verification and
-password reset. Iteration sends none (DEMOCRACY §11.5).
-
-### 8.4 Redis
-Rate-limit buckets, access-token blacklist, `last_active_at` debounce,
-settings cache. Loss of Redis degrades: rate limiting falls open with a
-logged warning, blacklist check fails closed (401), the app stays up.
+| Dependency | Version / Notes | Port | Status |
+|---|---|---|---|
+| ComfyUI | Existing install | 8188 | Installed |
+| Ollama | Latest stable | 11434 | Unknown — verify |
+| llama4 model | `ollama pull llama4` | — | Unknown |
+| qwen2.5vl:7b model | `ollama pull qwen2.5vl:7b` | — | Unknown |
+| FLUX.1-dev model | Place in ComfyUI models folder | — | Unknown |
+| Sketch Pad LoRA | Download from Civitai, place in /loras/ | — | Unknown |
+| Node.js | Required for frontend build | — | Unknown |
+| Python | 3.11+ required | — | Unknown |
+| pip packages | fastapi, uvicorn, httpx, websockets, python-dotenv | — | Unknown |
 
 ---
 
-## 9. Frontend
+## Hardware Context
 
-Next.js App Router, TypeScript, Tailwind. `frontend/src/app/` routes:
-
-| Route | Page |
+| Component | Spec |
 |---|---|
-| `/signup`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password` | Foundation |
-| `/me` (display settings, export, delete), `/legal/privacy`, `/legal/terms` | Foundation |
-| `/feed` | feed-v0 with community and category filters |
-| `/posts/new` | DEMOCRACY §4.1; three sections: problem, solutions, communities; category: AI or pick |
-| `/umbrellas/[id]` | the umbrella page, DEMOCRACY §3.3 |
-| `/solutions/[id]` | full solution with versions, amendments, discussion |
-| `/ballot` | current cycle for each home community |
-| `/jury` | duties |
-| `/results`, `/summaries/[level]/[id]/[number]` | the summary document |
-| `/settings` (public), `/ai/actions` (public), `/admin/log` (public) | transparency pages |
-| `/admin` | director controls |
+| GPU | NVIDIA RTX 5090 (32 GB VRAM) |
+| CPU | AMD Threadripper 7970X |
+| RAM | 96 GB |
+| OS | Linux |
 
-`frontend/src/lib/api.ts` is the only place `fetch` is called; it holds
-the access token in memory and the refresh token in an `httpOnly`
-cookie set by the backend, and silently refreshes on 401.
+All services run locally — no cloud dependencies.
+ComfyUI is pre-installed; its path is set via `$COMFYUI_PATH` in .env.
 
-**Style brief** (director, 2026-09-06): mobile-first; plain language;
-one accent color; California photography in page headers; every page
-works with images disabled; accessible per CLAUDE §8. Iterate on the
-UI freely between demos.
+### Performance Target
+- Storyboard frame generation: 2–4 seconds at 1024×576, 20 steps.
+- FLUX and LLM inference run sequentially, never simultaneously.
+  The GPU is a shared resource managed by the orchestrator.
 
 ---
 
-## 10. Testing
+## Pipeline State Definitions
 
-`backend/tests/` with pytest-asyncio against a throwaway Postgres
-(Docker, created and dropped by the test session). Required coverage:
+These are the five canonical pipeline states. This is the single source of
+truth for state names — CLAUDE.md references these by name only, and
+UI_DESIGN.md describes how the frontend behaves in each state.
 
-- Every service function in `rules.py` with table-driven cases,
-  including the `threshold()` formula at boundaries (0, 1, exact,
-  rounding).
-- The full cycle as one integration test: seed → post → label (Ollama
-  mocked) → votes → dominant → prepare → jury holds one back → open →
-  vote → close → publish → hash verifies → JSON re-hashes to the same
-  value.
-- Anonymization: after `DELETE /me`, every PII column is erased and
-  every civic row still resolves.
-- Auth: refresh rotation and reuse detection; blacklist on logout.
-- Every endpoint: 401/403 paths.
+| State | Description |
+|---|---|
+| IDLE | No active generation. Session is open and waiting for the director to trigger generation. |
+| GENERATING | Image generation is in progress. The GPU is active. No human action is accepted. |
+| PAUSED | A frame has been generated and is waiting for the director's decision. This is the only state where Accept, Reject, and Edit are available. |
+| ADVANCING | The director has accepted a frame. The pipeline is committing the decision and transitioning. Brief — returns to IDLE or begins next GENERATING. |
+| ERROR | Something went wrong. The pipeline is halted. The director decides the next action. No automatic retry. |
 
-Ollama and search are mocked in tests via the client interfaces; one
-opt-in test (`-m live`) hits the real Ollama to validate prompt-file
-output shapes.
+### State Transitions
 
----
-
-## 11. The Sandbox Boundary
-
-Everything above runs inside a Docker Sandbox microVM (SANDBOX.md).
-From the app's point of view: Postgres and Redis are containers inside
-the VM; Ollama is reached at the host address the sandbox exposes;
-`api.anthropic.com` and package registries are reachable; nothing else
-is. `OLLAMA_BASE_URL` in the sandbox's `.env` points at the host.
+```
+IDLE → GENERATING    (director triggers generation)
+GENERATING → PAUSED  (frame ready for review)
+GENERATING → ERROR   (generation failed)
+PAUSED → ADVANCING   (director accepts)
+PAUSED → GENERATING  (director rejects or edits — regenerates)
+PAUSED → ERROR       (unexpected failure during review)
+ADVANCING → IDLE     (commit complete)
+ERROR → IDLE         (director clears error and resets)
+ERROR → GENERATING   (director retries)
+```
 
 ---
 
-## 12. Known Debt Carried From the Current Code
+## Folder Structure
 
-Recorded so the first build replaces them deliberately:
+```
+AnimationDirector/
+├── CLAUDE.md                  # Developer constitution
+├── ARCHITECTURE.md            # This file — technical blueprint
+├── CONVENTIONS.md             # Coding style and framework conventions
+├── UI_DESIGN.md               # Frontend layout and interaction spec
+├── TODO.md                    # Task tracker and status
+├── HISTORY.md                 # Append-only session log
+├── README.md                  # Project overview and quick start
+├── .env                       # Local config — never committed
+├── .env.example               # Template for .env
+├── .gitignore
+│
+├── backend/
+│   ├── main.py                # FastAPI app init and route registration
+│   ├── config.py              # Load all env vars at startup
+│   ├── orchestrator.py        # Pipeline flow: GENERATING → PAUSED → ADVANCING
+│   ├── state_manager.py       # Session JSON load/save, frame history, rollback
+│   ├── ollama_client.py       # All Ollama API calls (Script AI + Vision AI)
+│   ├── comfyui_client.py      # All ComfyUI API calls (image generation)
+│   └── routers/
+│       └── session.py         # All REST API routes
+│
+├── frontend/
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── src/
+│       ├── App.tsx
+│       ├── api.ts             # Typed API client — all fetch calls here
+│       ├── ws.ts              # WebSocket manager — one connection point
+│       ├── components/
+│       │   ├── ScriptPanel.tsx
+│       │   ├── FrameViewer.tsx
+│       │   ├── ReviewControls.tsx
+│       │   ├── FrameHistory.tsx
+│       │   ├── VisionAnalysis.tsx
+│       │   └── StatusBar.tsx
+│       └── pages/
+│           └── Session.tsx
+│
+├── prompts/
+│   ├── script_system.txt      # Llama 4 system prompt for scene writing
+│   ├── script_scene.txt       # Per-scene user prompt template
+│   ├── vision_system.txt      # Qwen VL system prompt for frame analysis
+│   └── continuity_check.txt   # Frame vs intended scene comparison
+│
+├── infra/
+│   └── flux_storyboard_workflow.json   # ComfyUI workflow with FLUX + LoRA
+│
+├── outputs/
+│   ├── frames/                # All generated frames (never deleted)
+│   ├── accepted/              # Copies of accepted frames only
+│   └── sessions/              # Session state JSON files
+│
+├── loras/
+│   └── sketch_pad.safetensors
+│
+├── docs/
+│   └── design/                # Design documents and reference material
+│
+└── ai/                        # Reserved for future AI-related scripts
+```
 
-- Sync SQLAlchemy sessions inside `async def` — replaced by async
-  engine (Law 11).
-- `ai/labeler.py` module-level constants and inline prompt string —
-  replaced by client + prompt file (Laws 7, 10).
-- `sys.path` import hack in `routers/posts.py` — gone with the layer
-  split; `backend` is a package with `pyproject.toml` at the repo root.
-- `@app.on_event("startup")` and `create_all` — replaced by lifespan and
-  migrations.
-- `solutions.title` and `upvote_count` — superseded by versions and
-  `net_score`; not carried into the Iteration schema (fresh per demo).
-- `Solution.governance_levels` array — superseded by the umbrella's
-  community.
+---
+
+## Folder Routing Rules
+
+Each concern has exactly one home. Code that violates these boundaries
+should be refactored immediately.
+
+| Concern | Lives in | Never in |
+|---|---|---|
+| Ollama API calls | backend/ollama_client.py | Any other backend file |
+| ComfyUI API calls | backend/comfyui_client.py | Any other backend file |
+| Pipeline state logic | backend/state_manager.py | Orchestrator or routes |
+| Pipeline flow logic | backend/orchestrator.py | State manager or routes |
+| API route definitions | backend/routers/session.py | main.py or other files |
+| Frontend HTTP calls | frontend/src/api.ts | Inside components |
+| Frontend WebSocket | frontend/src/ws.ts | Inside components |
+| Prompt templates | prompts/*.txt | Embedded in Python code |
+| Generated output | outputs/ | Anywhere else on disk |
+| Environment config | .env | Hardcoded in any file |
+
+---
+
+## API Contract
+
+Every frontend must be able to drive the entire pipeline using only these endpoints.
+
+### REST Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| POST | /session/start | Create new session, return session_id |
+| POST | /session/{id}/generate | Trigger next frame generation |
+| POST | /session/{id}/accept | Accept current pending frame, advance pipeline |
+| POST | /session/{id}/reject | Reject current pending frame, rollback to previous |
+| POST | /session/{id}/edit | Update scene prompt and regenerate current frame |
+| GET | /session/{id}/state | Return full current session state as JSON |
+| GET | /session/{id}/frames | Return list of all frames in this session |
+
+### WebSocket
+
+| Path | Description |
+|---|---|
+| WS /ws/{session_id} | Real-time push of frames and status changes |
+
+WebSocket event types and payloads are defined in UI_DESIGN.md,
+which is the authoritative source for frontend communication contracts.
+
+---
+
+## State Persistence Format
+
+- One JSON file per session: `session_YYYYMMDD_HHMMSS.json`
+- Stored in `outputs/sessions/`
+- Written after every state change (crash recovery guarantee)
+- No database required for v1
+
+### Session JSON Structure (reference)
+```json
+{
+  "session_id": "session_20260328_141500",
+  "created_at": "2026-03-28T14:15:00Z",
+  "current_state": "PAUSED",
+  "current_frame_index": 3,
+  "frames": [
+    {
+      "index": 0,
+      "prompt": "A lone figure stands at the edge of a cliff at dawn",
+      "frame_path": "outputs/frames/session_20260328_141500_frame_000.png",
+      "vision_analysis": "Scene shows a silhouette on a cliff edge, warm sky tones...",
+      "decision": "accepted",
+      "timestamp": "2026-03-28T14:15:12Z"
+    }
+  ]
+}
+```
+
+---
+
+## AI Model Configuration
+
+All model identifiers are set via environment variables in `.env`.
+Never hardcode a model name, port, or file path.
+
+| Role | Model | Env Var | Default |
+|---|---|---|---|
+| Script AI | llama4 via Ollama | SCRIPT_MODEL | llama4 |
+| Vision AI | qwen2.5vl:7b via Ollama | VISION_MODEL | qwen2.5vl:7b |
+| Image Gen | FLUX.1-dev via ComfyUI | (workflow JSON) | — |
+| LoRA | Sketch Pad | (workflow JSON) | sketch_pad.safetensors |
+| Ollama port | — | OLLAMA_PORT | 11434 |
+| ComfyUI port | — | COMFYUI_PORT | 8188 |
+| Backend port | — | BACKEND_PORT | 8000 |
+| Frontend port | — | FRONTEND_PORT | 3000 |
