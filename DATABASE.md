@@ -144,10 +144,9 @@ user).
 `cities`: `id`, `county_id` FK, `name`, `incorporated` bool, `fips`
 char(7) UNIQUE NULL.
 
-Seed: California and 58 counties from `backend/config/seed_geography.yaml`;
-cities from `backend/config/seed_cities.csv` (both director-placed; the
-build stops if either is absent or the CSV has no data rows). Unique
-`(county_id, name)` on cities.
+Seed: California, 58 counties, all incorporated cities, from
+`backend/config/seed_geography.yaml` (director-placed; the build stops
+if absent). Unique `(county_id, name)` on cities.
 
 ### 3.7 `officials`
 
@@ -431,8 +430,7 @@ document data, DEMOCRACY §11.2), `summary_hash` char(64) NOT NULL,
 
 | File | Fills | Build behavior if missing |
 |---|---|---|
-| `backend/config/seed_geography.yaml` | state and 58 counties | stop and report |
-| `backend/config/seed_cities.csv` | incorporated cities (county, city, incorporated, fips) — director exports from the CA Department of Finance E-1 list | stop and report if it contains no data rows |
+| `backend/config/seed_geography.yaml` | states, counties, cities | stop and report |
 | `backend/config/seed_officials.yaml` | officials | stop and report |
 | `backend/config/seed_umbrellas.yaml` | umbrellas for test communities | stop and report |
 | `backend/config/seed_settings.yaml` | settings defaults (DEMOCRACY §7.4) | stop and report |
