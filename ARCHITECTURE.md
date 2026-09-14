@@ -48,13 +48,19 @@ routers they own (DATABASE.md §2; §6 below).
 
 Rules:
 
-- A router parses the request into a Pydantic model, calls one service
-  function, and shapes the response. No logic.
+- A router parses the request into a Pydantic model, calls **one** service
+  function, and shapes the response. No logic. This holds for reads too:
+  every read the frontend needs has a service function, even a one-line
+  pass-through to a repository. A router never imports a repository
+  module, a client, or the session.
 - A service owns a transaction. Every multi-table write happens in one
   service function inside one session (Law 5).
 - A repository is the only place that touches a table. One module per
   aggregate: `users.py`, `solutions.py` (with versions and amendments),
-  `cycles.py` (with ballot items, votes, juries), etc.
+  `cycles.py` (with ballot items, votes, juries), etc. A service never
+  calls `session.execute`, `session.get`, or `select(...)` itself; it
+  calls a repository function. `backend/tests/test_layering.py` enforces
+  both rules by scanning the source (audit finding, demo-01 run 1).
 - Ranking and threshold code lives in `backend/services/rules.py`, with
   its plain-English explanation as the module docstring and a
   `RULES_VERSION` constant printed in every summary (Law 9).
@@ -62,6 +68,10 @@ Rules:
   (Law 10). Runtime settings (DEMOCRACY §7.4) come from the `settings`
   table via `backend/services/settings.py`, cached for 60 seconds.
 - `main.py` registers routers and lifespan hooks. Nothing else.
+- Background jobs are scheduled by the **service that owns the
+  transaction**, inside the same function, through
+  `backend/jobs/runner.py::spawn_after_commit` (§7). A router never
+  schedules a job.
 - Foundation services never import an Iteration repository. Where
   Foundation needs Iteration data (the data export, DATABASE §3.11),
   Iteration registers a contributor at startup and Foundation calls it
@@ -84,6 +94,7 @@ Docker Compose with `--env-file`. There is no separate `infra/.env` or
 | Key | Purpose |
 |---|---|
 | `DATABASE_URL` | `postgresql+asyncpg://…` |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | read by Docker Compose; must match the credentials inside `DATABASE_URL` |
 | `REDIS_URL` | |
 | `JWT_SECRET`, `ACCESS_TOKEN_MINUTES` (30), `REFRESH_TOKEN_DAYS` (14) | |
 | `EMAIL_VERIFY_HOURS` (24), `PASSWORD_RESET_MINUTES` (30) | |
@@ -123,7 +134,12 @@ the key name in the error.
 - Dependencies: `current_user` (valid JWT, not deleted),
   `verified_user` (+ `email_verified_at`), `admin_user` (+ `is_admin`),
   `community_member(level, entity_id)` (user's home community matches).
-- Passwords: bcrypt, cost 12, policy per Law 13.
+- Passwords: bcrypt, cost 12, policy per Law 13; maximum 72 bytes (bcrypt's
+  limit), refused with a plain message rather than silently truncated.
+- **Administrators are made only from the machine:**
+  `backend/scripts/grant_admin.py <email> [--dry-run]`. There is no
+  endpoint and no UI. The grant writes an `admin_actions` row like any
+  other administrator action (DEMOCRACY §13).
 - Every authenticated request updates `users.last_active_at` at most
   once per minute (Redis debounce) — the active-user source.
 
@@ -155,7 +171,7 @@ with `?cursor=&limit=` (default 25, max 100).
 | `POST /auth/verify-email` | token |
 | `POST /auth/login`, `/auth/refresh`, `/auth/logout` | |
 | `POST /auth/forgot-password`, `/auth/reset-password` | |
-| `GET /auth/me` | user, display settings, home communities with names, verification level |
+| `GET /auth/me` | user, display settings, home communities with names, verification level — the one read; `/me/*` below are the writes |
 | `PATCH /me/display` | `public_name_mode` |
 | `POST /me/export` → `GET /me/export/{id}` | async export |
 | `DELETE /me` | password confirm; runs anonymization |
@@ -222,12 +238,18 @@ jury history; never ballot votes).
 
 ## 7. Background Work
 
-`backend/jobs/` — asyncio tasks started in the app lifespan; no Celery.
+`backend/jobs/` — asyncio tasks; no Celery. A job triggered by a request
+is started by `runner.py::spawn_after_commit(session, factory)`, called
+from the service that owns the transaction: the task is created only
+after that session commits, and the runner holds a strong reference so
+the task outlives the request and is never cancelled by a client
+disconnect (demo-01 bug: FastAPI `BackgroundTasks` died with the
+connection). Periodic jobs are started in the lifespan.
 
 | Job | Trigger | Does |
 |---|---|---|
 | `label_post` | after `POST /posts` commits | calls Ollama; writes `ai_actions` then `labels` then `post_communities.umbrella_id`; sets `label_status` |
-| `label_retry` | every `label_retry_minutes` | re-queues `unlabeled` posts |
+| `label_retry` | every `label_retry_minutes` | re-queues `unlabeled` posts, and `pending` posts older than the retry window whose job never started |
 | `similarity_check` | after amendment create | embeds, compares, writes `amendment_similarity` |
 | `recommend_references` | admin trigger | DEMOCRACY §9.4 |
 | `reconcile` | 03:00 daily and on demand | DATABASE §7 |
@@ -252,7 +274,12 @@ them. Timeouts raise `ExternalServiceDown`; the caller decides (labeling
 
 Prompt files: `ai/prompts/labeler.md`, `reference_queries.md`,
 `reference_select.md`. Each has a header block stating its inputs, its
-required output JSON shape, and its version. Output is parsed strictly;
+required output JSON shape in prose **and** as a JSON Schema, and its
+version. The client passes the schema to Ollama's `format` parameter so
+the model's output is constrained to the shape; the prose remains the
+contract (Law 7). Generation runs at temperature 0 so the same input
+files the same way twice. Embedding calls have no prompt file (§9.3 of
+DEMOCRACY; DATABASE §3.10 says how their `ai_actions` rows record that). Output is parsed strictly;
 malformed output is logged as an `ai_actions` row with
 `output.error` and treated as failure.
 
@@ -309,7 +336,9 @@ UI freely between demos.
 ## 10. Testing
 
 `backend/tests/` with pytest-asyncio against a throwaway Postgres
-(Docker, created and dropped by the test session). Required coverage:
+**database** on whatever server `DATABASE_URL` points at, created and
+dropped by the test session and built from both migration chains, never
+`create_all`. Required coverage:
 
 - Every service function in `rules.py` with table-driven cases,
   including the `threshold()` formula at boundaries (0, 1, exact,
@@ -322,6 +351,8 @@ UI freely between demos.
   every civic row still resolves.
 - Auth: refresh rotation and reuse detection; blacklist on logout.
 - Every endpoint: 401/403 paths.
+- Layering (`test_layering.py`): no router imports a repository, client,
+  or session; no service calls the session or `select` directly (§2).
 
 Ollama and search are mocked in tests via the client interfaces; one
 opt-in test (`-m live`) hits the real Ollama to validate prompt-file

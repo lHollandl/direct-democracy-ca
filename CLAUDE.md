@@ -234,7 +234,8 @@ returned to the client as a generic message. No `except: pass`. No
 
 **13. Input is validated and parameterized.** Every request body is a
 Pydantic model. Every query is parameterized. Passwords are bcrypt
-hashed, minimum 8 characters with an uppercase letter and a number.
+hashed, minimum 8 characters with an uppercase letter and a number,
+maximum 72 bytes (bcrypt's limit — refused, never silently truncated).
 Every endpoint that creates or modifies data is rate limited.
 
 **14. The backend is independent of the frontend.** Every action is

@@ -213,6 +213,11 @@ char(64); `output` jsonb; `confidence` numeric(4,3) NULL;
 `created_at`. Index `(subject_type, subject_id)`, `created_at`. Only
 `human_outcome_*` are ever updated, once.
 
+For `similarity` actions there is no prompt file (DEMOCRACY §9.3):
+`prompt_file` is the literal `(embeddings: no prompt file)` and
+`prompt_hash` is 64 zeros. `model` still names the embedding model. No
+other action type may use the sentinel.
+
 Because Iteration ids restart per demo, `subject_id` alone is ambiguous
 across demos. Column `demo_build` text NOT NULL (e.g. `demo-01`, from
 configuration `BUILD_LABEL`) disambiguates; the keeper build's label is
@@ -221,9 +226,10 @@ frozen thereafter.
 ### 3.11 `data_exports`
 
 `id`, `user_id` FK, `requested_at`, `completed_at` NULL, `file_path`
-text NULL, `expires_at`. Export JSON contains the user's row, display
-settings, terms acceptances, jury service, and every Iteration row they
-authored or voted on, including their own ballot votes.
+text NULL, `expires_at`. Export JSON contains three things: the user's
+Foundation rows (user, display settings, terms acceptances); their jury
+service; and every Iteration row they authored or voted on, including
+their own ballot votes.
 
 The exporter respects the boundary rule. `backend/services/export.py`
 (Foundation) gathers the Foundation data and then calls every
@@ -366,7 +372,7 @@ version)`. Immutable.
 | `merged_into_id` | int FK `amendments` NULL | |
 | `net_score` | int NOT NULL DEFAULT 0 | cache |
 | `ai_contribution_percentage` | smallint DEFAULT 0 | |
-| `content_hash` | char(64) NOT NULL | |
+| `content_hash` | char(64) NOT NULL | canonical JSON `{solution_id, base_version, proposed_text, rationale, author_id, created_at}` |
 | `created_at`, `updated_at` | | |
 
 Index `solution_id`, `(solution_id, status)`.
@@ -387,8 +393,9 @@ enum (`same`, `different`), `created_at`; PK `(similarity_id, user_id)`.
 `parent_id` FK `comments` NULL, `depth` smallint NOT NULL, `author_id`
 FK, `text` text (1–2,000), `edited_at` NULL, `removed_at` NULL,
 `net_score` int DEFAULT 0, `ai_contribution_percentage` smallint DEFAULT
-0, `content_hash` char(64), `created_at`. Index `(target_type,
-target_id, parent_id)`, `author_id`.
+0, `content_hash` char(64) (canonical JSON `{target_type, target_id,
+parent_id, text, author_id, created_at}`), `created_at`. Index
+`(target_type, target_id, parent_id)`, `author_id`.
 
 ### 4.12 `votes`
 

@@ -532,6 +532,14 @@ umbrella names and statements for the relevant communities. Its output
 is a main category, an umbrella id per community (or none), and a
 confidence in [0, 1].
 
+**Reading the answer.** Small models repeat communities or echo ones from
+the prompt's example. For each selected community the labeler keeps the
+first answer that names an umbrella actually active in that community
+and ignores the rest; everything ignored is recorded on the AI action row
+under `output.repeated_or_unlisted_communities`, so the public log shows
+what the model said, not only what was used. The model runs at
+temperature 0.
+
 The author can confirm or correct. Confirm is one tap; correct opens the
 "pick an existing umbrella" chooser. Either way the label row records
 `confirmed_by_author` / `corrected_by_author` / `unreviewed`.
@@ -561,8 +569,10 @@ fields once.
 
 Compares two texts and returns a score in [0, 1]. Used for amendments
 (§5.4). Implementation: embeddings from Ollama (`nomic-embed-text` or
-whatever `EMBED_MODEL` is set to) and cosine similarity. The score and
-both input hashes are logged. The threshold is a setting.
+whatever `EMBED_MODEL` is set to) and cosine similarity. There is no
+prompt file — an embedding call has no prompt text — and the log row says
+so (DATABASE §3.10). The score and both input hashes are logged. The
+threshold is a setting.
 
 ### 9.4 Reference recommendation
 
@@ -658,6 +668,11 @@ zero items and no jury is drawn. The only transition available from
 publishes an empty summary ("No solutions reached the ballot this
 cycle") whenever ready, and the next cycle can then be prepared. A
 zero-item cycle never enters `jury_review`, `open`, or `closed`.
+Because prepare continues to `jury_review` in the same action whenever
+any item qualifies, a cycle is only ever *observed* in `prepared` when it
+is empty; the code's guard against publishing a non-empty `prepared`
+cycle is therefore unreachable today and is kept for the case where
+prepare is later split into two steps.
 
 ### 10.3 Open and close
 
@@ -795,6 +810,13 @@ reason if given).
 Admins are not exempt from any threshold and cannot vote twice, edit
 others' content, or alter votes. The admin log is public at
 `/admin/log` (read-only, no login required).
+
+**Becoming an admin.** There is no endpoint, page, or setting that makes
+an administrator. An admin is granted only by someone with access to the
+machine running `backend/scripts/grant_admin.py`, and the grant is
+written to the public admin log like any other admin action. An
+administrator can change every rule a democratic outcome depends on;
+that power must not be reachable from the web.
 
 ---
 
