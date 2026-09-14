@@ -425,3 +425,38 @@ smart feed / cluster mechanics; Small Voice implementation; real representative 
 **Document changes flagged:**
 - Follow-up PR: full `seed_cities.csv`, remove `PROJECT_INSTRUCTIONS.md` from the repo, updated SANDBOX.md / TODO.md / HISTORY.md.
 - Remaining before Demo 1: search provider (optional), Anthropic `/login` inside the first sandbox, project instructions installed in Claude.ai.
+
+**Addendum (same session, later):** Claude Code warm-up inside the sandbox succeeded: `whoami` → `agent`, `example.com` blocked, subscription login persisted to a second sandbox with no prompt. `sbx --help` confirmed `ls`, `rm`, `stop`, `prune`, `ports`, `version`. With `--clone` the host folder mounts read-only at `/run/sandbox/source` and the working clone mounts at the host path; default VM size 64 CPU / 32 GiB. SANDBOX.md updated. Warm-up sandboxes removed. Phase 0 complete except the optional search provider.
+
+---
+
+## 2026-09-13 — Session 1 (Claude.ai planning session — document consistency audit)
+
+**Completed:**
+- Second-opinion audit of all nine documents against each other. Thirteen findings put to the director; all decided the same session and applied. Changed: CLAUDE.md (§6, Document Map — director-approved), PROJECT.md, DEMOCRACY.md, DATABASE.md, ARCHITECTURE.md, AUDIT.md, TODO.md. SANDBOX.md unchanged.
+
+**Decisions made:**
+1. Seed files move from `seeds/` to `backend/config/` (the documented paths) in the follow-up PR; the documents were not changed to match the repo.
+2. Solutions on multi-community posts: solution texts are stored on the post (`post_solutions`, DATABASE §4.4) and one workshop solution is created per text per umbrella when each post-community receives its umbrella; each copy has its own votes and amendments. A label correction moves the copies only while unvoted and unamended. Posts are immutable and undeletable in Demo 1 (DEMOCRACY §4.1, DATABASE §4.7).
+3. One rule for returning to the ballot: passed, failed, and held-back solutions all need a new version (`current_version > last_ballot_version`) — DEMOCRACY §7.2 condition 4. The "different reason category" hold-back mechanic is removed; §8.4 rewritten.
+4. `references` renamed `umbrella_references` (PostgreSQL reserved word). Reserved words banned as identifiers (DATABASE §1).
+5. CLAUDE §6 amended, director-approved: home city and county are retained on deletion; name, email, password, DOB, gender, party erased. Resolves the constitutional conflict with the 2026-09-07 decision; TODO Decision #6 closed. DATABASE §3.1 column notes corrected ("kept", not "nulled"); `last_active_at` nulled on deletion.
+6. A ballot vote is visible to exactly one person, its voter (ballot page, own export). DATABASE §4.16, AUDIT §4.1, DEMOCRACY §13 reworded so the ballot endpoint is not a CRITICAL finding.
+7. Data export respects the boundary rule via a contributor registry: Foundation `export.py` calls Iteration's registered `export_iteration.py::contribute` (ARCHITECTURE §2, DATABASE §3.11; TODO I-32).
+8. Jury majority is over seated (accepted) jurors; a `no_response` juror is not seated and not replaced; `juries.seated_count` set when the ballot opens; review closes on ballot open (DEMOCRACY §8.2–8.3).
+9. Zero-item cycle: `prepared → published` is the only transition, no jury drawn (DEMOCRACY §10.1–10.2, DATABASE §4.14).
+10. Minimum signup age 17 — setting `min_signup_age`, checked once at signup, 422 `too_young`, nothing stored (DEMOCRACY §2.3, §7.4; ARCHITECTURE §4).
+11. Ballot order: umbrella name A–Z, net score at snapshot descending, solution id ascending — `ballot_items.position`.
+12. Transparency pages (`/settings`, `/ai/actions`, `/admin/log`, `/admin` settings change) are Foundation (new F-24); only the cycle controls on `/admin` are Iteration (I-27).
+13. Active users exclude unverified-email and deleted accounts (DEMOCRACY §2.4), so every drawn juror can serve.
+- Housekeeping without a decision: CLAUDE Document Map lists nine documents; PROJECT.md clone mode replaces worktree; one root `.env` replaces `infra/.env` + `backend/.env`; refresh token is cookie-only; `/legal/cookies` route; `reference_reject_min` (2) split from `similarity_confirm_min`; shared enums `community_level_enum` and `verification_level_enum` declared as the two exceptions to the naming convention; `amendment_similarity_votes` added to the §2 list; `${VAR}` substitution and CSV header documented for the seed runner; TODO snapshot brought to 2026-09-13.
+
+**Notes:**
+- The demo brief (`briefs/demo-01.md`, written 2026-09-11) predates these changes and must be re-checked before the run — in particular the seed-file paths, `post_solutions`, the export contributor, and F-24/I-32.
+- Reminder for the brief: `ballot_min_dominant_days = 3` means nothing qualifies in a same-day walkthrough; the director lowers it with a logged settings change during the demo.
+
+**Document changes flagged:**
+- Director must move the seed files (P0-12) before Demo 1 can pass Step 0.
+- New technical-debt entry: solutions duplicated per community may surprise users; observe during demo use.
+
+**Addendum (same session, later):** `briefs/demo-01.md` re-checked and updated for the day's changes (five seed files, one root `.env`, F-24/I-32, the manual cycle now covering the age refusal, two-community post, logged threshold change, seated jury, held-back return rule, zero-item cycle, and export-then-delete). `briefs/audit.md` was found never to have been written despite SANDBOX.md §6.5 referring to it; written now from AUDIT.md (P0-16). Director moved the seed files to `backend/config/`; P0-12 closed. Phase 0 is complete except the optional search provider; Demo 1 can run.
