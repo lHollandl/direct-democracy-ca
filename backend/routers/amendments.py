@@ -6,8 +6,6 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from backend.deps import SessionDep, VerifiedUser, require_member
-from backend.jobs import runner
-from backend.jobs import similarity as similarity_job
 from backend.routers.common import Message
 from backend.services import amendments as amendments_service
 from backend.services import similarity as similarity_service
@@ -39,14 +37,8 @@ async def propose_amendment(
         text=body.proposed_text,
         rationale=body.rationale,
     )
-    amendment_id = amendment.id
-    runner.spawn_after_commit(
-        session,
-        lambda: similarity_job.similarity_check_task(amendment_id),
-        name=f"similarity_check:{amendment_id}",
-    )
     return {
-        "id": amendment_id,
+        "id": amendment.id,
         "message": (
             "Proposed. It becomes the solution's text once enough of the people "
             "who support that solution back your change."

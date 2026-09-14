@@ -15,8 +15,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from backend.deps import AdminUser, SessionDep
-from backend.jobs import labeling as labeling_job
-from backend.jobs import runner
 from backend.routers.common import Message
 from backend.services import admin_log
 from backend.services import cycles as cycles_service
@@ -189,12 +187,7 @@ async def relabel_post(post_id: int, admin: AdminUser, session: SessionDep) -> M
         subject_id=post.id,
         old_value={"label_status": post.label_status},
     )
-    post_id_to_relabel = post.id
-    runner.spawn_after_commit(
-        session,
-        lambda: labeling_job.label_post_task(post_id_to_relabel),
-        name=f"relabel:{post_id_to_relabel}",
-    )
+    await posts_service.request_relabel(session, post)
     return Message(message="Queued for filing again.")
 
 

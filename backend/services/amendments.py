@@ -93,7 +93,21 @@ async def propose(
         "amendment_proposed",
         extra={"amendment_id": amendment.id, "solution_id": solution.id},
     )
+    _schedule_similarity_check(session, amendment.id)
     return amendment
+
+
+def _schedule_similarity_check(session: AsyncSession, amendment_id: int) -> None:
+    """The service that owns the transaction schedules the job (ARCHITECTURE.md
+    §7; resolves audit demo-01 run 1's ambiguity 1)."""
+    from backend.jobs import runner
+    from backend.jobs import similarity as similarity_job
+
+    runner.spawn_after_commit(
+        session,
+        lambda: similarity_job.similarity_check_task(amendment_id),
+        name=f"similarity_check:{amendment_id}",
+    )
 
 
 async def withdraw(session: AsyncSession, *, amendment: Amendment, user: User) -> None:

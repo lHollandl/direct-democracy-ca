@@ -138,6 +138,8 @@ async def create(
 
     if category_choice == "author_selected":
         await _apply_author_choice(session, post=post, chosen=chosen_umbrellas)
+    else:
+        _schedule_labeling(session, post.id)
 
     log.info(
         "post_created",
@@ -150,6 +152,20 @@ async def create(
         },
     )
     return post
+
+
+def _schedule_labeling(session: AsyncSession, post_id: int, *, name_prefix: str = "label_post") -> None:
+    """The service that owns the transaction schedules the job (ARCHITECTURE.md
+    §7): labeling runs after this session commits, so it never opens against a
+    post row that does not exist yet (demo-01 bug)."""
+    from backend.jobs import labeling as labeling_job
+    from backend.jobs import runner
+
+    runner.spawn_after_commit(
+        session,
+        lambda: labeling_job.label_post_task(post_id),
+        name=f"{name_prefix}:{post_id}",
+    )
 
 
 async def _apply_author_choice(
@@ -467,6 +483,13 @@ async def feed(
             ),
         },
     }
+
+
+async def request_relabel(session: AsyncSession, post: Post) -> None:
+    """`POST /admin/posts/{id}/relabel` — the director forcing a retry
+    (DEMOCRACY.md §13). The service that owns the transaction schedules the
+    job (ARCHITECTURE.md §7)."""
+    _schedule_labeling(session, post.id, name_prefix="relabel")
 
 
 async def require_post(session: AsyncSession, post_id: int) -> Post:

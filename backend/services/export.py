@@ -50,10 +50,24 @@ def clear_contributors() -> None:
 
 
 async def request_export(session: AsyncSession, user: User) -> DataExport:
-    return await data_exports_repo.add(
+    row = await data_exports_repo.add(
         session,
         user_id=user.id,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=EXPORT_LIFETIME_HOURS),
+    )
+    export_id = row.id
+    _schedule_build(session, export_id)
+    return row
+
+
+def _schedule_build(session: AsyncSession, export_id: int) -> None:
+    """The service that owns the transaction schedules the job (ARCHITECTURE.md
+    §7)."""
+    from backend.jobs import exports as export_job
+    from backend.jobs import runner
+
+    runner.spawn_after_commit(
+        session, lambda: export_job.build_export_task(export_id), name=f"export:{export_id}"
     )
 
 

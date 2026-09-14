@@ -8,8 +8,6 @@ from pydantic import BaseModel, Field
 
 from backend.deps import CurrentUser, SessionDep
 from backend.errors import NotFound
-from backend.jobs import exports as export_job
-from backend.jobs import runner
 from backend.routers.common import Message
 from backend.services import account as account_service
 from backend.services import export as export_service
@@ -41,10 +39,6 @@ class ExportOut(BaseModel):
 @router.post("/export", status_code=status.HTTP_202_ACCEPTED, response_model=ExportOut)
 async def request_export(user: CurrentUser, session: SessionDep) -> ExportOut:
     row = await export_service.request_export(session, user)
-    export_id = row.id
-    runner.spawn_after_commit(
-        session, lambda: export_job.build_export_task(export_id), name=f"export:{export_id}"
-    )
     return ExportOut(
         id=row.id,
         status="requested",

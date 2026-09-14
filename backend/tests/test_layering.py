@@ -19,8 +19,11 @@ from backend.config.settings_env import repo_root
 ROUTERS_DIR = repo_root() / "backend" / "routers"
 SERVICES_DIR = repo_root() / "backend" / "services"
 
-#: Routers may call services only — never a repository or a client module.
-FORBIDDEN_ROUTER_IMPORT_PREFIXES = ("backend.repositories", "backend.clients")
+#: Routers may call services only — never a repository, a client module, or a
+#: job (job scheduling is the responsibility of the service that owns the
+#: transaction — ARCHITECTURE.md §2, §7; resolves audit demo-01 run 1's
+#: ambiguity 1).
+FORBIDDEN_ROUTER_IMPORT_PREFIXES = ("backend.repositories", "backend.clients", "backend.jobs")
 
 #: Neither a router nor a service may touch the session directly with these.
 FORBIDDEN_SESSION_ATTRS = ("execute", "get")
@@ -50,15 +53,16 @@ def _router_violations(path: Path) -> list[str]:
         ):
             violations.append(
                 f"{path.name}:{node.lineno} imports from {node.module!r} — a router may "
-                "call only a service, never a repository or a client (ARCHITECTURE.md §2)"
+                "call only a service, never a repository, a client, or a job "
+                "(ARCHITECTURE.md §2, §7)"
             )
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name.startswith(FORBIDDEN_ROUTER_IMPORT_PREFIXES):
                     violations.append(
                         f"{path.name}:{node.lineno} imports {alias.name!r} — a router may "
-                        "call only a service, never a repository or a client "
-                        "(ARCHITECTURE.md §2)"
+                        "call only a service, never a repository, a client, or a job "
+                        "(ARCHITECTURE.md §2, §7)"
                     )
         attr = _is_session_call(node, FORBIDDEN_SESSION_ATTRS)
         if attr:

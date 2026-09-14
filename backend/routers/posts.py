@@ -6,8 +6,6 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field, field_validator
 
 from backend.deps import CurrentUser, SessionDep, VerifiedUser
-from backend.jobs import labeling as labeling_job
-from backend.jobs import runner
 from backend.routers.common import Message
 from backend.services import posts as posts_service
 
@@ -57,24 +55,13 @@ async def create_post(
             if c.umbrella_id is not None
         },
     )
-    post_id = post.id
-    label_status = post.label_status
-    if body.category_choice == "ai":
-        # Labeling runs after the post commits (ARCHITECTURE.md §7). The job is
-        # its own task, not tied to this response, so closing the tab does not
-        # cancel the filing.
-        runner.spawn_after_commit(
-            session,
-            lambda: labeling_job.label_post_task(post_id),
-            name=f"label_post:{post_id}",
-        )
     return PostCreatedOut(
-        id=post_id,
-        label_status=label_status,
+        id=post.id,
+        label_status=post.label_status,
         message=(
             "Posted. It is being filed into an umbrella now — that usually takes a "
             "moment. You can confirm or correct where it lands."
-            if label_status == "pending"
+            if post.label_status == "pending"
             else "Posted and filed."
         ),
     )
