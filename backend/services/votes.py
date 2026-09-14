@@ -17,7 +17,8 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.errors import Conflict, NotFound, ValidationFailed
-from backend.models import Amendment, Comment, Solution, User
+from backend.models import Solution, User
+from backend.repositories import comments as comments_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
 from backend.repositories import votes as votes_repo
@@ -151,8 +152,12 @@ async def evaluate_dominance(session: AsyncSession, solution: Solution) -> dict:
 
 
 async def _load_target(session: AsyncSession, target_type: str, target_id: int):
-    model = {"solution": Solution, "amendment": Amendment, "comment": Comment}[target_type]
-    row = await session.get(model, target_id)
+    getter = {
+        "solution": solutions_repo.get,
+        "amendment": solutions_repo.get_amendment,
+        "comment": comments_repo.get,
+    }[target_type]
+    row = await getter(session, target_id)
     if row is None:
         raise NotFound("That is not something you can vote on.", code="vote_target_not_found")
     if target_type == "solution" and row.deleted_at is not None:

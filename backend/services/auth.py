@@ -187,7 +187,7 @@ async def _issue_refresh_token(
         expires_at=expires,
     )
     if replaces is not None:
-        old = await session.get(type(row), replaces)
+        old = await users_repo.refresh_token_by_id(session, replaces)
         if old is not None:
             old.replaced_by_id = row.id
             old.revoked_at = datetime.now(timezone.utc)
@@ -232,10 +232,9 @@ async def refresh(session: AsyncSession, raw_refresh_token: str) -> tuple[User, 
 
 async def _revoke_chain_in_own_transaction(refresh_token_id: int) -> int:
     from backend.db import session_scope
-    from backend.models import RefreshToken
 
     async with session_scope() as fresh:
-        row = await fresh.get(RefreshToken, refresh_token_id)
+        row = await users_repo.refresh_token_by_id(fresh, refresh_token_id)
         if row is None:
             return 0
         return await users_repo.revoke_refresh_chain(fresh, row)
@@ -305,6 +304,30 @@ async def reset_password(session: AsyncSession, *, token: str, new_password: str
     await session.flush()
     log.info("password_reset", extra={"user_id": user.id})
     return user
+
+
+async def me_view(session: AsyncSession, user: User) -> dict:
+    from backend.services import community as community_service
+
+    display = await users_repo.display_settings(session, user.id)
+    communities = await community_service.home_communities(session, user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "real_name": user.real_name,
+        "display_name": user.display_name,
+        "public_name_mode": display.public_name_mode if display else "display_name",
+        "verification_level": user.verification_level,
+        "verification_explanation": (
+            "Unverified means the platform has confirmed your email address and "
+            "nothing else. Your residency is self-declared. Your vote counts "
+            "exactly as much as everyone else's — verification level is reported "
+            "in totals and never changes the weight of a vote."
+        ),
+        "email_verified": user.email_verified_at is not None,
+        "is_admin": user.is_admin,
+        "home_communities": [c.as_dict() for c in communities],
+    }
 
 
 async def require_verified(user: User) -> None:

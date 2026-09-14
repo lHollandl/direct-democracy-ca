@@ -271,6 +271,17 @@ async def jury_for_cycle(session: AsyncSession, cycle_id: int) -> Jury | None:
     ).scalar_one_or_none()
 
 
+async def get_jury(session: AsyncSession, jury_id: int) -> Jury | None:
+    return await session.get(Jury, jury_id)
+
+
+async def delete_jury(session: AsyncSession, jury_id: int) -> None:
+    from sqlalchemy import delete
+
+    await session.execute(delete(Jury).where(Jury.id == jury_id))
+    await session.flush()
+
+
 async def add_juror(session: AsyncSession, **fields) -> Juror:
     row = Juror(**fields)
     session.add(row)
@@ -345,6 +356,36 @@ async def holdbacks(session: AsyncSession, jury_id: int) -> list[JuryHoldback]:
         .scalars()
         .all()
     )
+
+
+async def holdbacks_for_juror(session: AsyncSession, juror_id: int) -> list[JuryHoldback]:
+    return list(
+        (
+            await session.execute(
+                select(JuryHoldback).where(JuryHoldback.juror_id == juror_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def holdback_history_for_solution(
+    session: AsyncSession, solution_id: int, exclude_cycle_id: int
+) -> list[tuple[JuryHoldback, BallotItem]]:
+    """DEMOCRACY.md §8.4 — a hold-back is feedback; the next jury sees it."""
+    rows = (
+        await session.execute(
+            select(JuryHoldback, BallotItem)
+            .join(BallotItem, BallotItem.id == JuryHoldback.ballot_item_id)
+            .where(
+                BallotItem.solution_id == solution_id,
+                BallotItem.cycle_id != exclude_cycle_id,
+            )
+            .order_by(JuryHoldback.id)
+        )
+    ).all()
+    return [(holdback, item) for holdback, item in rows]
 
 
 async def previous_jury_user_ids(

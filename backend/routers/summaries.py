@@ -8,7 +8,6 @@ from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
 from backend.deps import SessionDep, VerifiedUser
-from backend.repositories import cycles as cycles_repo
 from backend.services import pdf as pdf_service
 from backend.services import summaries as summaries_service
 
@@ -80,11 +79,7 @@ async def summary_pdf(
     cycle = await summaries_service.cycle_for(
         session, level=level, entity_id=entity_id, number=number
     )
-    summary = await cycles_repo.summary_for_cycle(session, cycle.id)
-    if summary is None:
-        from backend.errors import NotFound
-
-        raise NotFound("That cycle has no published summary.", code="summary_not_found")
+    summary = await summaries_service.require_summary(session, cycle=cycle)
     url = f"/summaries/{level}/{entity_id}/{number}"
     payload = pdf_service.render(summary.data, summary.summary_hash, url)
     return Response(

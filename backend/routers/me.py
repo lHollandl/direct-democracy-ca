@@ -10,7 +10,6 @@ from backend.deps import CurrentUser, SessionDep
 from backend.errors import NotFound
 from backend.jobs import exports as export_job
 from backend.jobs import runner
-from backend.repositories import users as users_repo
 from backend.routers.common import Message
 from backend.services import account as account_service
 from backend.services import export as export_service
@@ -29,13 +28,8 @@ class DisplayOut(BaseModel):
 
 @router.patch("/display", response_model=DisplayOut)
 async def set_display(body: DisplayIn, user: CurrentUser, session: SessionDep) -> DisplayOut:
-    row = await users_repo.set_display_mode(session, user.id, body.public_name_mode)
-    shown = {
-        "real_name": user.real_name,
-        "display_name": user.display_name,
-        "anonymous": "Anonymous Community Member",
-    }[row.public_name_mode]
-    return DisplayOut(public_name_mode=row.public_name_mode, shown_as=shown)
+    result = await account_service.set_display(session, user, body.public_name_mode)
+    return DisplayOut(**result)
 
 
 class ExportOut(BaseModel):

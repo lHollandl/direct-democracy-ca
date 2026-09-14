@@ -6,15 +6,10 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from backend.deps import OptionalUser, SessionDep, VerifiedUser
-from backend.repositories import solutions as solutions_repo
-from backend.repositories import umbrellas as umbrellas_repo
-from backend.repositories import votes as votes_repo
 from backend.services import ai_log
 from backend.services import amendments as amendments_service
 from backend.services import comments as comments_service
-from backend.services import community as community_service
 from backend.services import rules
-from backend.services import settings as settings_service
 from backend.services import similarity as similarity_service
 from backend.services import solutions as solutions_service
 from backend.services.display import author_displays
@@ -25,28 +20,19 @@ router = APIRouter(prefix="/solutions", tags=["solutions"])
 @router.get("/{solution_id}")
 async def get_solution(solution_id: int, session: SessionDep, viewer: OptionalUser) -> dict:
     solution = await solutions_service.require_solution(session, solution_id)
-    umbrella = await umbrellas_repo.get(session, solution.umbrella_id)
-    versions = await solutions_repo.versions(session, solution.id)
+    data = await solutions_service.detail_view(session, solution, viewer)
+    umbrella = data["umbrella"]
+    community = data["community"]
+    versions = data["versions"]
+    values = data["values"]
+    active_users = data["active_users"]
+    my_vote = data["my_vote"]
+    amendments = data["amendments"]
     displays = await author_displays(
         session, [solution.author_id] + [v.created_by for v in versions]
     )
-    values = await settings_service.all_values(session)
-    active_users = await community_service.active_user_count(
-        session, umbrella.community_level, umbrella.community_entity_id
-    )
-    my_vote = (
-        (await votes_repo.user_votes_on(session, viewer.id, "solution", [solution.id])).get(
-            solution.id
-        )
-        if viewer
-        else None
-    )
-    amendments = await solutions_repo.amendments_for(session, solution.id)
     amendment_displays = await author_displays(session, [a.author_id for a in amendments])
     current = versions[-1].text_body if versions else ""
-    community = await community_service.resolve(
-        session, umbrella.community_level, umbrella.community_entity_id
-    )
 
     return {
         "id": solution.id,
@@ -57,7 +43,7 @@ async def get_solution(solution_id: int, session: SessionDep, viewer: OptionalUs
         "author": displays.get(solution.author_id, "Former Community Member"),
         "net_score": solution.net_score,
         "my_vote": my_vote,
-        "supporters": await solutions_repo.supporters(session, solution.id),
+        "supporters": data["supporters"],
         "is_dominant": solution.is_dominant,
         "dominant_since": solution.dominant_since,
         "dominant_threshold": rules.dominant_threshold(

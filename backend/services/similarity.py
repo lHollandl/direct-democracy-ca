@@ -189,6 +189,13 @@ async def decide(
     return result
 
 
+async def require_similarity(session: AsyncSession, similarity_id: int) -> AmendmentSimilarity:
+    similarity = await solutions_repo.get_similarity(session, similarity_id)
+    if similarity is None:
+        raise NotFound("That flagged pair does not exist.", code="similarity_not_found")
+    return similarity
+
+
 async def pairs_for_solution(session: AsyncSession, solution_id: int) -> list[dict]:
     pairs = await solutions_repo.similarities_for_solution(session, solution_id)
     out = []

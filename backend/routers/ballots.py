@@ -6,9 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from backend.deps import OptionalUser, SessionDep, VerifiedUser
-from backend.repositories import cycles as cycles_repo
 from backend.services import ballots as ballots_service
-from backend.services import community as community_service
 from backend.services import cycles as cycles_service
 
 router = APIRouter(tags=["ballot"])
@@ -16,23 +14,7 @@ router = APIRouter(tags=["ballot"])
 
 @router.get("/communities/{level}/{entity_id}/cycles")
 async def community_cycles(level: str, entity_id: int, session: SessionDep) -> dict:
-    community = await community_service.resolve(session, level, entity_id)
-    rows = await cycles_repo.for_community(session, level, entity_id)
-    return {
-        "community": community.as_dict(),
-        "cycles": [
-            {
-                "id": c.id,
-                "number": c.number,
-                "state": c.state,
-                "prepared_at": c.prepared_at,
-                "opened_at": c.opened_at,
-                "closed_at": c.closed_at,
-                "published_at": c.published_at,
-            }
-            for c in rows
-        ],
-    }
+    return await cycles_service.for_community(session, level, entity_id)
 
 
 @router.get("/cycles/{cycle_id}")

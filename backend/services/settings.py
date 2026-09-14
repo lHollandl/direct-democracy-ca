@@ -206,3 +206,7 @@ async def change(
 
 async def invalidate_cache() -> None:
     await redis_client.cache_delete_prefix(CACHE_KEY)
+
+
+async def history(session: AsyncSession, key: str | None = None):
+    return await settings_repo.history(session, key)

@@ -18,14 +18,14 @@ import logging
 import secrets
 from datetime import datetime, timezone
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.errors import Conflict, Forbidden, NotFound, ValidationFailed
-from backend.models import Cycle, Jury, Juror, Solution, SolutionVersion, User
+from backend.models import Cycle, Jury, Juror, User
 from backend.repositories import cycles as cycles_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
+from backend.repositories import users as users_repo
 from backend.services import community as community_service
 from backend.services import rules
 from backend.services import settings as settings_service
@@ -52,39 +52,20 @@ async def eligible_pool(
     from datetime import timedelta
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
-    member_filter = await community_service.members_query_filter(
-        cycle.community_level, cycle.community_entity_id
+    candidates = await users_repo.active_member_ids(
+        session,
+        cycle.community_level,
+        cycle.community_entity_id,
+        cutoff,
+        exclude_admins=True,
     )
-    candidates = (
-        await session.execute(
-            select(User.id).where(
-                member_filter,
-                User.deleted_at.is_(None),
-                User.email_verified_at.is_not(None),
-                User.last_active_at.is_not(None),
-                User.last_active_at >= cutoff,
-                User.is_admin.is_(False),
-            )
-        )
-    ).scalars().all()
 
     excluded: set[int] = set()
     if solution_ids:
         # Anyone who authored any version of a qualified solution.
-        version_authors = (
-            await session.execute(
-                select(SolutionVersion.created_by).where(
-                    SolutionVersion.solution_id.in_(solution_ids)
-                )
-            )
-        ).scalars().all()
-        excluded |= set(version_authors)
-        solution_authors = (
-            await session.execute(
-                select(Solution.author_id).where(Solution.id.in_(solution_ids))
-            )
-        ).scalars().all()
-        excluded |= set(solution_authors)
+        excluded |= await solutions_repo.version_authors_for_solutions(session, solution_ids)
+        solutions_by_id = await solutions_repo.by_ids(session, solution_ids)
+        excluded |= {s.author_id for s in solutions_by_id.values()}
         excluded |= await solutions_repo.proposed_amendment_authors_for_solutions(
             session, solution_ids
         )
@@ -147,20 +128,12 @@ async def redraw(session: AsyncSession, *, cycle: Cycle, reason: str) -> Jury:
         for juror in await cycles_repo.jurors(session, existing.id):
             if juror.status in ("drawn", "accepted"):
                 juror.status = "replaced"
-        await session.execute(
-            _delete_jury_stmt(existing.id)
-        )
         await session.flush()
+        await cycles_repo.delete_jury(session, existing.id)
     items = await cycles_repo.items(session, cycle.id)
     return await draw(
         session, cycle=cycle, solution_ids=[i.solution_id for i in items], reason=reason
     )
-
-
-def _delete_jury_stmt(jury_id: int):
-    from sqlalchemy import delete
-
-    return delete(Jury).where(Jury.id == jury_id)
 
 
 async def accept(session: AsyncSession, *, juror: Juror, user: User) -> Juror:
@@ -187,7 +160,7 @@ async def decline(session: AsyncSession, *, juror: Juror, user: User) -> dict:
             code="juror_already_answered",
         )
     juror.status = "declined"
-    jury = await session.get(Jury, juror.jury_id)
+    jury = await cycles_repo.get_jury(session, juror.jury_id)
     if jury is None:
         raise NotFound("That jury no longer exists.", code="jury_not_found")
 
@@ -248,7 +221,7 @@ async def hold_back(
     item = await cycles_repo.get_item(session, ballot_item_id)
     if item is None:
         raise NotFound("That ballot item does not exist.", code="ballot_item_not_found")
-    jury = await session.get(Jury, juror.jury_id)
+    jury = await cycles_repo.get_jury(session, juror.jury_id)
     if jury is None or item.cycle_id != jury.cycle_id:
         raise Forbidden("That item is not on the ballot you are reviewing.", code="wrong_ballot")
     cycle = await cycles_repo.get(session, item.cycle_id)
@@ -401,19 +374,9 @@ async def previous_holdback_reasons(
     session: AsyncSession, solution_id: int, current_cycle_id: int
 ) -> list[dict]:
     """A hold-back is feedback; the next jury sees it (DEMOCRACY.md §8.4)."""
-    from backend.models import BallotItem, JuryHoldback
-
-    rows = (
-        await session.execute(
-            select(JuryHoldback, BallotItem)
-            .join(BallotItem, BallotItem.id == JuryHoldback.ballot_item_id)
-            .where(
-                BallotItem.solution_id == solution_id,
-                BallotItem.cycle_id != current_cycle_id,
-            )
-            .order_by(JuryHoldback.id)
-        )
-    ).all()
+    rows = await cycles_repo.holdback_history_for_solution(
+        session, solution_id, current_cycle_id
+    )
     return [
         {
             "cycle_id": item.cycle_id,
@@ -423,6 +386,56 @@ async def previous_holdback_reasons(
         }
         for holdback, item in rows
     ]
+
+
+async def admin_user_view(session: AsyncSession, user_id: int) -> dict:
+    """`GET /admin/users/{id}` — verification level and jury history. **Never
+    ballot votes** — a ballot vote is visible only to the voter who cast it
+    (DEMOCRACY.md §13)."""
+    user = await users_repo.get(session, user_id)
+    if user is None:
+        raise NotFound("No such account.", code="user_not_found")
+    duties = []
+    for juror, jury, cycle in await cycles_repo.jury_duties_for_user(session, user_id):
+        community = await community_service.resolve(
+            session, cycle.community_level, cycle.community_entity_id
+        )
+        duties.append(
+            {
+                "cycle_id": cycle.id,
+                "cycle_number": cycle.number,
+                "community": community.as_dict(),
+                "seat": juror.seat,
+                "status": juror.status,
+            }
+        )
+    return {
+        "id": user.id,
+        "display_name": user.display_name,
+        "verification_level": user.verification_level,
+        "email_verified": user.email_verified_at is not None,
+        "deleted": user.deleted_at is not None,
+        "is_admin": user.is_admin,
+        "last_active_at": user.last_active_at,
+        "jury_history": duties,
+        "ballot_votes": (
+            "Not available to anyone but the voter. This endpoint never returns "
+            "them, by design (DEMOCRACY.md §13)."
+        ),
+    }
+
+
+async def redraw_for_admin(session: AsyncSession, *, cycle: Cycle, reason: str) -> dict:
+    """`POST /admin/cycles/{id}/redraw-jury` — the old jury's id (if any) plus
+    the freshly drawn one, for the admin log entry."""
+    old_jury = await cycles_repo.jury_for_cycle(session, cycle.id)
+    jury = await redraw(session, cycle=cycle, reason=reason)
+    jurors = await cycles_repo.jurors(session, jury.id)
+    return {
+        "jury_id": jury.id,
+        "drawn": len(jurors),
+        "old_jury_id": old_jury.id if old_jury else None,
+    }
 
 
 async def require_juror(session: AsyncSession, juror_id: int) -> Juror:

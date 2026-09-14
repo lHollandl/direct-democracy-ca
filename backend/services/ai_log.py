@@ -10,12 +10,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config.settings_env import get_env_settings
-from backend.models import AiAction, Amendment, AmendmentSimilarity, Solution, UmbrellaReference
+from backend.models import AiAction
 from backend.repositories import ai_actions as ai_repo
+from backend.repositories import posts as posts_repo
+from backend.repositories import references as references_repo
+from backend.repositories import solutions as solutions_repo
 from backend.services import hashing
 
 
@@ -48,6 +50,25 @@ async def record(
     )
 
 
+async def page(
+    session: AsyncSession,
+    *,
+    cursor: int | None,
+    limit: int,
+    subject_type: str | None = None,
+    subject_id: int | None = None,
+    action_type: str | None = None,
+):
+    return await ai_repo.page(
+        session,
+        cursor=cursor,
+        limit=limit,
+        subject_type=subject_type,
+        subject_id=subject_id,
+        action_type=action_type,
+    )
+
+
 async def record_outcome(
     session: AsyncSession, *, action_id: int | None, outcome: str, user_id: int
 ) -> None:
@@ -61,48 +82,21 @@ async def record_outcome(
 async def umbrella_action_list(session: AsyncSession, umbrella_id: int) -> dict[str, Any]:
     """DEMOCRACY.md §9.5 — an action list, not a percentage, generated from the
     AI action log at page render."""
-    from backend.repositories import posts as posts_repo
-    from backend.models import Label, PostCommunity
-
-    label_rows = (
-        await session.execute(
-            select(Label).where(Label.umbrella_id == umbrella_id)
-        )
-    ).scalars().all()
-    post_ids = (
-        await session.execute(
-            select(PostCommunity.post_id).where(PostCommunity.umbrella_id == umbrella_id)
-        )
-    ).scalars().all()
+    label_rows = await posts_repo.labels_for_umbrella(session, umbrella_id)
+    post_ids = await posts_repo.post_ids_for_umbrella(session, umbrella_id)
     total_reports = len(set(post_ids))
     ai_labeled = [row for row in label_rows if row.ai_action_id is not None]
     confirmed = sum(1 for row in ai_labeled if row.outcome == "confirmed_by_author")
     corrected = sum(1 for row in ai_labeled if row.outcome == "corrected_by_author")
     unreviewed = sum(1 for row in ai_labeled if row.outcome == "unreviewed")
 
-    solution_ids = (
-        await session.execute(select(Solution.id).where(Solution.umbrella_id == umbrella_id))
-    ).scalars().all()
-    amendment_ids = (
-        await session.execute(
-            select(Amendment.id).where(Amendment.solution_id.in_(solution_ids or [0]))
-        )
-    ).scalars().all()
-    pairs = (
-        await session.execute(
-            select(AmendmentSimilarity).where(
-                AmendmentSimilarity.amendment_a_id.in_(amendment_ids or [0])
-            )
-        )
-    ).scalars().all()
+    solution_ids = await solutions_repo.ids_in_umbrella(session, umbrella_id)
+    amendment_ids = await solutions_repo.amendment_ids_for_solutions(session, solution_ids)
+    pairs = await solutions_repo.similarities_for_amendment_ids(session, amendment_ids)
     same = sum(1 for p in pairs if p.decision == "same")
     different = sum(1 for p in pairs if p.decision == "different")
 
-    references = (
-        await session.execute(
-            select(UmbrellaReference).where(UmbrellaReference.umbrella_id == umbrella_id)
-        )
-    ).scalars().all()
+    references = await references_repo.for_umbrella(session, umbrella_id)
     ai_refs = [r for r in references if r.source == "ai"]
     rejected_refs = sum(1 for r in ai_refs if r.status == "rejected")
     useful_refs = len(ai_refs) - rejected_refs

@@ -25,6 +25,7 @@ from backend.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from backend.models import Amendment, Solution, User
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
+from backend.repositories import votes as votes_repo
 from backend.services import hashing
 from backend.services import rules
 from backend.services import settings as settings_service
@@ -139,20 +140,7 @@ async def effective_supporters(session: AsyncSession, amendment: Amendment) -> s
 
 
 async def _upvoters(session: AsyncSession, amendment_id: int) -> tuple[set[int], set[int]]:
-    from sqlalchemy import select
-
-    from backend.models import Vote
-
-    rows = (
-        await session.execute(
-            select(Vote.user_id, Vote.direction).where(
-                Vote.target_type == "amendment", Vote.target_id == amendment_id
-            )
-        )
-    ).all()
-    up = {int(uid) for uid, direction in rows if int(direction) == 1}
-    down = {int(uid) for uid, direction in rows if int(direction) == -1}
-    return up, down
+    return await votes_repo.direction_sets(session, "amendment", amendment_id)
 
 
 async def evaluate_absorption(session: AsyncSession, amendment: Amendment) -> dict:
@@ -258,7 +246,27 @@ async def community_of(session: AsyncSession, amendment: Amendment) -> tuple[str
     solution = await solutions_repo.get(session, amendment.solution_id)
     if solution is None:
         raise NotFound("That amendment's solution is missing.", code="solution_not_found")
+    return await community_of_solution(session, solution)
+
+
+async def community_of_solution(session: AsyncSession, solution: Solution) -> tuple[str, int]:
     umbrella = await umbrellas_repo.get(session, solution.umbrella_id)
     if umbrella is None:
         raise NotFound("That solution's umbrella is missing.", code="umbrella_not_found")
     return umbrella.community_level, umbrella.community_entity_id
+
+
+async def list_for_solution(session: AsyncSession, solution: Solution) -> dict:
+    """`GET /solutions/{id}/amendments` — everything but the author display
+    names and the similarity pairs, which the router adds from their own
+    service calls."""
+    rows = await solutions_repo.amendments_for(session, solution.id)
+    current = await solutions_repo.current_version(session, solution.id)
+    text = current.text_body if current else ""
+    return {
+        "rows": rows,
+        "current_text": text,
+        "current_version": solution.current_version,
+        "absorption_threshold": await absorption_threshold_for(session, solution.id),
+        "supporters": await solutions_repo.supporters(session, solution.id),
+    }

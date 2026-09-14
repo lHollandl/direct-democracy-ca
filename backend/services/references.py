@@ -20,6 +20,7 @@ from backend.errors import ExternalServiceDown, NotFound, ValidationFailed
 from backend.models import Umbrella, UmbrellaReference, User
 from backend.repositories import references as references_repo
 from backend.repositories import solutions as solutions_repo
+from backend.repositories import umbrellas as umbrellas_repo
 from backend.services import ai_log
 from backend.services import settings as settings_service
 from backend.services.display import author_displays
@@ -289,3 +290,12 @@ async def require_reference(session: AsyncSession, reference_id: int) -> Umbrell
     if row is None:
         raise NotFound("That reference does not exist.", code="reference_not_found")
     return row
+
+
+async def community_of_reference(
+    session: AsyncSession, reference: UmbrellaReference
+) -> tuple[str, int] | None:
+    umbrella = await umbrellas_repo.get(session, reference.umbrella_id)
+    if umbrella is None:
+        return None
+    return umbrella.community_level, umbrella.community_entity_id

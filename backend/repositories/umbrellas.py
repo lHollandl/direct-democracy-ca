@@ -39,6 +39,19 @@ async def categories(session: AsyncSession, *, active_only: bool = True) -> list
     return list((await session.execute(stmt.order_by(MainCategory.name))).scalars().all())
 
 
+async def all_categories_by_slug(session: AsyncSession) -> dict[str, MainCategory]:
+    """Every category regardless of `active` (backend/services/startup_sync.py)."""
+    rows = (await session.execute(select(MainCategory))).scalars().all()
+    return {row.slug: row for row in rows}
+
+
+async def add_category(session: AsyncSession, *, slug: str, name: str, active: bool) -> MainCategory:
+    row = MainCategory(slug=slug, name=name, active=active)
+    session.add(row)
+    await session.flush()
+    return row
+
+
 async def category_by_name(session: AsyncSession, name: str) -> MainCategory | None:
     return (
         await session.execute(select(MainCategory).where(MainCategory.name == name))

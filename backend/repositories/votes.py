@@ -124,3 +124,19 @@ async def user_votes_on(
         )
     ).all()
     return {int(tid): int(direction) for tid, direction in rows}
+
+
+async def direction_sets(
+    session: AsyncSession, target_type: str, target_id: int
+) -> tuple[set[int], set[int]]:
+    """(upvoter ids, downvoter ids) on one target."""
+    rows = (
+        await session.execute(
+            select(Vote.user_id, Vote.direction).where(
+                Vote.target_type == target_type, Vote.target_id == target_id
+            )
+        )
+    ).all()
+    up = {int(uid) for uid, direction in rows if int(direction) == 1}
+    down = {int(uid) for uid, direction in rows if int(direction) == -1}
+    return up, down

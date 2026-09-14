@@ -26,7 +26,7 @@ from backend.services import ai_log
 from backend.services import community as community_service
 from backend.services import hashing
 from backend.services import solutions as solutions_service
-from backend.services.display import author_display
+from backend.services.display import author_display, author_displays
 
 log = logging.getLogger(__name__)
 
@@ -398,6 +398,75 @@ def _label_words(label) -> str | None:
         "corrected_by_author": "AI-labeled, corrected by author",
         "author_selected": "chosen by author",
     }.get(label.outcome, label.outcome)
+
+
+async def feed(
+    session: AsyncSession,
+    *,
+    viewer: User | None,
+    community: str | None,
+    category: str | None,
+    cursor: int | None,
+    limit: int,
+) -> dict:
+    """`GET /feed` — feed-v0, newest first (DEMOCRACY.md §12)."""
+    community_filter = None
+    if community:
+        level, _, raw_id = community.partition(":")
+        resolved = await community_service.resolve(session, level, int(raw_id))
+        community_filter = (resolved.level, resolved.entity_id)
+
+    category_id = None
+    if category:
+        row = await umbrellas_repo.category_by_slug(session, category)
+        category_id = row.id if row else -1
+
+    home_keys = None
+    if community_filter is None and viewer is not None:
+        home_keys = [c.key for c in await community_service.home_communities(session, viewer)]
+
+    rows = await posts_repo.feed_page(
+        session,
+        cursor=cursor,
+        limit=limit,
+        community=community_filter,
+        main_category_id=category_id,
+        community_keys=home_keys,
+    )
+    displays = await author_displays(session, [p.author_id for p in rows])
+    items = []
+    for post in rows:
+        communities = await posts_repo.communities(session, post.id)
+        items.append(
+            {
+                "id": post.id,
+                "title": derive_title(post.problem_text),
+                "problem_text": post.problem_text,
+                "author": displays.get(post.author_id, "Former Community Member"),
+                "created_at": post.created_at,
+                "label_status": post.label_status,
+                "ai_influence": ai_log.influence(post.ai_contribution_percentage),
+                "communities": [
+                    {
+                        "level": c.community_level,
+                        "entity_id": c.community_entity_id,
+                        "umbrella_id": c.umbrella_id,
+                    }
+                    for c in communities
+                ],
+            }
+        )
+    return {
+        "items": items,
+        "next_cursor": rows[-1].id if len(rows) == limit else None,
+        "filters": {
+            "community": community,
+            "category": category,
+            "default": (
+                "your home communities" if home_keys else "everything, newest first"
+            ),
+        },
+    }
 
 
 async def require_post(session: AsyncSession, post_id: int) -> Post:

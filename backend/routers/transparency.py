@@ -13,10 +13,9 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from backend.deps import SessionDep
-from backend.repositories import ai_actions as ai_repo
-from backend.repositories import settings as settings_repo
 from backend.routers.common import CursorParam, DEFAULT_LIMIT, LimitParam
 from backend.services import admin_log
+from backend.services import ai_log
 from backend.services import rules
 from backend.services import settings as settings_service
 from backend.services.display import author_displays
@@ -68,7 +67,7 @@ class SettingHistoryOut(BaseModel):
 async def settings_history(
     session: SessionDep, key: str | None = Query(default=None)
 ) -> list[SettingHistoryOut]:
-    rows = await settings_repo.history(session, key)
+    rows = await settings_service.history(session, key)
     displays = await author_displays(session, [r.changed_by for r in rows if r.changed_by])
     return [
         SettingHistoryOut(
@@ -118,7 +117,7 @@ async def ai_actions(
     cursor: CursorParam = None,
     limit: LimitParam = DEFAULT_LIMIT,
 ) -> AiActionsOut:
-    rows = await ai_repo.page(
+    rows = await ai_log.page(
         session,
         cursor=cursor,
         limit=limit,

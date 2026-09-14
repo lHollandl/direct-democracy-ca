@@ -213,3 +213,119 @@ async def terms_acceptances(session: AsyncSession, user_id: int) -> list[TermsAc
         .scalars()
         .all()
     )
+
+
+async def refresh_token_by_id(session: AsyncSession, token_id: int) -> RefreshToken | None:
+    return await session.get(RefreshToken, token_id)
+
+
+# --- anonymization (DATABASE.md §3.1) --------------------------------------
+
+
+async def anonymize(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    email: str,
+    password_hash: str,
+    display_name: str,
+    date_of_birth,
+    gender: str,
+    political_party: str,
+    deleted_at,
+) -> None:
+    """county_id and city_id are deliberately left untouched (CLAUDE.md §6)."""
+    await session.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(
+            email=email,
+            password_hash=password_hash,
+            real_name="",
+            display_name=display_name,
+            date_of_birth=date_of_birth,
+            gender=gender,
+            political_party=political_party,
+            last_active_at=None,
+            deleted_at=deleted_at,
+        )
+    )
+
+
+async def reset_display_mode(session: AsyncSession, user_id: int, mode: str) -> None:
+    await session.execute(
+        update(UserDisplaySettings).where(UserDisplaySettings.user_id == user_id).values(
+            public_name_mode=mode
+        )
+    )
+
+
+# --- display and community-scoped counts -----------------------------------
+
+
+async def display_rows(session: AsyncSession, user_ids: list[int]) -> list:
+    """`(id, real_name, display_name, deleted_at, public_name_mode)` per user,
+    one query for a page full of authors."""
+    ids = {i for i in user_ids if i is not None}
+    if not ids:
+        return []
+    return (
+        await session.execute(
+            select(
+                User.id,
+                User.real_name,
+                User.display_name,
+                User.deleted_at,
+                UserDisplaySettings.public_name_mode,
+            )
+            .outerjoin(UserDisplaySettings, UserDisplaySettings.user_id == User.id)
+            .where(User.id.in_(ids))
+        )
+    ).all()
+
+
+def _community_clause(level: str, entity_id: int):
+    from backend.models import County
+    from backend.errors import ValidationFailed
+
+    if level == "city":
+        return User.city_id == entity_id
+    if level == "county":
+        return User.county_id == entity_id
+    if level == "state":
+        return User.county_id.in_(select(County.id).where(County.state_id == entity_id))
+    raise ValidationFailed(f"{level!r} is not a governance level.", code="unknown_community_level")
+
+
+async def count_active_members(
+    session: AsyncSession, level: str, entity_id: int, cutoff: datetime
+) -> int:
+    """DEMOCRACY.md §2.4 — active members of one community."""
+    stmt = (
+        select(func.count())
+        .select_from(User)
+        .where(
+            _community_clause(level, entity_id),
+            User.deleted_at.is_(None),
+            User.email_verified_at.is_not(None),
+            User.last_active_at.is_not(None),
+            User.last_active_at >= cutoff,
+        )
+    )
+    return int((await session.execute(stmt)).scalar_one())
+
+
+async def active_member_ids(
+    session: AsyncSession, level: str, entity_id: int, cutoff: datetime, *, exclude_admins: bool
+) -> list[int]:
+    """DEMOCRACY.md §8.1 — the jury-draw candidate pool before exclusions."""
+    stmt = select(User.id).where(
+        _community_clause(level, entity_id),
+        User.deleted_at.is_(None),
+        User.email_verified_at.is_not(None),
+        User.last_active_at.is_not(None),
+        User.last_active_at >= cutoff,
+    )
+    if exclude_admins:
+        stmt = stmt.where(User.is_admin.is_(False))
+    return list((await session.execute(stmt)).scalars().all())

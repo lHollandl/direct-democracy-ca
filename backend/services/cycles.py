@@ -339,6 +339,26 @@ async def _transition(
     await session.flush()
 
 
+async def for_community(session: AsyncSession, level: str, entity_id: int) -> dict:
+    community = await community_service.resolve(session, level, entity_id)
+    rows = await cycles_repo.for_community(session, level, entity_id)
+    return {
+        "community": community.as_dict(),
+        "cycles": [
+            {
+                "id": c.id,
+                "number": c.number,
+                "state": c.state,
+                "prepared_at": c.prepared_at,
+                "opened_at": c.opened_at,
+                "closed_at": c.closed_at,
+                "published_at": c.published_at,
+            }
+            for c in rows
+        ],
+    }
+
+
 async def require_cycle(session: AsyncSession, cycle_id: int) -> Cycle:
     cycle = await cycles_repo.get(session, cycle_id)
     if cycle is None:

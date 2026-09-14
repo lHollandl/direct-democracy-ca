@@ -359,3 +359,72 @@ async def merged_into(session: AsyncSession, amendment_id: int) -> list[Amendmen
         .scalars()
         .all()
     )
+
+
+async def by_author(session: AsyncSession, author_id: int) -> list[Solution]:
+    return list(
+        (
+            await session.execute(
+                select(Solution).where(Solution.author_id == author_id).order_by(Solution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def version_authors_for_solutions(session: AsyncSession, solution_ids: list[int]) -> set[int]:
+    if not solution_ids:
+        return set()
+    rows = (
+        await session.execute(
+            select(SolutionVersion.created_by).where(
+                SolutionVersion.solution_id.in_(set(solution_ids))
+            )
+        )
+    ).scalars().all()
+    return set(rows)
+
+
+async def ids_in_umbrella(session: AsyncSession, umbrella_id: int) -> list[int]:
+    return list(
+        (
+            await session.execute(
+                select(Solution.id).where(Solution.umbrella_id == umbrella_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def amendment_ids_for_solutions(session: AsyncSession, solution_ids: list[int]) -> list[int]:
+    if not solution_ids:
+        return []
+    return list(
+        (
+            await session.execute(
+                select(Amendment.id).where(Amendment.solution_id.in_(set(solution_ids)))
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def similarities_for_amendment_ids(
+    session: AsyncSession, amendment_ids: list[int]
+) -> list[AmendmentSimilarity]:
+    if not amendment_ids:
+        return []
+    return list(
+        (
+            await session.execute(
+                select(AmendmentSimilarity).where(
+                    AmendmentSimilarity.amendment_a_id.in_(set(amendment_ids))
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )

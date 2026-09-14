@@ -15,12 +15,13 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config.settings_env import repo_root
 from backend.errors import Forbidden, NotFound
-from backend.models import City, County, DataExport, State, User, UserDisplaySettings
+from backend.models import DataExport, User
+from backend.repositories import data_exports as data_exports_repo
+from backend.repositories import geography as geo_repo
 from backend.repositories import users as users_repo
 
 log = logging.getLogger(__name__)
@@ -49,19 +50,17 @@ def clear_contributors() -> None:
 
 
 async def request_export(session: AsyncSession, user: User) -> DataExport:
-    row = DataExport(
+    return await data_exports_repo.add(
+        session,
         user_id=user.id,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=EXPORT_LIFETIME_HOURS),
     )
-    session.add(row)
-    await session.flush()
-    return row
 
 
 async def build_export(session: AsyncSession, export_id: int) -> Path:
     """Assemble the file. Runs in a background job so a large export does not
     hold a request open."""
-    row = await session.get(DataExport, export_id)
+    row = await data_exports_repo.get(session, export_id)
     if row is None:
         raise NotFound("That export request no longer exists.", code="export_not_found")
     payload = await gather(session, row.user_id)
@@ -76,13 +75,13 @@ async def build_export(session: AsyncSession, export_id: int) -> Path:
 
 
 async def gather(session: AsyncSession, user_id: int) -> dict:
-    user = await session.get(User, user_id)
+    user = await users_repo.get(session, user_id)
     if user is None:
         raise NotFound("That account no longer exists.", code="user_not_found")
-    display = await session.get(UserDisplaySettings, user_id)
-    city = await session.get(City, user.city_id)
-    county = await session.get(County, user.county_id)
-    state = await session.get(State, county.state_id) if county else None
+    display = await users_repo.display_settings(session, user_id)
+    city = await geo_repo.get_city(session, user.city_id)
+    county = await geo_repo.get_county(session, user.county_id)
+    state = await geo_repo.get_state(session, county.state_id) if county else None
 
     payload: dict = {
         "export_generated_at": datetime.now(timezone.utc),
@@ -141,7 +140,7 @@ async def gather(session: AsyncSession, user_id: int) -> dict:
 
 
 async def get_export(session: AsyncSession, user: User, export_id: int) -> DataExport:
-    row = await session.get(DataExport, export_id)
+    row = await data_exports_repo.get(session, export_id)
     if row is None:
         raise NotFound("That export does not exist.", code="export_not_found")
     if row.user_id != user.id:
@@ -153,13 +152,7 @@ async def expire_exports(session: AsyncSession) -> int:
     """Delete export files past `expires_at`. Files only; rows stay
     (ARCHITECTURE.md §7)."""
     now = datetime.now(timezone.utc)
-    rows = (
-        await session.execute(
-            select(DataExport).where(
-                DataExport.expires_at < now, DataExport.file_path.is_not(None)
-            )
-        )
-    ).scalars().all()
+    rows = await data_exports_repo.expired_with_file(session, now)
     removed = 0
     for row in rows:
         path = Path(row.file_path)

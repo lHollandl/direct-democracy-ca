@@ -15,14 +15,10 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from backend.deps import AdminUser, SessionDep
-from backend.errors import NotFound
 from backend.jobs import labeling as labeling_job
 from backend.jobs import runner
-from backend.repositories import cycles as cycles_repo
-from backend.repositories import users as users_repo
 from backend.routers.common import Message
 from backend.services import admin_log
-from backend.services import community as community_service
 from backend.services import cycles as cycles_service
 from backend.services import juries as juries_service
 from backend.services import posts as posts_service
@@ -102,20 +98,18 @@ async def redraw_jury(
     cycle_id: int, body: RedrawIn, admin: AdminUser, session: SessionDep
 ) -> dict:
     cycle = await cycles_service.require_cycle(session, cycle_id)
-    old_jury = await cycles_repo.jury_for_cycle(session, cycle.id)
-    jury = await juries_service.redraw(session, cycle=cycle, reason=body.reason)
-    jurors = await cycles_repo.jurors(session, jury.id)
+    result = await juries_service.redraw_for_admin(session, cycle=cycle, reason=body.reason)
     await admin_log.record(
         session,
         admin_user_id=admin.id,
         action="redraw_jury",
         subject_type="cycle",
         subject_id=cycle.id,
-        old_value={"jury_id": old_jury.id if old_jury else None},
-        new_value={"jury_id": jury.id, "drawn": len(jurors)},
+        old_value={"jury_id": result["old_jury_id"]},
+        new_value={"jury_id": result["jury_id"], "drawn": result["drawn"]},
         reason=body.reason,
     )
-    return {"jury_id": jury.id, "drawn": len(jurors), "reason": body.reason}
+    return {"jury_id": result["jury_id"], "drawn": result["drawn"], "reason": body.reason}
 
 
 @router.post("/cycles/{cycle_id}/open")
@@ -208,34 +202,4 @@ async def relabel_post(post_id: int, admin: AdminUser, session: SessionDep) -> M
 async def admin_user_view(user_id: int, admin: AdminUser, session: SessionDep) -> dict:
     """Verification level and jury history. **Never ballot votes** — a ballot
     vote is visible only to the voter who cast it (DEMOCRACY.md §13)."""
-    user = await users_repo.get(session, user_id)
-    if user is None:
-        raise NotFound("No such account.", code="user_not_found")
-    duties = []
-    for juror, jury, cycle in await cycles_repo.jury_duties_for_user(session, user_id):
-        community = await community_service.resolve(
-            session, cycle.community_level, cycle.community_entity_id
-        )
-        duties.append(
-            {
-                "cycle_id": cycle.id,
-                "cycle_number": cycle.number,
-                "community": community.as_dict(),
-                "seat": juror.seat,
-                "status": juror.status,
-            }
-        )
-    return {
-        "id": user.id,
-        "display_name": user.display_name,
-        "verification_level": user.verification_level,
-        "email_verified": user.email_verified_at is not None,
-        "deleted": user.deleted_at is not None,
-        "is_admin": user.is_admin,
-        "last_active_at": user.last_active_at,
-        "jury_history": duties,
-        "ballot_votes": (
-            "Not available to anyone but the voter. This endpoint never returns "
-            "them, by design (DEMOCRACY.md §13)."
-        ),
-    }
+    return await juries_service.admin_user_view(session, user_id)

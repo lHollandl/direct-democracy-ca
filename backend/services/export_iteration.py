@@ -9,10 +9,8 @@ This includes the person's **own ballot votes**, which are shown to nobody else
 
 from __future__ import annotations
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import BallotItem, Juror, Jury, JuryHoldback, Post, Solution
 from backend.repositories import comments as comments_repo
 from backend.repositories import cycles as cycles_repo
 from backend.repositories import posts as posts_repo
@@ -21,18 +19,12 @@ from backend.repositories import votes as votes_repo
 
 
 async def contribute(session: AsyncSession, user_id: int) -> dict:
-    posts = (
-        await session.execute(select(Post).where(Post.author_id == user_id).order_by(Post.id))
-    ).scalars().all()
-    solutions = (
-        await session.execute(
-            select(Solution).where(Solution.author_id == user_id).order_by(Solution.id)
-        )
-    ).scalars().all()
+    posts = await posts_repo.by_author(session, user_id)
+    solutions = await solutions_repo.by_author(session, user_id)
 
     ballot_votes = []
     for vote in await cycles_repo.ballot_votes_of_user(session, user_id):
-        item = await session.get(BallotItem, vote.ballot_item_id)
+        item = await cycles_repo.get_item(session, vote.ballot_item_id)
         ballot_votes.append(
             {
                 "cycle_id": item.cycle_id if item else None,
@@ -46,17 +38,8 @@ async def contribute(session: AsyncSession, user_id: int) -> dict:
         )
 
     jury_service = []
-    rows = (
-        await session.execute(
-            select(Juror, Jury).join(Jury, Jury.id == Juror.jury_id).where(Juror.user_id == user_id)
-        )
-    ).all()
-    for juror, jury in rows:
-        holdbacks = (
-            await session.execute(
-                select(JuryHoldback).where(JuryHoldback.juror_id == juror.id)
-            )
-        ).scalars().all()
+    for juror, jury, _cycle in await cycles_repo.jury_duties_for_user(session, user_id):
+        holdbacks = await cycles_repo.holdbacks_for_juror(session, juror.id)
         jury_service.append(
             {
                 "cycle_id": jury.cycle_id,

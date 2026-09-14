@@ -178,3 +178,54 @@ def _community_tuple_filter(keys: list[tuple[str, int]]):
             for level, entity_id in keys
         ]
     )
+
+
+async def by_author(session: AsyncSession, author_id: int) -> list[Post]:
+    return list(
+        (
+            await session.execute(
+                select(Post).where(Post.author_id == author_id).order_by(Post.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def labels_for_umbrella(session: AsyncSession, umbrella_id: int) -> list[Label]:
+    return list(
+        (await session.execute(select(Label).where(Label.umbrella_id == umbrella_id)))
+        .scalars()
+        .all()
+    )
+
+
+async def post_ids_for_umbrella(session: AsyncSession, umbrella_id: int) -> list[int]:
+    rows = (
+        await session.execute(
+            select(PostCommunity.post_id).where(PostCommunity.umbrella_id == umbrella_id)
+        )
+    ).scalars().all()
+    return list(set(rows))
+
+
+async def problem_reports_for_umbrella(
+    session: AsyncSession, umbrella_id: int
+) -> list[tuple[Post, Label | None]]:
+    """DEMOCRACY.md §3.3 item 2 — newest first, one row per post with its label
+    for this umbrella's community, if any."""
+    rows = (
+        await session.execute(
+            select(Post, Label)
+            .join(PostCommunity, PostCommunity.post_id == Post.id)
+            .outerjoin(
+                Label,
+                (Label.post_id == Post.id)
+                & (Label.community_level == PostCommunity.community_level)
+                & (Label.community_entity_id == PostCommunity.community_entity_id),
+            )
+            .where(PostCommunity.umbrella_id == umbrella_id, Post.deleted_at.is_(None))
+            .order_by(Post.created_at.desc(), Post.id.desc())
+        )
+    ).all()
+    return [(post, label) for post, label in rows]

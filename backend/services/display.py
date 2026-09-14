@@ -8,10 +8,9 @@ identity is removed.
 
 from __future__ import annotations
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import User, UserDisplaySettings
+from backend.repositories import users as users_repo
 
 FORMER_MEMBER = "Former Community Member"
 ANONYMOUS = "Anonymous Community Member"
@@ -28,18 +27,7 @@ async def author_displays(session: AsyncSession, user_ids) -> dict[int, str]:
     ids = {i for i in user_ids if i is not None}
     if not ids:
         return {}
-    rows = (
-        await session.execute(
-            select(
-                User.id,
-                User.real_name,
-                User.display_name,
-                User.deleted_at,
-                UserDisplaySettings.public_name_mode,
-            ).outerjoin(UserDisplaySettings, UserDisplaySettings.user_id == User.id)
-            .where(User.id.in_(ids))
-        )
-    ).all()
+    rows = await users_repo.display_rows(session, list(ids))
     out: dict[int, str] = {}
     for user_id, real_name, display_name, deleted_at, mode in rows:
         if deleted_at is not None:

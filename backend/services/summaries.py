@@ -331,6 +331,13 @@ async def by_community_and_number(
     return _shape(summary.data, summary.summary_hash, summary.published_at)
 
 
+async def require_summary(session: AsyncSession, *, cycle: Cycle):
+    summary = await cycles_repo.summary_for_cycle(session, cycle.id)
+    if summary is None:
+        raise NotFound("That cycle has no published summary.", code="summary_not_found")
+    return summary
+
+
 async def cycle_for(
     session: AsyncSession, *, level: str, entity_id: int, number: int
 ) -> Cycle:

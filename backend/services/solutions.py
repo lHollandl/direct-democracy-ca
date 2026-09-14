@@ -21,7 +21,9 @@ from backend.repositories import posts as posts_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
 from backend.repositories import votes as votes_repo
+from backend.services import community as community_service
 from backend.services import hashing
+from backend.services import settings as settings_service
 
 log = logging.getLogger(__name__)
 
@@ -236,3 +238,36 @@ async def require_solution(session: AsyncSession, solution_id: int) -> Solution:
     if solution is None or solution.deleted_at is not None:
         raise NotFound("That solution does not exist.", code="solution_not_found")
     return solution
+
+
+async def detail_view(session: AsyncSession, solution: Solution, viewer: User | None) -> dict:
+    """`GET /solutions/{id}` — everything but the author display names, the
+    similarity pairs and the discussion thread, which the router adds from
+    their own service calls."""
+    umbrella = await require_umbrella(session, solution.umbrella_id)
+    versions = await solutions_repo.versions(session, solution.id)
+    values = await settings_service.all_values(session)
+    active_users = await community_service.active_user_count(
+        session, umbrella.community_level, umbrella.community_entity_id
+    )
+    my_vote = (
+        (await votes_repo.user_votes_on(session, viewer.id, "solution", [solution.id])).get(
+            solution.id
+        )
+        if viewer
+        else None
+    )
+    amendments = await solutions_repo.amendments_for(session, solution.id)
+    community = await community_service.resolve(
+        session, umbrella.community_level, umbrella.community_entity_id
+    )
+    return {
+        "umbrella": umbrella,
+        "community": community,
+        "versions": versions,
+        "values": values,
+        "active_users": active_users,
+        "my_vote": my_vote,
+        "amendments": amendments,
+        "supporters": await solutions_repo.supporters(session, solution.id),
+    }

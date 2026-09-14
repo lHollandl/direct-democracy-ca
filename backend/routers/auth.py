@@ -10,10 +10,8 @@ from pydantic import BaseModel, EmailStr, Field
 from backend.config.settings_env import get_env_settings
 from backend.deps import CurrentUser, SessionDep
 from backend.errors import Unauthorized
-from backend.repositories import users as users_repo
 from backend.routers.common import Message
 from backend.services import auth as auth_service
-from backend.services import community as community_service
 from backend.services import security
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -200,22 +198,4 @@ class MeOut(BaseModel):
 
 @router.get("/me", response_model=MeOut)
 async def me(user: CurrentUser, session: SessionDep) -> MeOut:
-    display = await users_repo.display_settings(session, user.id)
-    communities = await community_service.home_communities(session, user)
-    return MeOut(
-        id=user.id,
-        email=user.email,
-        real_name=user.real_name,
-        display_name=user.display_name,
-        public_name_mode=display.public_name_mode if display else "display_name",
-        verification_level=user.verification_level,
-        verification_explanation=(
-            "Unverified means the platform has confirmed your email address and "
-            "nothing else. Your residency is self-declared. Your vote counts "
-            "exactly as much as everyone else's — verification level is reported "
-            "in totals and never changes the weight of a vote."
-        ),
-        email_verified=user.email_verified_at is not None,
-        is_admin=user.is_admin,
-        home_communities=[c.as_dict() for c in communities],
-    )
+    return MeOut(**await auth_service.me_view(session, user))

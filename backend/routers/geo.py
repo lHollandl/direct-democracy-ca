@@ -6,9 +6,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.deps import SessionDep
-from backend.repositories import geography as geo_repo
-from backend.repositories import officials as officials_repo
 from backend.services import community as community_service
+from backend.services import geography as geography_service
 
 router = APIRouter(tags=["geography"])
 
@@ -30,7 +29,7 @@ class CityOut(BaseModel):
 async def counties(session: SessionDep) -> list[CountyOut]:
     return [
         CountyOut(id=c.id, name=c.name, fips=c.fips)
-        for c in await geo_repo.all_counties(session)
+        for c in await geography_service.all_counties(session)
     ]
 
 
@@ -38,7 +37,7 @@ async def counties(session: SessionDep) -> list[CountyOut]:
 async def cities(county_id: int, session: SessionDep) -> list[CityOut]:
     return [
         CityOut(id=c.id, name=c.name, county_id=c.county_id, incorporated=c.incorporated)
-        for c in await geo_repo.cities_in_county(session, county_id)
+        for c in await geography_service.cities_in_county(session, county_id)
     ]
 
 
@@ -75,7 +74,7 @@ async def community(level: str, entity_id: int, session: SessionDep) -> Communit
                 email=o.email,
                 source=o.source,
             )
-            for o in await officials_repo.for_community(session, level, entity_id)
+            for o in await community_service.officials_for(session, level, entity_id)
         ],
     )
 
@@ -87,5 +86,5 @@ async def officials(level: str, entity_id: int, session: SessionDep) -> list[Off
         OfficialOut(
             id=o.id, office=o.office, holder_name=o.holder_name, email=o.email, source=o.source
         )
-        for o in await officials_repo.for_community(session, level, entity_id)
+        for o in await community_service.officials_for(session, level, entity_id)
     ]

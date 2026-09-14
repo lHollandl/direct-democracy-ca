@@ -6,10 +6,8 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from backend.deps import SessionDep, VerifiedUser, require_member
-from backend.errors import NotFound
 from backend.jobs import runner
 from backend.jobs import similarity as similarity_job
-from backend.repositories import solutions as solutions_repo
 from backend.routers.common import Message
 from backend.services import amendments as amendments_service
 from backend.services import similarity as similarity_service
@@ -32,7 +30,7 @@ async def propose_amendment(
     session: SessionDep,
 ) -> dict:
     solution = await solutions_service.require_solution(session, solution_id)
-    level, entity_id = await _community_of_solution(session, solution)
+    level, entity_id = await amendments_service.community_of_solution(session, solution)
     await require_member(session, user, level, entity_id)
     amendment = await amendments_service.propose(
         session,
@@ -62,17 +60,15 @@ async def propose_amendment(
 @router.get("/solutions/{solution_id}/amendments")
 async def list_amendments(solution_id: int, session: SessionDep) -> dict:
     solution = await solutions_service.require_solution(session, solution_id)
-    rows = await solutions_repo.amendments_for(session, solution.id)
+    data = await amendments_service.list_for_solution(session, solution)
+    rows = data["rows"]
+    text = data["current_text"]
     displays = await author_displays(session, [a.author_id for a in rows])
-    current = await solutions_repo.current_version(session, solution.id)
-    text = current.text_body if current else ""
     return {
         "solution_id": solution.id,
-        "current_version": solution.current_version,
-        "absorption_threshold": await amendments_service.absorption_threshold_for(
-            session, solution.id
-        ),
-        "supporters": await solutions_repo.supporters(session, solution.id),
+        "current_version": data["current_version"],
+        "absorption_threshold": data["absorption_threshold"],
+        "supporters": data["supporters"],
         "amendments": [
             {
                 "id": a.id,
@@ -110,23 +106,10 @@ class DecisionIn(BaseModel):
 async def decide_similarity(
     similarity_id: int, body: DecisionIn, user: VerifiedUser, session: SessionDep
 ) -> dict:
-    similarity = await solutions_repo.get_similarity(session, similarity_id)
-    if similarity is None:
-        raise NotFound("That flagged pair does not exist.", code="similarity_not_found")
-    amendment = await solutions_repo.get_amendment(session, similarity.amendment_a_id)
-    if amendment is None:
-        raise NotFound("That amendment no longer exists.", code="amendment_not_found")
+    similarity = await similarity_service.require_similarity(session, similarity_id)
+    amendment = await amendments_service.require_amendment(session, similarity.amendment_a_id)
     level, entity_id = await amendments_service.community_of(session, amendment)
     await require_member(session, user, level, entity_id)
     return await similarity_service.decide(
         session, similarity=similarity, user=user, choice=body.choice
     )
-
-
-async def _community_of_solution(session, solution) -> tuple[str, int]:
-    from backend.repositories import umbrellas as umbrellas_repo
-
-    umbrella = await umbrellas_repo.get(session, solution.umbrella_id)
-    if umbrella is None:
-        raise NotFound("That solution's umbrella is missing.", code="umbrella_not_found")
-    return umbrella.community_level, umbrella.community_entity_id

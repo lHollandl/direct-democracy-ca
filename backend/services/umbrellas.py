@@ -9,11 +9,11 @@ Nothing is ever hidden. A solution at −20 appears at the bottom of the list.
 
 from __future__ import annotations
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.errors import NotFound
-from backend.models import Label, Post, PostCommunity, Umbrella
+from backend.models import Umbrella
+from backend.repositories import posts as posts_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
 from backend.repositories import votes as votes_repo
@@ -110,20 +110,7 @@ async def page(session: AsyncSession, umbrella_id: int, viewer_id: int | None) -
 async def _problem_reports(session: AsyncSession, umbrella: Umbrella) -> list[dict]:
     """DEMOCRACY.md §3.3 item 2 — newest first, with author display and label
     status."""
-    rows = (
-        await session.execute(
-            select(Post, Label)
-            .join(PostCommunity, PostCommunity.post_id == Post.id)
-            .outerjoin(
-                Label,
-                (Label.post_id == Post.id)
-                & (Label.community_level == PostCommunity.community_level)
-                & (Label.community_entity_id == PostCommunity.community_entity_id),
-            )
-            .where(PostCommunity.umbrella_id == umbrella.id, Post.deleted_at.is_(None))
-            .order_by(Post.created_at.desc(), Post.id.desc())
-        )
-    ).all()
+    rows = await posts_repo.problem_reports_for_umbrella(session, umbrella.id)
     seen: dict[int, tuple] = {}
     for post, label in rows:
         if post.id not in seen or (label is not None and seen[post.id][1] is None):
