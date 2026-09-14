@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select, update
+from datetime import datetime
+
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import Label, Post, PostCommunity, PostSolution
@@ -69,12 +71,27 @@ async def set_label_status(session: AsyncSession, post_id: int, status: str) -> 
     await session.execute(update(Post).where(Post.id == post_id).values(label_status=status))
 
 
-async def unlabeled_posts(session: AsyncSession, limit: int = 50) -> list[Post]:
+async def posts_awaiting_labels(
+    session: AsyncSession, *, stale_before: datetime, limit: int = 50
+) -> list[Post]:
+    """Posts the labeler still owes an answer for.
+
+    `unlabeled` means a labeling attempt failed. `pending` older than the retry
+    window means the attempt never ran at all — the process was restarted
+    between the post committing and its job starting. Both have to be picked
+    up, or a post would sit saying "being filed" forever.
+    """
     return list(
         (
             await session.execute(
                 select(Post)
-                .where(Post.label_status == "unlabeled", Post.deleted_at.is_(None))
+                .where(
+                    Post.deleted_at.is_(None),
+                    or_(
+                        Post.label_status == "unlabeled",
+                        and_(Post.label_status == "pending", Post.created_at < stale_before),
+                    ),
+                )
                 .order_by(Post.id)
                 .limit(limit)
             )

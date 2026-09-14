@@ -1,0 +1,673 @@
+
+
+################################################################
+# STEP 1 — signup. An under-age applicant is refused and nothing is stored (DEMOCRACY §2.3)
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/auth/signup   (date of birth 2014 — age 12)
+{"error":"too_young","message":"You need to be at least 17 to join. Nothing you entered has been saved."}
+HTTP 422
+
+$ curl -X POST http://127.0.0.1:8000/auth/signup   (weak password)
+{"error":"weak_password","message":"Your password needs to contain a capital letter, and contain a number."}
+HTTP 422
+
+$ curl -X POST http://127.0.0.1:8000/auth/signup   (Maria Delgado, democratic)
+{"id":1,"message":"Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ curl -X POST http://127.0.0.1:8000/auth/signup   (Andre Whitfield, republican)
+{"id":2,"message":"Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ curl -X POST http://127.0.0.1:8000/auth/signup   (Priya Raman, no_party_preference)
+{"id":3,"message":"Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+
+################################################################
+# STEP 2 — the confirmation links, read from the console email log (EMAIL_BACKEND=console)
+################################################################
+maria@example.com: http://localhost:3000/verify-email?token=P6DV1VInBjVGs-t-y0ZTCwDJIEIQyrptPcHX6SJYpGk
+andre@example.com: http://localhost:3000/verify-email?token=CfKBMKHZ4JVfO8uI9Opxf1GZ8SYClA7TT4IDPrZzPvw
+priya@example.com: http://localhost:3000/verify-email?token=iDO1QQIcaoh8AyPIBhZUa7fmB7XLlE339CGX6RL6PEQ
+
+--- a write attempted before the email is confirmed ---
+
+$ curl -X POST http://127.0.0.1:8000/posts   (Priya, email not yet confirmed)
+{"error":"email_not_verified","message":"Confirm your email address before posting, voting or commenting. Check your inbox for the link we sent when you signed up."}
+HTTP 403
+
+$ curl -X POST http://127.0.0.1:8000/auth/verify-email -d '{"token":"<from the log>"}'   (maria)
+{"message":"Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ curl -X POST http://127.0.0.1:8000/auth/verify-email -d '{"token":"<from the log>"}'   (andre)
+{"message":"Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ curl -X POST http://127.0.0.1:8000/auth/verify-email -d '{"token":"<from the log>"}'   (priya)
+{"message":"Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+--- the same link a second time ---
+
+$ curl -X POST http://127.0.0.1:8000/auth/verify-email   (already used)
+{"error":"verification_invalid","message":"That confirmation link is no longer valid. Ask for a new one from the sign-in page."}
+HTTP 422
+
+
+################################################################
+# STEP 3 — sign in. Access token in the body, refresh token in an httpOnly SameSite=Strict cookie
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/auth/login   (maria)
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzUxNTM5LCJleHAiOjE3ODkzNTMzMzksImp0aSI6IjU1YWNmYTZhOWE3NDQ4YmI5N2Q3MDBiMTgyMmM4OGFiIn0.zRSnh0IXfH9ykkzzfBnipBd_HE90QTIxYD4Tu_mm55g","token_type":"bearer","user_id":1,"email_verified":true}
+HTTP 200
+
+$ curl -X POST http://127.0.0.1:8000/auth/login   (andre)
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzUxNTQwLCJleHAiOjE3ODkzNTMzNDAsImp0aSI6Ijc3NDQwOGI2NmFiNzQxOWZiYTE4ZTExMzJiYjMxNDcyIn0.O-0cG-lx6YXxp0boF-NIDNeQCX7if9zkQ4Uc9xg1dao","token_type":"bearer","user_id":2,"email_verified":true}
+HTTP 200
+
+$ curl -X POST http://127.0.0.1:8000/auth/login   (priya)
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5MzUxNTQwLCJleHAiOjE3ODkzNTMzNDAsImp0aSI6ImEwM2I1YzlmMzk0MzRlNGI5OTQyMzM5OGI4N2VlZWY5In0.IOCY0YvvPrqda-aM6yLOUAvv_172W8VaCrw0LxjeHpw","token_type":"bearer","user_id":3,"email_verified":true}
+HTTP 200
+
+--- the cookie jar for maria (the token itself is not printed) ---
+#HttpOnly_127.0.0.1	FALSE	/	FALSE	1790561139	refresh_token	<opaque token, never shown>
+
+$ curl -X GET http://127.0.0.1:8000/auth/me   (Maria)
+{"id":1,"email":"maria@example.com","real_name":"Maria Delgado","display_name":"MariaD","public_name_mode":"display_name","verification_level":"unverified","verification_explanation":"Unverified means the platform has confirmed your email address and nothing else. Your residency is self-declared. Your vote counts exactly as much as everyone else's — verification level is reported in totals and never changes the weight of a vote.","email_verified":true,"is_admin":false,"home_communities":[{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},{"level":"county","entity_id":43,"name":"Santa Clara","label":"Santa Clara County"},{"level":"state","entity_id":1,"name":"California","label":"California"}]}
+HTTP 200
+
+
+################################################################
+# STEP 4 — the director's account becomes an administrator, from the machine, with no endpoint for it
+################################################################
+$ python backend/scripts/grant_admin.py maria@example.com --dry-run
+WOULD GRANT administrator on maria@example.com (user 1)
+$ python backend/scripts/grant_admin.py maria@example.com --apply
+GRANT administrator on maria@example.com (user 1)
+$ python backend/scripts/grant_admin.py maria@example.com --dry-run   (re-runnable)
+Nothing to do: maria@example.com (user 1) is already an administrator.
+
+
+################################################################
+# STEP 5 — a logged settings change: ballot_min_dominant_days 3 -> 0 so a one-day walkthrough can reach a ballot
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/admin/settings   (Maria, administrator)
+{"key":"ballot_min_dominant_days","old_value":3,"new_value":0,"message":"Changed. The new value is on the public settings page and the change is in the public admin log."}
+HTTP 200
+
+$ curl -X POST http://127.0.0.1:8000/admin/settings   (Andre, not an administrator)
+{"error":"not_admin","message":"That is an administrator action."}
+HTTP 403
+
+$ curl -X GET http://127.0.0.1:8000/settings/history?key=ballot_min_dominant_days   (public, no login)
+[{"key":"ballot_min_dominant_days","value":"0","effective_from":"2026-09-14T02:05:41.310828Z","changed_by":"MariaD","reason":"This walkthrough runs inside a single day, and the three-day dominance requirement would make a ballot unreachable. Restore it to 3 before any real community uses this."},{"key":"ballot_min_dominant_days","value":"3","effective_from":"2026-09-14T02:03:40.563309Z","changed_by":"the platform seed","reason":"Demo 1 default"}]
+HTTP 200
+
+
+################################################################
+# STEP 6 — Maria posts a problem with two proposed solutions and lets the platform file it
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/posts
+{"id":1,"label_status":"pending","message":"Posted. It is being filed into an umbrella now — that usually takes a moment. You can confirm or correct where it lands."}
+HTTP 201
+
+--- waiting for the labeler (Ollama on the host GPU, llama3.2) ---
+label_status after 6s: labeled
+
+$ curl -X GET http://127.0.0.1:8000/posts/1
+{"id":1,"title":"The intersection of Bird Avenue and West Virginia Street has no marked…","problem_text":"The intersection of Bird Avenue and West Virginia Street has no marked crosswalk, and children walking to Washington Elementary cross four lanes of traffic there twice a day. Drivers routinely take the turn at speed during drop-off and pick-up hours. Two near misses were reported to the city last spring and nothing has changed since.","author":"MariaD","author_id":1,"created_at":"2026-09-14T02:05:41.475093Z","content_hash":"6786a35b25e722a3ac782543e19e2108dc8a7a479fcd5d141753e00d26ee8b08","label_status":"labeled","category_choice":"ai","ai_influence":{"ai_contribution_percentage":0,"label":"AI assistance on this platform: 0%","explanation":"This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."},"communities":[{"community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"umbrella_id":2,"umbrella_name":"Pedestrian Safety Near Schools","main_category":"Public Safety","label_status":"Filed","label_outcome":"unreviewed","label_shown_as":"AI-labeled, not yet reviewed by the author","confidence":0.8,"solution_ids":[1,2]}],"solution_texts":[{"id":1,"position":1,"text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue and install a pedestrian refuge island in the median, using the safe-routes-to-school funds the city already holds.","content_hash":"e72a9c59f656ddb8f9614a24d41a5d7c6f46460d3a88455cf7f87aab593a3fb8"},{"id":2,"position":2,"text":"Station a crossing guard at the intersection during school drop-off and pick-up hours, funded from the existing traffic safety budget, until permanent infrastructure is built.","content_hash":"b71a1d789bda3cbecd1dad096c9acb9813f8cb75ebac56be94a30a99f404b4be"}],"immutable_note":"Posts cannot be edited or deleted in this build. The problem text was fingerprinted when it was created. The solutions evolve in the workshop."}
+HTTP 200
+umbrella the platform chose: 2
+
+$ curl -X GET http://127.0.0.1:8000/ai/actions   (the public AI action log — the row exists before the result was shown)
+{"explanation":"Every action any AI takes on this platform is written down here before its result is shown to anyone: what it was, what it acted on, which model and which prompt file, a fingerprint of exactly what it was given, what it answered, and whether a person later confirmed or corrected it. AI never decides anything here.","items":[{"id":1,"action_type":"label","subject_type":"post","subject_id":1,"demo_build":"demo-01","model":"ollama:llama3.2","prompt_file":"labeler.md","prompt_hash":"5edbdd9cbeec6405372269be42a69312a3fb939a2cf24c1d343f6835fbd83651","input_hash":"bf98b783c7f0532e2be4b4a8450ee9584ac8a12ef2a0fcea3a331e196b55bb59","output":{"umbrellas":[{"umbrella_id":2,"community_level":"city","community_entity_id":408},{"umbrella_id":null,"community_level":"city","community_entity_id":1}],"confidence":0.8,"main_category":"Public Safety","category_recognised":true,"repeated_or_unlisted_communities":[]},"confidence":0.8,"human_outcome":"unreviewed","human_outcome_at":null,"created_at":"2026-09-14T02:05:41.484814Z"}],"next_cursor":null}
+HTTP 200
+
+
+################################################################
+# STEP 7 — Maria confirms the filing; the correction is offered and recorded either way
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/posts/1/label/confirm
+{"message":"Thank you — 1 filing confirmed. That is recorded in the public AI log."}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/ai/actions   (human_outcome is now recorded)
+{"explanation":"Every action any AI takes on this platform is written down here before its result is shown to anyone: what it was, what it acted on, which model and which prompt file, a fingerprint of exactly what it was given, what it answered, and whether a person later confirmed or corrected it. AI never decides anything here.","items":[{"id":1,"action_type":"label","subject_type":"post","subject_id":1,"demo_build":"demo-01","model":"ollama:llama3.2","prompt_file":"labeler.md","prompt_hash":"5edbdd9cbeec6405372269be42a69312a3fb939a2cf24c1d343f6835fbd83651","input_hash":"bf98b783c7f0532e2be4b4a8450ee9584ac8a12ef2a0fcea3a331e196b55bb59","output":{"umbrellas":[{"umbrella_id":2,"community_level":"city","community_entity_id":408},{"umbrella_id":null,"community_level":"city","community_entity_id":1}],"confidence":0.8,"main_category":"Public Safety","category_recognised":true,"repeated_or_unlisted_communities":[]},"confidence":0.8,"human_outcome":"confirmed","human_outcome_at":"2026-09-14T02:05:44.626941Z","created_at":"2026-09-14T02:05:41.484814Z"}],"next_cursor":null}
+HTTP 200
+
+
+################################################################
+# STEP 8 — the umbrella page: the workshop
+################################################################
+HTTP 200
+{
+  "problem": {
+    "name": "Pedestrian Safety Near Schools",
+    "community": {
+      "level": "city",
+      "entity_id": 408,
+      "name": "San Jose",
+      "label": "San Jose (city)"
+    },
+    "main_category": "Public Safety",
+    "active_users": 3,
+    "dominant_threshold": 1,
+    "ballot_threshold": 1
+  },
+  "ai_action_list": "AI on this umbrella: 1 of 1 problem report was AI-labeled (1 confirmed, 0 corrected, 0 unreviewed); 0 amendment pairs were flagged similar (0 confirmed same, 0 different); 0 of 0 references were AI-recommended (0 still listed, 0 rejected).",
+  "problem_reports": [
+    {
+      "post_id": 1,
+      "label_shown_as": "AI-labeled, confirmed by author",
+      "author": "MariaD"
+    }
+  ],
+  "solutions": [
+    {
+      "id": 1,
+      "net_score": 0,
+      "status_badge": null,
+      "text": "Paint a high-visibility continental crosswalk across West Virginia Str..."
+    },
+    {
+      "id": 2,
+      "net_score": 0,
+      "status_badge": null,
+      "text": "Station a crossing guard at the intersection during school drop-off an..."
+    }
+  ],
+  "ordering": {
+    "version": "solutions-v0",
+    "explanation": "Highest net score first; where two solutions have the same score, the older one is shown first. Nothing is ever hidden \u2014 a solution with a negative score appears at the bottom of the list."
+  }
+}
+solution A = 1 (crosswalk and refuge island); solution B = 2 (crossing guard)
+
+
+################################################################
+# STEP 9 — Andre and Priya upvote both solutions; the first vote makes each dominant
+################################################################
+
+$ curl -X PUT http://127.0.0.1:8000/votes   (Andre, +1 on solution 1)
+{"target_type":"solution","target_id":1,"net_score":1,"upvotes":1,"downvotes":0,"is_dominant":true,"dominant_since":"2026-09-14T02:05:44.782236Z","dominance_changed":true,"dominant_threshold":1,"active_users":3,"on_track_for_ballot":true,"ballot_threshold":1}
+HTTP 200
+
+$ curl -X PUT http://127.0.0.1:8000/votes   (Andre, +1 on solution 2)
+{"target_type":"solution","target_id":2,"net_score":1,"upvotes":1,"downvotes":0,"is_dominant":true,"dominant_since":"2026-09-14T02:05:44.843326Z","dominance_changed":true,"dominant_threshold":1,"active_users":3,"on_track_for_ballot":true,"ballot_threshold":1}
+HTTP 200
+
+$ curl -X PUT http://127.0.0.1:8000/votes   (Priya, +1 on solution 1)
+{"target_type":"solution","target_id":1,"net_score":2,"upvotes":2,"downvotes":0,"is_dominant":true,"dominant_since":"2026-09-14T02:05:44.782236Z","dominance_changed":false,"dominant_threshold":1,"active_users":3,"on_track_for_ballot":true,"ballot_threshold":1}
+HTTP 200
+
+$ curl -X PUT http://127.0.0.1:8000/votes   (Priya, +1 on solution 2)
+{"target_type":"solution","target_id":2,"net_score":2,"upvotes":2,"downvotes":0,"is_dominant":true,"dominant_since":"2026-09-14T02:05:44.843326Z","dominance_changed":false,"dominant_threshold":1,"active_users":3,"on_track_for_ballot":true,"ballot_threshold":1}
+HTTP 200
+
+--- a downvote lowers the ranking and hides nothing (CLAUDE.md §4) ---
+
+$ curl -X PUT http://127.0.0.1:8000/votes   (Maria, -1 on solution 2, then removed)
+{"target_type":"solution","target_id":2,"net_score":1,"upvotes":2,"downvotes":1,"is_dominant":true,"dominant_since":"2026-09-14T02:05:44.843326Z","dominance_changed":false,"dominant_threshold":1,"active_users":3,"on_track_for_ballot":true,"ballot_threshold":1}
+HTTP 200
+
+$ curl -X DELETE http://127.0.0.1:8000/votes   (Maria takes it back)
+{"target_type":"solution","target_id":2,"net_score":2,"upvotes":2,"downvotes":0,"is_dominant":true,"dominant_since":"2026-09-14T02:05:44.843326Z","dominance_changed":false,"dominant_threshold":1,"active_users":3,"on_track_for_ballot":true,"ballot_threshold":1}
+HTTP 200
+
+
+################################################################
+# STEP 10 — Andre amends the dominant solution; Priya backs it; it is absorbed as version 2
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/solutions/1/amendments   (Andre)
+{"id":1,"message":"Proposed. It becomes the solution's text once enough of the people who support that solution back your change.","absorption_threshold":1}
+HTTP 201
+
+--- the author of the current version cannot amend their own text ---
+
+$ curl -X POST http://127.0.0.1:8000/solutions/1/amendments   (Maria wrote version 1)
+{"error":"author_of_current_version","message":"You wrote the text that is in place now, so you cannot amend it. Someone else in the community can."}
+HTTP 403
+
+--- amendments are only possible on dominant solutions — checked on a fresh, unsupported solution ---
+
+$ curl -X POST http://127.0.0.1:8000/umbrellas/2/solutions   (Priya adds a third solution)
+{"id":3,"message":"Posted. It belongs to the community now: anyone here can propose a change to it once it becomes dominant."}
+HTTP 201
+
+$ curl -X POST http://127.0.0.1:8000/solutions/3/amendments   (not dominant yet)
+{"error":"solution_not_dominant","message":"Amendments can only be proposed on dominant solutions. Upvote this one to help it get there, or propose a better solution of your own."}
+HTTP 409
+
+$ curl -X GET http://127.0.0.1:8000/solutions/1/amendments   (threshold and supporters shown)
+{"solution_id":1,"current_version":1,"absorption_threshold":1,"supporters":2,"amendments":[{"id":1,"author":"AndreW","proposed_text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.","rationale":"A crosswalk alone does not slow drivers; a flashing beacon does, and a public date stops it slipping.","status":"proposed","base_version":1,"absorbed_as_version":null,"merged_into_id":null,"net_score":0,"diff":[{"kind":"same","text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird"},{"kind":"removed","text":"Avenue and"},{"kind":"added","text":"Avenue,"},{"kind":"same","text":"install a pedestrian refuge island in the median,"},{"kind":"added","text":"and add a rectangular rapid-flashing beacon on both approaches,"},{"kind":"same","text":"using the safe-routes-to-school funds the city already holds."},{"kind":"added","text":"Report the completion date publicly."}],"created_at":"2026-09-14T02:05:45.125243Z"}],"similar_pairs":[]}
+HTTP 200
+
+$ curl -X PUT http://127.0.0.1:8000/votes   (Priya backs amendment 1)
+{"target_type":"amendment","target_id":1,"net_score":1,"upvotes":1,"downvotes":0,"absorbed":true,"absorption_threshold":1,"solution_supporters":2,"effective_net_score":1,"new_version":2,"status":"absorbed"}
+HTTP 200
+HTTP 200
+{
+  "id": 1,
+  "current_version": 2,
+  "text": "Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.",
+  "net_score": 2,
+  "supporters": 2,
+  "is_dominant": true,
+  "absorption_threshold": 1,
+  "on_track_for_ballot": true
+}
+versions:
+[
+  {
+    "version": 1,
+    "text": "Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue and install a pedestrian refuge island in the median, using the safe-routes-to-school funds the city already holds.",
+    "written_by": "MariaD",
+    "from_amendment_id": null,
+    "content_hash": "a09da0f23cb1e911cbe233dc9138a5f0740c4b3b8463f8e9e7521c2c0442c91e",
+    "created_at": "2026-09-14T02:05:42.252113Z"
+  },
+  {
+    "version": 2,
+    "text": "Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.",
+    "written_by": "AndreW",
+    "from_amendment_id": 1,
+    "content_hash": "0462dbf68fdf68ae7ccc51720475504ca3ca2b82928c86d271b811ac5bb35635",
+    "created_at": "2026-09-14T02:05:45.390050Z"
+  }
+]
+amendments:
+[
+  {
+    "id": 1,
+    "status": "absorbed",
+    "absorbed_as_version": 2,
+    "net_score": 1,
+    "rationale": "A crosswalk alone does not slow drivers; a flashing beacon does, and a public date stops it slipping."
+  }
+]
+
+
+################################################################
+# STEP 11 — discussion on a dominant solution and on the umbrella's problem
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/comments   (Priya, on the umbrella problem)
+{"id":1,"depth":0,"message":"Posted."}
+HTTP 201
+
+$ curl -X POST http://127.0.0.1:8000/comments   (Andre replies)
+{"id":2,"depth":1,"message":"Posted."}
+HTTP 201
+
+$ curl -X POST http://127.0.0.1:8000/comments   (Maria, on the dominant solution)
+{"id":3,"depth":0,"message":"Posted."}
+HTTP 201
+
+--- discussion is not open on a solution that is not dominant ---
+
+$ curl -X POST http://127.0.0.1:8000/comments   (on the third solution)
+{"error":"solution_not_dominant","message":"Discussion opens once a solution becomes dominant. Until then you can upvote it, or propose a better one."}
+HTTP 409
+
+$ curl -X GET http://127.0.0.1:8000/umbrellas/2/comments
+{"ordering":{"version":"comments-v0","explanation":"Within each thread, highest net score first; ties oldest first. Nothing is hidden by score."},"comments":[{"id":1,"author":"PriyaR","text":"I walk my daughter across this intersection every morning. The turning traffic from Bird is the worst part.","depth":0,"net_score":0,"my_vote":null,"created_at":"2026-09-14T02:05:45.464666Z","edited":false,"removed":false,"ai_influence":{"ai_contribution_percentage":0,"label":"AI assistance on this platform: 0%","explanation":"This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."},"replies":[{"id":2,"author":"AndreW","text":"Agreed. The turn is the part a crosswalk alone will not fix, which is why the beacon matters.","depth":1,"net_score":0,"my_vote":null,"created_at":"2026-09-14T02:05:45.524903Z","edited":false,"removed":false,"ai_influence":{"ai_contribution_percentage":0,"label":"AI assistance on this platform: 0%","explanation":"This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."},"replies":[]}]}]}
+HTTP 200
+
+
+################################################################
+# STEP 12 — a member adds a reference; the AI recommender is unconfigured and says so
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/umbrellas/2/references   (Andre)
+{"id":1,"message":"Added."}
+HTTP 201
+
+$ curl -X POST http://127.0.0.1:8000/admin/umbrellas/2/recommend-references   (no search provider configured)
+{"error":"search_not_configured","message":"Reference recommendation needs a web search provider, and none is configured on this platform yet."}
+HTTP 503
+
+$ curl -X GET http://127.0.0.1:8000/umbrellas/2/references
+{"active":[{"id":1,"url":"https://www.sanjoseca.gov/your-government/departments-offices/transportation/safety/vision-zero","title":"San Jose Vision Zero","why":"The city already has a Vision Zero programme with a priority safety corridor list; this intersection should be checked against it.","source":"user","label":"Added by AndreW","status":"active","useful":0,"not_useful":0,"rejections_needed":2,"added_at":"2026-09-14T02:05:45.693875Z"}],"rejected":[],"note":"References the community marked not useful are moved to the rejected list. They are never deleted."}
+HTTP 200
+
+
+################################################################
+# STEP 13 — the feed (DEMOCRACY §12): newest first, no ranking, and it says so
+################################################################
+
+$ curl -X GET http://127.0.0.1:8000/feed
+{"ranking":"feed-v0","explanation":"Newest first. No ranking. Every reader of the same filters sees the same posts in the same order.","items":[{"id":1,"title":"The intersection of Bird Avenue and West Virginia Street has no marked…","problem_text":"The intersection of Bird Avenue and West Virginia Street has no marked crosswalk, and children walking to Washington Elementary cross four lanes of traffic there twice a day. Drivers routinely take the turn at speed during drop-off and pick-up hours. Two near misses were reported to the city last spring and nothing has changed since.","author":"MariaD","created_at":"2026-09-14T02:05:41.475093Z","label_status":"labeled","ai_influence":{"ai_contribution_percentage":0,"label":"AI assistance on this platform: 0%","explanation":"This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."},"communities":[{"level":"city","entity_id":408,"umbrella_id":2}]}],"next_cursor":null,"filters":{"community":null,"category":null,"default":"your home communities"}}
+HTTP 200
+
+
+################################################################
+# STEP 14 — the director prepares the ballot: a snapshot, frozen text, and a jury draw
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/admin/cycles/prepare
+{"cycle_id":1,"number":1,"state":"jury_review","community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"active_users_at_prepare":3,"items":[{"solution_id":1,"version":2,"umbrella":"Pedestrian Safety Near Schools","net_score":2},{"solution_id":2,"version":1,"umbrella":"Pedestrian Safety Near Schools","net_score":2}],"considered":[{"solution_id":1,"umbrella":"Pedestrian Safety Near Schools","net_score":2,"conditions":{"dominant":true,"dominant_long_enough":true,"score_at_or_above_ballot_threshold":true,"newer_than_last_ballot_version":true}},{"solution_id":2,"umbrella":"Pedestrian Safety Near Schools","net_score":2,"conditions":{"dominant":true,"dominant_long_enough":true,"score_at_or_above_ballot_threshold":true,"newer_than_last_ballot_version":true}},{"solution_id":3,"umbrella":"Pedestrian Safety Near Schools","net_score":0,"conditions":{"dominant":false,"dominant_long_enough":false,"score_at_or_above_ballot_threshold":false,"newer_than_last_ballot_version":true}}],"jury":{"jury_id":1,"size_requested":3,"eligible_pool_size":1,"drawn":1,"note":"Fewer eligible residents than the jury size, so the jury is smaller. The published summary will say so."},"zero_item_note":null}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/cycles/1
+{"id":1,"number":1,"state":"jury_review","community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"active_users_at_prepare":3,"settings_in_force":{"jury_size":3,"ballot_min":5,"ballot_pct":10.0,"dominant_min":3,"dominant_pct":5.0,"amendment_min":3,"amendment_pct":25.0,"min_signup_age":17,"ballot_pass_rule":"simple_majority","jury_review_days":2,"ballot_quorum_min":1,"comment_max_depth":3,"ballot_window_days":7,"label_retry_minutes":10,"comment_edit_minutes":15,"reference_reject_min":2,"similarity_threshold":0.85,"jury_no_repeat_cycles":0,"similarity_confirm_min":2,"active_user_window_days":30,"ballot_min_dominant_days":0,"references_ai_max_per_umbrella":5},"prepared_at":"2026-09-14T02:05:45.819145Z","jury_review_started_at":"2026-09-14T02:05:45.819145Z","opened_at":null,"closed_at":null,"published_at":null,"transitions":[{"at":"2026-09-14T02:05:45.819145+00:00","by":1,"state":"prepared"},{"at":"2026-09-14T02:05:45.819145+00:00","by":1,"state":"jury_review"}],"item_count":2,"jury":{"drawn":1,"seated":null,"size_requested":3,"eligible_pool_size":1},"would_close_on":null}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/cycles/1/ballot   (frozen text, in ballot order)
+{"cycle_id":1,"cycle_number":1,"state":"jury_review","community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"you_can_vote":false,"ordering":{"version":"ballot-order-v0","explanation":"Ballot items are numbered by umbrella name A-Z, then by net score at the snapshot (highest first), then by solution id (lowest first)."},"privacy_note":"Your ballot votes are shown to you and to nobody else. Not to other voters, and not to administrators — they see totals only.","items":[{"ballot_item_id":1,"position":1,"umbrella":"Pedestrian Safety Near Schools","solution_id":1,"frozen_version":2,"frozen_text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.","frozen_hash":"0462dbf68fdf68ae7ccc51720475504ca3ca2b82928c86d271b811ac5bb35635","net_score_at_snapshot":2,"held_back":false,"votable":false,"my_vote":null,"yes_count":null,"no_count":null,"result":null},{"ballot_item_id":2,"position":2,"umbrella":"Pedestrian Safety Near Schools","solution_id":2,"frozen_version":1,"frozen_text":"Station a crossing guard at the intersection during school drop-off and pick-up hours, funded from the existing traffic safety budget, until permanent infrastructure is built.","frozen_hash":"c8ee2a03b1a2d39499087e60e6ac257d91111087b59ffd1daf24531fe05eae9f","net_score_at_snapshot":2,"held_back":false,"votable":false,"my_vote":null,"yes_count":null,"no_count":null,"result":null}]}
+HTTP 200
+
+
+################################################################
+# STEP 15 — jury duty: the drawn juror accepts and holds one solution back with a written reason
+################################################################
+HTTP 200
+[]
+HTTP 200
+[]
+HTTP 200
+[
+  {
+    "juror_id": 1,
+    "seat": 1,
+    "status": "drawn",
+    "cycle_state": "jury_review",
+    "items": 0
+  }
+]
+the drawn juror is Priya, juror id 1
+
+$ curl -X POST http://127.0.0.1:8000/jurors/1/accept
+{"juror_id":1,"status":"accepted","message":"Thank you. You can now look at every solution that qualified and hold any of them back with a written reason."}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/juries/mine   (Priya, now seated — she sees the frozen texts)
+{"duties":[{"juror_id":1,"seat":1,"status":"accepted","cycle_id":1,"cycle_number":1,"cycle_state":"jury_review","community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"what_you_can_do":"You can look at every solution that qualified and, for any of them, hold it back with a written reason that will be published. You cannot change anything, and you cannot add anything. Doing nothing is a valid answer.","items":[{"ballot_item_id":1,"position":1,"umbrella":"Pedestrian Safety Near Schools","frozen_text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.","frozen_version":2,"frozen_hash":"0462dbf68fdf68ae7ccc51720475504ca3ca2b82928c86d271b811ac5bb35635","net_score_at_snapshot":2,"current_net_score":2,"amendment_history":[{"id":1,"rationale":"A crosswalk alone does not slow drivers; a flashing beacon does, and a public date stops it slipping.","status":"absorbed","absorbed_as_version":2}],"previous_holdback_reasons":[],"my_holdback":null,"reason_categories":["duplicate","not_actionable","incomplete","outside_governance_level","other"]},{"ballot_item_id":2,"position":2,"umbrella":"Pedestrian Safety Near Schools","frozen_text":"Station a crossing guard at the intersection during school drop-off and pick-up hours, funded from the existing traffic safety budget, until permanent infrastructure is built.","frozen_version":1,"frozen_hash":"c8ee2a03b1a2d39499087e60e6ac257d91111087b59ffd1daf24531fe05eae9f","net_score_at_snapshot":2,"current_net_score":2,"amendment_history":[],"previous_holdback_reasons":[],"my_holdback":null,"reason_categories":["duplicate","not_actionable","incomplete","outside_governance_level","other"]}]}],"note":"Jurors are anonymous to the public — the published document says 'Juror 1 of 3' — and the reasons you write are published in full."}
+HTTP 200
+holding back the crossing-guard solution: ballot item 2
+
+$ curl -X POST http://127.0.0.1:8000/ballot-items/2/holdback   (Priya)
+{"ballot_item_id":2,"note":"Recorded. Jurors do not see each other's hold-backs until the ballot opens. Your reason will be published with the results."}
+HTTP 200
+
+--- someone who is not a juror cannot hold anything back ---
+
+$ curl -X POST http://127.0.0.1:8000/ballot-items/2/holdback   (Andre, using Priya's seat)
+{"error":"not_your_seat","message":"That jury seat is not yours."}
+HTTP 403
+
+
+################################################################
+# STEP 16 — the director opens the ballot; the hold-back takes effect over the seated jurors
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/admin/cycles/1/open
+{"cycle_id":1,"state":"open","opened_at":"2026-09-14T02:05:46.195916Z","would_close_on":"2026-09-21T02:05:46.195916Z","jurors_drawn":1,"jurors_seated":1,"items_votable":1,"items_held_back":1,"note":"In this build the ballot closes when the director closes it. The window shown is what the setting says it would be."}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/cycles/1/ballot   (Andre)
+{"cycle_id":1,"cycle_number":1,"state":"open","community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"you_can_vote":true,"ordering":{"version":"ballot-order-v0","explanation":"Ballot items are numbered by umbrella name A-Z, then by net score at the snapshot (highest first), then by solution id (lowest first)."},"privacy_note":"Your ballot votes are shown to you and to nobody else. Not to other voters, and not to administrators — they see totals only.","items":[{"ballot_item_id":1,"position":1,"umbrella":"Pedestrian Safety Near Schools","solution_id":1,"frozen_version":2,"frozen_text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.","frozen_hash":"0462dbf68fdf68ae7ccc51720475504ca3ca2b82928c86d271b811ac5bb35635","net_score_at_snapshot":2,"held_back":false,"votable":true,"my_vote":null,"yes_count":null,"no_count":null,"result":null},{"ballot_item_id":2,"position":2,"umbrella":"Pedestrian Safety Near Schools","solution_id":2,"frozen_version":1,"frozen_text":"Station a crossing guard at the intersection during school drop-off and pick-up hours, funded from the existing traffic safety budget, until permanent infrastructure is built.","frozen_hash":"c8ee2a03b1a2d39499087e60e6ac257d91111087b59ffd1daf24531fe05eae9f","net_score_at_snapshot":2,"held_back":true,"votable":false,"my_vote":null,"yes_count":null,"no_count":null,"result":"held_back"}]}
+HTTP 200
+
+
+################################################################
+# STEP 17 — all three residents vote
+################################################################
+
+$ curl -X PUT http://127.0.0.1:8000/cycles/1/ballot/1/vote   (Maria: yes)
+{"ballot_item_id":1,"your_vote":"yes","note":"You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ curl -X PUT http://127.0.0.1:8000/cycles/1/ballot/1/vote   (Andre: no, then changed to yes)
+{"ballot_item_id":1,"your_vote":"no","note":"You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ curl -X PUT http://127.0.0.1:8000/cycles/1/ballot/1/vote   (Andre changes his mind)
+{"ballot_item_id":1,"your_vote":"yes","note":"You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ curl -X PUT http://127.0.0.1:8000/cycles/1/ballot/1/vote   (Priya: no)
+{"ballot_item_id":1,"your_vote":"no","note":"You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+--- voting on the item the jury held back ---
+
+$ curl -X PUT http://127.0.0.1:8000/cycles/1/ballot/2/vote   (Maria)
+{"error":"item_held_back","message":"The jury held this one back, so it is not being voted on this cycle."}
+HTTP 409
+
+--- each voter sees their own vote and nobody else's ---
+
+$ curl -X GET http://127.0.0.1:8000/cycles/1/ballot   (Priya — my_vote is hers alone)
+{"cycle_id":1,"cycle_number":1,"state":"open","community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"you_can_vote":true,"ordering":{"version":"ballot-order-v0","explanation":"Ballot items are numbered by umbrella name A-Z, then by net score at the snapshot (highest first), then by solution id (lowest first)."},"privacy_note":"Your ballot votes are shown to you and to nobody else. Not to other voters, and not to administrators — they see totals only.","items":[{"ballot_item_id":1,"position":1,"umbrella":"Pedestrian Safety Near Schools","solution_id":1,"frozen_version":2,"frozen_text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.","frozen_hash":"0462dbf68fdf68ae7ccc51720475504ca3ca2b82928c86d271b811ac5bb35635","net_score_at_snapshot":2,"held_back":false,"votable":true,"my_vote":"no","yes_count":null,"no_count":null,"result":null},{"ballot_item_id":2,"position":2,"umbrella":"Pedestrian Safety Near Schools","solution_id":2,"frozen_version":1,"frozen_text":"Station a crossing guard at the intersection during school drop-off and pick-up hours, funded from the existing traffic safety budget, until permanent infrastructure is built.","frozen_hash":"c8ee2a03b1a2d39499087e60e6ac257d91111087b59ffd1daf24531fe05eae9f","net_score_at_snapshot":2,"held_back":true,"votable":false,"my_vote":null,"yes_count":null,"no_count":null,"result":"held_back"}]}
+HTTP 200
+
+--- an administrator asking about a user gets jury history, never a ballot vote ---
+
+$ curl -X GET http://127.0.0.1:8000/admin/users/3   (Maria, administrator, looking at Priya)
+{"id":3,"display_name":"PriyaR","verification_level":"unverified","email_verified":true,"deleted":false,"is_admin":false,"last_active_at":"2026-09-14T02:05:40.197967Z","jury_history":[{"cycle_id":1,"cycle_number":1,"community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"seat":1,"status":"accepted"}],"ballot_votes":"Not available to anyone but the voter. This endpoint never returns them, by design (DEMOCRACY.md §13)."}
+HTTP 200
+
+
+################################################################
+# STEP 18 — the director closes the ballot and publishes the summary document
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/admin/cycles/1/close
+{"cycle_id":1,"state":"closed","closed_at":"2026-09-14T02:05:46.586927Z","results":[{"ballot_item_id":1,"yes":2,"no":1,"result":"passed"},{"ballot_item_id":2,"result":"held_back"}]}
+HTTP 200
+
+$ curl -X POST http://127.0.0.1:8000/admin/cycles/1/publish
+{"summary_hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","published_at":"2026-09-14T02:05:46.647169Z","document":{"document_version":"summary-v1","rules_version":"rules-v1","header":{"community_name":"San Jose","community_level":"city","community_label":"San Jose (city)","cycle_number":1,"ballot_opened_at":"2026-09-14T02:05:46.195916+00:00","ballot_closed_at":"2026-09-14T02:05:46.586927+00:00","active_users_at_snapshot":3,"members_who_voted":3,"verification_mix":"3 voters: 3 unverified","verification_mix_counts":{"unverified":3},"residency_note":"Residency is self-declared and unverified at this verification level.","jury":"1 drawn, 1 seated","jurors_drawn":1,"jurors_seated":1,"build":"demo-01"},"results":[{"position":1,"umbrella":"Pedestrian Safety Near Schools","solution_text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.","solution_version":2,"solution_version_hash":"0462dbf68fdf68ae7ccc51720475504ca3ca2b82928c86d271b811ac5bb35635","author_display_at_snapshot":"MariaD","ai_influence_percentage":0,"ai_influence_label":"AI assistance on this platform: 0%","yes":2,"no":1,"result":"Passed"}],"held_back":[{"position":2,"umbrella":"Pedestrian Safety Near Schools","solution_text":"Station a crossing guard at the intersection during school drop-off and pick-up hours, funded from the existing traffic safety budget, until permanent infrastructure is built.","solution_version":1,"solution_version_hash":"c8ee2a03b1a2d39499087e60e6ac257d91111087b59ffd1daf24531fe05eae9f","author_display_at_snapshot":"MariaD","ai_influence_percentage":0,"ai_influence_label":"AI assistance on this platform: 0%","jury_reasons":[{"juror":"Juror 1 of 1","category":"incomplete","reason":"This says a crossing guard should be funded from the existing traffic safety budget but does not say for how long, who employs them, or what happens when that budget is spent. It needs those answers before the whole city votes on it."}]}],"how_this_was_produced":[{"heading":"Who counted as an active user","text":"An active user of this community is someone whose home city, county or state is this community, whose email is confirmed, whose account has not been deleted, and who signed in and did something within the window below. That number is the denominator for every percentage on this page.","settings_in_force":"active_user_window_days = 30; active users at snapshot = 3","rule_version":"rules-v1"},{"heading":"How a solution became dominant","text":"A solution becomes dominant when the number of people who upvoted it, minus the number who downvoted it, reaches a threshold: a percentage of the active users or a fixed number, whichever is lower, and never less than one. Dominant solutions are the only ones that can be amended and discussed.","settings_in_force":"dominant_pct = 5.0; dominant_min = 3","rule_version":"rules-v1"},{"heading":"How a solution qualified for this ballot","text":"At the moment the ballot was prepared, a solution qualified if it was dominant, had been dominant for long enough, had a score at or above the ballot threshold, and — if it had ever been on a ballot before, whether it passed, failed or was held back — had been changed since. Nothing returns to the ballot unchanged; the way back is an amendment.","settings_in_force":"ballot_pct = 10.0; ballot_min = 5; ballot_min_dominant_days = 0","rule_version":"rules-v1"},{"heading":"How the jury was drawn and what it could do","text":"Jurors were drawn at random from this community's active users, leaving out anyone who wrote or proposed a change to a solution on this ballot, and leaving out administrators. The draw is recorded with the pool it drew from. A juror could do nothing, or hold a solution back with a written reason that is published below. A hold-back took effect when more than half of the seated jurors held the same solution back. Jurors could not change anything and could not add anything.","settings_in_force":"jury_size = 3; jury_no_repeat_cycles = 0; jury_review_days = 2","rule_version":"rules-v1"},{"heading":"How a vote passed","text":"Every member of this community could vote yes or no on every item, once, and could change that vote until the ballot closed. Every vote counted the same, whatever the voter's verification level. An item passed when more people voted yes than no and at least the quorum voted. A tie failed.","settings_in_force":"ballot_pass_rule = simple_majority; ballot_quorum_min = 1; ballot_window_days = 7","rule_version":"rules-v1"}],"settings_in_force":{"jury_size":3,"ballot_min":5,"ballot_pct":10.0,"dominant_min":3,"dominant_pct":5.0,"amendment_min":3,"amendment_pct":25.0,"min_signup_age":17,"ballot_pass_rule":"simple_majority","jury_review_days":2,"ballot_quorum_min":1,"comment_max_depth":3,"ballot_window_days":7,"label_retry_minutes":10,"comment_edit_minutes":15,"reference_reject_min":2,"similarity_threshold":0.85,"jury_no_repeat_cycles":0,"similarity_confirm_min":2,"active_user_window_days":30,"ballot_min_dominant_days":0,"references_ai_max_per_umbrella":5},"empty_note":null,"send_to_representatives":{"recipients":[{"office":"City Council (all districts)","email":"director@example.com"},{"office":"Mayor","email":"director@example.com"}],"subject":"Ballot results — San Jose (city), cycle 1","note":"Pressing send opens your own email program with this message already written. You send it, from your own address. The platform sends nothing and cannot know whether you pressed send.","demo_note":"In this build every address in the directory is a test address, not a real official."}},"verify":{"hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","algorithm":"SHA-256 of the canonical JSON (keys sorted, UTF-8, no whitespace)","explanation":"This code is a fingerprint of everything above. It is made by running a standard calculation called SHA-256 over this document's data. If anyone changes one letter of it, the fingerprint will not match. You can check it yourself: download the JSON from this page, run SHA-256 over the file, and compare. Every published document's fingerprint is listed at /summaries/hashes.","hash_list_url":"/summaries/hashes"}}
+HTTP 200
+published hash: 861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1
+
+
+################################################################
+# STEP 19 — verifying the document
+################################################################
+
+$ curl -X GET http://127.0.0.1:8000/summaries/city/408/1/verify   (public, no login)
+{"cycle_id":1,"stored_hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","recomputed_hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","match":true,"verdict":"This document is unchanged since it was published.","explanation":"This code is a fingerprint of everything above. It is made by running a standard calculation called SHA-256 over this document's data. If anyone changes one letter of it, the fingerprint will not match. You can check it yourself: download the JSON from this page, run SHA-256 over the file, and compare. Every published document's fingerprint is listed at /summaries/hashes."}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/summaries/hashes
+{"explanation":"Every document this platform has published, with its fingerprint. Download any document's JSON, run SHA-256 over it, and compare.","summaries":[{"community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"cycle_number":1,"published_at":"2026-09-14T02:05:46.647169Z","summary_hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","url":"/summaries/city/408/1"}]}
+HTTP 200
+
+--- the JSON the fingerprint was computed over, re-hashed locally ---
+$ sha256sum summary.json
+861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1  /tmp/claude-1000/-home-kees-soares-direct-democracy-ca/ce9aba90-f3ba-4216-92cb-c8e2e0b3e5b4/scratchpad/summary.json
+stored hash:  861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1
+recomputed locally: 861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1
+stored on the cycle: 861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1
+MATCH
+
+$ curl -X GET http://127.0.0.1:8000/summaries/city/408/1   (the document)
+{"summary_hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","published_at":"2026-09-14T02:05:46.647169Z","document":{"header":{"jury":"1 drawn, 1 seated","build":"demo-01","cycle_number":1,"jurors_drawn":1,"jurors_seated":1,"community_name":"San Jose","residency_note":"Residency is self-declared and unverified at this verification level.","community_label":"San Jose (city)","community_level":"city","ballot_closed_at":"2026-09-14T02:05:46.586927+00:00","ballot_opened_at":"2026-09-14T02:05:46.195916+00:00","verification_mix":"3 voters: 3 unverified","members_who_voted":3,"verification_mix_counts":{"unverified":3},"active_users_at_snapshot":3},"results":[{"no":1,"yes":2,"result":"Passed","position":1,"umbrella":"Pedestrian Safety Near Schools","solution_text":"Paint a high-visibility continental crosswalk across West Virginia Street at Bird Avenue, install a pedestrian refuge island in the median, and add a rectangular rapid-flashing beacon on both approaches, using the safe-routes-to-school funds the city already holds. Report the completion date publicly.","solution_version":2,"ai_influence_label":"AI assistance on this platform: 0%","solution_version_hash":"0462dbf68fdf68ae7ccc51720475504ca3ca2b82928c86d271b811ac5bb35635","ai_influence_percentage":0,"author_display_at_snapshot":"MariaD"}],"held_back":[{"position":2,"umbrella":"Pedestrian Safety Near Schools","jury_reasons":[{"juror":"Juror 1 of 1","reason":"This says a crossing guard should be funded from the existing traffic safety budget but does not say for how long, who employs them, or what happens when that budget is spent. It needs those answers before the whole city votes on it.","category":"incomplete"}],"solution_text":"Station a crossing guard at the intersection during school drop-off and pick-up hours, funded from the existing traffic safety budget, until permanent infrastructure is built.","solution_version":1,"ai_influence_label":"AI assistance on this platform: 0%","solution_version_hash":"c8ee2a03b1a2d39499087e60e6ac257d91111087b59ffd1daf24531fe05eae9f","ai_influence_percentage":0,"author_display_at_snapshot":"MariaD"}],"empty_note":null,"rules_version":"rules-v1","document_version":"summary-v1","settings_in_force":{"jury_size":3,"ballot_min":5,"ballot_pct":10.0,"dominant_min":3,"dominant_pct":5.0,"amendment_min":3,"amendment_pct":25.0,"min_signup_age":17,"ballot_pass_rule":"simple_majority","jury_review_days":2,"ballot_quorum_min":1,"comment_max_depth":3,"ballot_window_days":7,"label_retry_minutes":10,"comment_edit_minutes":15,"reference_reject_min":2,"similarity_threshold":0.85,"jury_no_repeat_cycles":0,"similarity_confirm_min":2,"active_user_window_days":30,"ballot_min_dominant_days":0,"references_ai_max_per_umbrella":5},"how_this_was_produced":[{"text":"An active user of this community is someone whose home city, county or state is this community, whose email is confirmed, whose account has not been deleted, and who signed in and did something within the window below. That number is the denominator for every percentage on this page.","heading":"Who counted as an active user","rule_version":"rules-v1","settings_in_force":"active_user_window_days = 30; active users at snapshot = 3"},{"text":"A solution becomes dominant when the number of people who upvoted it, minus the number who downvoted it, reaches a threshold: a percentage of the active users or a fixed number, whichever is lower, and never less than one. Dominant solutions are the only ones that can be amended and discussed.","heading":"How a solution became dominant","rule_version":"rules-v1","settings_in_force":"dominant_pct = 5.0; dominant_min = 3"},{"text":"At the moment the ballot was prepared, a solution qualified if it was dominant, had been dominant for long enough, had a score at or above the ballot threshold, and — if it had ever been on a ballot before, whether it passed, failed or was held back — had been changed since. Nothing returns to the ballot unchanged; the way back is an amendment.","heading":"How a solution qualified for this ballot","rule_version":"rules-v1","settings_in_force":"ballot_pct = 10.0; ballot_min = 5; ballot_min_dominant_days = 0"},{"text":"Jurors were drawn at random from this community's active users, leaving out anyone who wrote or proposed a change to a solution on this ballot, and leaving out administrators. The draw is recorded with the pool it drew from. A juror could do nothing, or hold a solution back with a written reason that is published below. A hold-back took effect when more than half of the seated jurors held the same solution back. Jurors could not change anything and could not add anything.","heading":"How the jury was drawn and what it could do","rule_version":"rules-v1","settings_in_force":"jury_size = 3; jury_no_repeat_cycles = 0; jury_review_days = 2"},{"text":"Every member of this community could vote yes or no on every item, once, and could change that vote until the ballot closed. Every vote counted the same, whatever the voter's verification level. An item passed when more people voted yes than no and at least the quorum voted. A tie failed.","heading":"How a vote passed","rule_version":"rules-v1","settings_in_force":"ballot_pass_rule = simple_majority; ballot_quorum_min = 1; ballot_window_days = 7"}],"send_to_representatives":{"note":"Pressing send opens your own email program with this message already written. You send it, from your own address. The platform sends nothing and cannot know whether you pressed send.","subject":"Ballot results — San Jose (city), cycle 1","demo_note":"In this build every address in the directory is a test address, not a real official.","recipients":[{"email":"director@example.com","office":"City Council (all districts)"},{"email":"director@example.com","office":"Mayor"}]}},"verify":{"hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","algorithm":"SHA-256 of the canonical JSON (keys sorted, UTF-8, no whitespace)","explanation":"This code is a fingerprint of everything above. It is made by running a standard calculation called SHA-256 over this document's data. If anyone changes one letter of it, the fingerprint will not match. You can check it yourself: download the JSON from this page, run SHA-256 over the file, and compare. Every published document's fingerprint is listed at /summaries/hashes.","hash_list_url":"/summaries/hashes"},"mailto":"mailto:director@example.com,director@example.com?subject=Ballot%20results%20%E2%80%94%20San%20Jose%20%28city%29%2C%20cycle%201&body=I%20am%20a%20resident%20of%20this%20community.%20These%20are%20the%20results%20of%20our%20ballot%20this%20cycle%2C%20voted%20on%20by%20residents%20and%20published%20in%20full%3A%0A%0A%2Fsummaries%2Fcity%2F408%2F1%0A%0ADocument%20fingerprint%20%28SHA-256%29%3A%20861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1%0A%0AThe%20page%20explains%20every%20rule%20that%20produced%20these%20results%20and%20how%20to%20check%20that%20the%20document%20has%20not%20been%20altered.%0A"}
+HTTP 200
+
+
+################################################################
+# STEP 20 — the PDF, the results page, and the send-to-representatives link
+################################################################
+$ file summary.pdf
+5162 bytes
+0000000   %   P   D   F   -   1   .   4  \n   % 223 214 213 236       R
+0000020   e   p   o   r
+
+$ curl -X GET http://127.0.0.1:8000/results   (Priya's three communities)
+{"communities":[{"community":{"level":"city","entity_id":408,"name":"San Jose","label":"San Jose (city)"},"most_recent":{"cycle_number":1,"published_at":"2026-09-14T02:05:46.647169Z","summary_hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1","url":"/summaries/city/408/1","item_count":2},"past_cycles":[],"current_cycle_state":"published"},{"community":{"level":"county","entity_id":43,"name":"Santa Clara","label":"Santa Clara County"},"most_recent":null,"past_cycles":[],"current_cycle_state":null},{"community":{"level":"state","entity_id":1,"name":"California","label":"California"},"most_recent":null,"past_cycles":[],"current_cycle_state":null}],"note":"These are your three communities. What each document says is the same for everyone who reads it."}
+HTTP 200
+
+--- the mailto: link the Send button opens (the platform sends nothing itself) ---
+mailto:director@example.com,director@example.com?subject=Ballot%20results%20%E2%80%94%20San%20Jose%20%28city%29%2C%20cycle%201&body=I%20am%20a%20resident%20of%20this%20community.%20These%20are%20the%20results%20of%20our%20ballot%20this%20cycle%2C%20voted%20on%20by%20residents%20and%20published%20in%20full%3A%0A%0A%2Fsummaries%2Fcity%2F408%2F1%0A%0ADocument%20fingerprint%20%28SHA-256%29%3A%20861f5e
+
+
+################################################################
+# STEP 21 — the held-back solution cannot return to a ballot unchanged (DEMOCRACY §7.2 condition 4)
+################################################################
+HTTP 200
+{
+  "cycle_id": 2,
+  "number": 2,
+  "state": "prepared",
+  "items": [],
+  "zero_item_note": "No solution qualified. Publish this cycle when ready and the next one can be prepared; no jury is drawn for an empty ballot.",
+  "considered": [
+    {
+      "solution_id": 3,
+      "umbrella": "Pedestrian Safety Near Schools",
+      "net_score": 0,
+      "conditions": {
+        "dominant": false,
+        "dominant_long_enough": false,
+        "score_at_or_above_ballot_threshold": false,
+        "newer_than_last_ballot_version": true
+      }
+    },
+    {
+      "solution_id": 1,
+      "umbrella": "Pedestrian Safety Near Schools",
+      "net_score": 2,
+      "conditions": {
+        "dominant": true,
+        "dominant_long_enough": true,
+        "score_at_or_above_ballot_threshold": true,
+        "newer_than_last_ballot_version": false
+      }
+    },
+    {
+      "solution_id": 2,
+      "umbrella": "Pedestrian Safety Near Schools",
+      "net_score": 2,
+      "conditions": {
+        "dominant": true,
+        "dominant_long_enough": true,
+        "score_at_or_above_ballot_threshold": true,
+        "newer_than_last_ballot_version": false
+      }
+    }
+  ]
+}
+
+
+################################################################
+# STEP 22 — the public transparency pages
+################################################################
+
+$ curl -X GET http://127.0.0.1:8000/admin/log   (public, no login)
+{"explanation":"Everything an administrator does on this platform is recorded here, with what changed and why. You do not need an account to read it.","items":[{"id":7,"administrator":"MariaD","action":"prepare_ballot","subject_type":"cycle","subject_id":2,"old_value":null,"new_value":{"items":0,"community":"city:408","active_users":3},"reason":null,"at":"2026-09-14T02:05:46.814468Z"},{"id":6,"administrator":"MariaD","action":"publish_summary","subject_type":"cycle","subject_id":1,"old_value":null,"new_value":{"summary_hash":"861f5ecd3b9971240fecb0d9d5aaa6bcb59d838c66299793074a794898bee9d1"},"reason":null,"at":"2026-09-14T02:05:46.647169Z"},{"id":5,"administrator":"MariaD","action":"close_ballot","subject_type":"cycle","subject_id":1,"old_value":null,"new_value":{"results":[{"no":1,"yes":2,"result":"passed","ballot_item_id":1},{"result":"held_back","ballot_item_id":2}]},"reason":null,"at":"2026-09-14T02:05:46.586018Z"},{"id":4,"administrator":"MariaD","action":"open_ballot","subject_type":"cycle","subject_id":1,"old_value":null,"new_value":{"items_votable":1,"jurors_seated":1,"items_held_back":1},"reason":null,"at":"2026-09-14T02:05:46.194645Z"},{"id":3,"administrator":"MariaD","action":"prepare_ballot","subject_type":"cycle","subject_id":1,"old_value":null,"new_value":{"items":2,"community":"city:408","active_users":3},"reason":null,"at":"2026-09-14T02:05:45.813646Z"},{"id":2,"administrator":"MariaD","action":"change_setting","subject_type":"setting","subject_id":null,"old_value":{"key":"ballot_min_dominant_days","value":3},"new_value":{"key":"ballot_min_dominant_days","value":0},"reason":"This walkthrough runs inside a single day, and the three-day dominance requirement would make a ballot unreachable. Restore it to 3 before any real community uses this.","at":"2026-09-14T02:05:41.310828Z"},{"id":1,"administrator":"MariaD","action":"grant_admin","subject_type":"user","subject_id":1,"old_value":{"is_admin":false},"new_value":{"is_admin":true},"reason":"Set from the machine by backend/scripts/grant_admin.py","at":"2026-09-14T02:05:40.880100Z"}],"next_cursor":null}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/ai/actions   (public, no login)
+{"explanation":"Every action any AI takes on this platform is written down here before its result is shown to anyone: what it was, what it acted on, which model and which prompt file, a fingerprint of exactly what it was given, what it answered, and whether a person later confirmed or corrected it. AI never decides anything here.","items":[{"id":1,"action_type":"label","subject_type":"post","subject_id":1,"demo_build":"demo-01","model":"ollama:llama3.2","prompt_file":"labeler.md","prompt_hash":"5edbdd9cbeec6405372269be42a69312a3fb939a2cf24c1d343f6835fbd83651","input_hash":"bf98b783c7f0532e2be4b4a8450ee9584ac8a12ef2a0fcea3a331e196b55bb59","output":{"umbrellas":[{"umbrella_id":2,"community_level":"city","community_entity_id":408},{"umbrella_id":null,"community_level":"city","community_entity_id":1}],"confidence":0.8,"main_category":"Public Safety","category_recognised":true,"repeated_or_unlisted_communities":[]},"confidence":0.8,"human_outcome":"confirmed","human_outcome_at":"2026-09-14T02:05:44.626941Z","created_at":"2026-09-14T02:05:41.484814Z"}],"next_cursor":null}
+HTTP 200
+
+
+################################################################
+# STEP 23 — the user's own data, and account deletion
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/me/export   (Andre)
+{"id":1,"status":"requested","message":"We are putting your data together. Come back to this link in a moment to download it."}
+HTTP 202
+$ head of Andre's export
+{
+  "account": {
+    "id": 2,
+    "email": "andre@example.com",
+    "real_name": "Andre Whitfield",
+    "display_name": "AndreW",
+    "date_of_birth": "1979-11-02",
+    "gender": "man",
+    "political_party": "republican",
+    "home_city": "San Jose",
+    "home_county": "Santa Clara",
+    "home_state": "California",
+    "verification_level": "unverified",
+    "email_verified_at": "2026-09-14 02:05:39.482174+00:00",
+    "is_admin": false,
+    "created_at": "2026-09-14 02:05:38.760605+00:00",
+    "deleted_at": null
+  },
+  "display_settings": {
+    "public_name_mode": "display_name"
+  }
+}
+civic_record keys: ['posts', 'solutions_you_started', 'amendments_you_proposed', 'comments_you_wrote', 'workshop_votes', 'your_ballot_votes', 'your_ballot_votes_note', 'jury_service']
+his own ballot votes: [
+  {
+    "cycle_id": 1,
+    "ballot_item_id": 1,
+    "solution_id": 1,
+    "your_choice": "yes",
+    "your_verification_level_at_the_time": "unverified",
+    "cast_at": "2026-09-14 02:05:46.342382+00:00",
+    "last_changed_at": "2026-09-14 02:05:46.401894+00:00"
+  }
+]
+amendments he proposed: [1]
+
+--- an export belongs to one person ---
+
+$ curl -X GET http://127.0.0.1:8000/me/export/1   (Priya asking for Andre's export)
+{"error":"export_not_yours","message":"That export belongs to someone else."}
+HTTP 403
+
+--- Andre deletes his account; the civic record stays, the identity goes ---
+
+$ curl -X DELETE http://127.0.0.1:8000/me   (wrong password)
+{"error":"bad_credentials","message":"That password is not right. Your account has not been changed."}
+HTTP 401
+
+$ curl -X DELETE http://127.0.0.1:8000/me   (Andre)
+{"message":"Your account is deleted. Your name, email, password, date of birth, gender and political party are erased. What you wrote stays in the civic record as Former Community Member."}
+HTTP 200
+HTTP 200
+amendment 1 -> Former Community Member | status absorbed
+comment by PriyaR
+   reply by Former Community Member
+
+$ curl -X POST http://127.0.0.1:8000/auth/login   (Andre, after deletion)
+{"error":"bad_credentials","message":"Email or password is incorrect."}
+HTTP 401
+
+
+################################################################
+# STEP 24 — refresh-token rotation and reuse detection
+################################################################
+
+$ curl -X POST http://127.0.0.1:8000/auth/refresh   (Priya, valid cookie — rotates)
+{"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5MzUxNTUwLCJleHAiOjE3ODkzNTMzNTAsImp0aSI6IjUwNTAxYjc3ZDQwMzRmODdhMGY2MmE5MTAyYzhhNzVhIn0.kjW4PEh-IGaEVSNTu1-tdnyyDOEzPPgXkA2jR8drAd8","token_type":"bearer","user_id":3,"email_verified":true}
+HTTP 200
+
+$ curl -X POST http://127.0.0.1:8000/auth/refresh   (the same old token again — reuse detected)
+{"error":"refresh_reused","message":"For your safety we signed you out of every device. Please sign in again."}
+HTTP 401
+
+$ curl -X POST http://127.0.0.1:8000/auth/refresh   (the rotated token — the whole chain was revoked)
+{"error":"refresh_reused","message":"For your safety we signed you out of every device. Please sign in again."}
+HTTP 401
+
+--- logout blacklists the access token's jti ---
+
+$ curl -X POST http://127.0.0.1:8000/auth/logout   (Maria)
+{"message":"Signed out."}
+HTTP 200
+
+$ curl -X GET http://127.0.0.1:8000/auth/me   (the same access token after logout)
+{"error":"token_revoked","message":"That session has been signed out."}
+HTTP 401
+
+
+################################################################
+# WALKTHROUGH COMPLETE
+################################################################

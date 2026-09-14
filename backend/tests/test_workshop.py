@@ -569,3 +569,56 @@ async def test_the_post_content_hash_never_changes(client, world):
             created_at=post.created_at,
             ai_contribution_percentage=post.ai_contribution_percentage,
         )
+
+
+async def test_a_post_stuck_being_filed_is_picked_up_by_the_retry(client, world):
+    """If the process restarts between the post committing and its labeling job
+    starting, the post stays `pending`. The retry has to notice."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import update
+
+    from backend.db import session_scope
+    from backend.models import Post
+
+    ollama_client.get_ollama().fail_with = ExternalServiceDown("down", code="ollama_unavailable")
+    created = await _post(client, world["ann"])
+    await settle_jobs()
+    post_id = created.json()["id"]
+
+    async with session_scope() as session:
+        await session.execute(
+            update(Post)
+            .where(Post.id == post_id)
+            .values(
+                label_status="pending",
+                created_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            )
+        )
+
+    ollama_client.get_ollama().fail_with = None
+    ollama_client.get_ollama().responses["labeler.md"] = labeler_answer(
+        main_category="Public Safety", umbrella_id=world["safety"], level="city", entity_id=1
+    )
+    counts = await labeling_job.label_retry_task()
+    assert counts["retried"] == 1 and counts["succeeded"] == 1
+    assert (await client.get(f"/posts/{post_id}")).json()["label_status"] == "labeled"
+
+
+async def test_a_post_that_was_only_just_made_is_left_to_its_own_job(client, world):
+    ollama_client.get_ollama().fail_with = ExternalServiceDown("down", code="ollama_unavailable")
+    created = await _post(client, world["ann"])
+    await settle_jobs()
+    from sqlalchemy import update
+
+    from backend.db import session_scope
+    from backend.models import Post
+
+    async with session_scope() as session:
+        await session.execute(
+            update(Post).where(Post.id == created.json()["id"]).values(label_status="pending")
+        )
+    counts = await labeling_job.label_retry_task()
+    assert counts["retried"] == 0, (
+        "a post filed a moment ago still has its own job running; the retry leaves it alone"
+    )

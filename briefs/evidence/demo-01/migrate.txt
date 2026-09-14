@@ -1,0 +1,13 @@
+=== alembic upgrade foundation@head ===
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 25035d5b7ff5, Foundation initial schema — DATABASE.md §3.
+
+=== alembic upgrade iteration@head ===
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> b4b4da0b6e54, Iteration schema — Demo 1 (DATABASE.md §4).
+
+=== alembic heads ===
+25035d5b7ff5 (foundation) (head)
+b4b4da0b6e54 (iteration) (head)

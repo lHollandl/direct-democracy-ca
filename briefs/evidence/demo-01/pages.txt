@@ -1,0 +1,129 @@
+==============================================================
+ Every page in ARCHITECTURE.md §9, served by `next start`
+ with the API running. Client pages fetch their data from the
+ endpoint named on each line.
+==============================================================
+
+/                                              HTTP 200
+   title : Direct Democracy Cali
+   h1    : The tools that only well-funded political organisations have had
+   lead  : Write down a problem in your community. Propose what should be done about it. Work on it with your neighbours,…
+   shows : what the platform is, in four steps, and what it cannot promise
+
+/signup                                        HTTP 200
+   title : Direct Democracy Cali
+   h1    : Join your community
+   lead  : One account per person, under your real name. What other people see is up to you — you can show your real na…
+   shows : the signup form: county and city pickers, gender and party with their 'totals only' note, the terms box
+   data  : /geo/counties -> HTTP 200
+
+/login                                         HTTP 200
+   title : Direct Democracy Cali
+   h1    : Sign in
+   shows : email and password, links to reset and to signup
+
+/verify-email                                  HTTP 200
+   title : Direct Democracy Cali
+   h1    : Confirming your email address
+   shows : confirms the token in the link and says what happened
+
+/forgot-password                               HTTP 200
+   title : Direct Democracy Cali
+   h1    : Reset your password
+   shows : one field, and the note that the answer is the same either way
+
+/reset-password                                HTTP 200
+   title : Direct Democracy Cali
+   h1    : Choose a new password
+   shows : one field for the new password, with the rule stated
+
+/me                                            HTTP 200
+   title : Direct Democracy Cali
+   shows : communities, verification level, display-name setting, data export, account deletion
+
+/legal/privacy                                 HTTP 200
+   title : Direct Democracy Cali
+   shows : the privacy policy, marked DRAFT with the warning at the top
+   data  : /legal/privacy -> HTTP 200
+
+/legal/terms                                   HTTP 200
+   title : Direct Democracy Cali
+   shows : the terms of service, marked DRAFT
+   data  : /legal/terms -> HTTP 200
+
+/legal/cookies                                 HTTP 200
+   title : Direct Democracy Cali
+   shows : the one cookie this platform sets
+   data  : /legal/cookies -> HTTP 200
+
+/settings                                      HTTP 200
+   title : Direct Democracy Cali
+   shows : every rule, its value, what it means, and when it last changed
+   data  : /settings -> HTTP 200
+
+/ai/actions                                    HTTP 200
+   title : Direct Democracy Cali
+   shows : every AI action with model, prompt file, fingerprints and what a person did about it
+   data  : /ai/actions -> HTTP 200
+
+/admin/log                                     HTTP 200
+   title : Direct Democracy Cali
+   shows : every administrator action, with what changed and why
+   data  : /admin/log -> HTTP 200
+
+/admin                                         HTTP 200
+   title : Direct Democracy Cali
+   shows : change a rule; prepare, open, close and publish a cycle; ask AI for references; refile a post
+
+/feed                                          HTTP 200
+   title : Direct Democracy Cali
+   h1    : What people are working on
+   lead  : Every problem someone has written down, with what they think should be done about it.…
+   shows : posts newest first with the ranking rule printed on the page
+   data  : /feed -> HTTP 200
+
+/posts/new                                     HTTP 200
+   title : Direct Democracy Cali
+   shows : problem, solutions, communities, and how it gets filed
+
+/posts/1                                       HTTP 200
+   title : Direct Democracy Cali
+   shows : one problem, its solution texts with fingerprints, and where it was filed
+   data  : /posts/1 -> HTTP 200
+
+/umbrellas/2                                   HTTP 200
+   title : Direct Democracy Cali
+   shows : the workshop: problem, reports, discussion, solutions, dominant solutions with amendments, references
+   data  : /umbrellas/2 -> HTTP 200
+
+/solutions/1                                   HTTP 200
+   title : Direct Democracy Cali
+   shows : one solution, every version with its fingerprint, its amendments, its discussion
+   data  : /solutions/1 -> HTTP 200
+
+/ballot                                        HTTP 200
+   title : Direct Democracy Cali
+   shows : the current ballot for each home community, with the privacy note
+
+/cycles/1                                      HTTP 200
+   title : Direct Democracy Cali
+   shows : one cycle: state, jury, timings, and the settings recorded on it
+   data  : /cycles/1 -> HTTP 200
+
+/jury                                          HTTP 200
+   title : Direct Democracy Cali
+   shows : jury duty: accept or decline, and hold an item back with a written reason
+
+/results                                       HTTP 200
+   title : Direct Democracy Cali
+   shows : the three home communities' most recent published documents
+
+/summaries/city/408/1                          HTTP 200
+   title : Direct Democracy Cali
+   shows : the published results document, its fingerprint, and the send button
+   data  : /summaries/city/408/1 -> HTTP 200
+
+/summaries/hashes                              HTTP 200
+   title : Direct Democracy Cali
+   shows : every published document's fingerprint
+   data  : /summaries/hashes -> HTTP 200

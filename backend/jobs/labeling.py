@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from backend.db import session_scope
 from backend.repositories import posts as posts_repo
@@ -39,14 +40,18 @@ async def label_post_task(post_id: int) -> None:
 
 
 async def label_retry_task() -> dict:
-    """Re-queue every post still marked `unlabeled` (DEMOCRACY.md §4.1)."""
+    """Re-queue every post the labeler still owes an answer for (§4.1)."""
     job_id = uuid.uuid4().hex[:8]
     log.info("job_start", extra={"job": "label_retry", "job_id": job_id})
     retried = 0
     succeeded = 0
     try:
+        window = await retry_interval_seconds()
+        stale_before = datetime.now(timezone.utc) - timedelta(seconds=window)
         async with session_scope() as session:
-            pending = await posts_repo.unlabeled_posts(session)
+            pending = await posts_repo.posts_awaiting_labels(
+                session, stale_before=stale_before
+            )
             post_ids = [p.id for p in pending]
         for post_id in post_ids:
             retried += 1
