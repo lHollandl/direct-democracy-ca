@@ -1,6 +1,6 @@
 [project]
 name = "direct-democracy-ca"
-version = "0.1.0-demo-01"
+version = "0.1.0"
 description = "Direct Democracy Cali — civic engagement platform (Demo 1)"
 requires-python = ">=3.12"
 dependencies = [
