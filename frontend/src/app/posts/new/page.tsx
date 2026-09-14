@@ -1,324 +1,266 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import axios from 'axios';
-import { getToken, getMe, createPost, UserProfile } from '@/lib/api';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ApiError, get, post } from "@/lib/api";
+import { useSession } from "@/components/Session";
+import { Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { useDocumentTitle } from "@/components/useDocumentTitle";
 
-// Maps a governance level to its display label and subtitle.
-// The subtitle for city/county is filled in dynamically from the user profile.
-const LEVELS = [
-  { key: 'city', label: 'City' },
-  { key: 'county', label: 'County' },
-  { key: 'state', label: 'State', subtitle: 'California' },
-  { key: 'federal', label: 'Federal', subtitle: 'U.S. Government' },
-] as const;
-
-type GovernanceLevel = (typeof LEVELS)[number]['key'];
-
-// Derive the post's location entries from selected governance levels and the
-// user's profile. City/county levels use the user's stored IDs; state uses
-// California (state_id=1); federal has no location_id (null = nationwide).
-function buildLocations(
-  levels: GovernanceLevel[],
-  user: UserProfile,
-): Array<{ location_type: string; location_id?: number | null }> {
-  return levels.map((level) => {
-    if (level === 'city') return { location_type: 'city', location_id: user.city_id };
-    if (level === 'county') return { location_type: 'county', location_id: user.county_id };
-    if (level === 'state') return { location_type: 'state', location_id: 1 };
-    return { location_type: 'federal', location_id: null };
-  });
-}
-
-const textareaClass =
-  'w-full bg-gray-800 border border-transparent rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none';
+type Umbrella = { id: number; name: string; statement: string; main_category: string | null };
 
 export default function NewPostPage() {
+  useDocumentTitle("Write down a problem");
   const router = useRouter();
-
-  const [authChecked, setAuthChecked] = useState(false);
-  const [user, setUser] = useState<UserProfile | null>(null);
-
-  // Panel 1 — problem
-  const [problem, setProblem] = useState('');
-
-  // Panel 2 — solutions (start with one empty entry)
-  const [solutions, setSolutions] = useState<string[]>(['']);
-
-  // Panel 3 — governance level toggles (multi-select)
-  const [selectedLevels, setSelectedLevels] = useState<GovernanceLevel[]>([]);
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-
-  // Auth guard — redirect to login if no valid token.
-  // On success, store the user profile so Panel 3 can show real place names.
-  const checkAuth = useCallback(() => {
-    const token = getToken();
-    if (!token) {
-      router.replace('/login?message=Please+log+in+to+post.');
-      return;
-    }
-    getMe()
-      .then((me) => {
-        setUser(me);
-        setAuthChecked(true);
-      })
-      .catch(() => router.replace('/login?message=Please+log+in+to+post.'));
-  }, [router]);
+  const { me, loading } = useSession();
+  const [problem, setProblem] = useState("");
+  const [solutions, setSolutions] = useState<string[]>([""]);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [mode, setMode] = useState<"ai" | "author_selected">("ai");
+  const [umbrellas, setUmbrellas] = useState<Record<string, Umbrella[]>>({});
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    if (!me) return;
+    setChosen(me.home_communities.map((c) => `${c.level}:${c.entity_id}`).slice(0, 1));
+  }, [me]);
 
-  function toggleLevel(level: GovernanceLevel) {
-    setSelectedLevels((prev) =>
-      prev.includes(level) ? prev.filter((l) => l !== level) : [...prev, level],
+  useEffect(() => {
+    for (const key of chosen) {
+      if (umbrellas[key]) continue;
+      void get<{ umbrellas: Umbrella[] }>(`/umbrellas?community=${key}`)
+        .then((body) => setUmbrellas((prev) => ({ ...prev, [key]: body.umbrellas })))
+        .catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen]);
+
+  if (loading) return <Loading what="the form" />;
+  if (!me) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-8">
+        <Notice>
+          <Link href="/login">Sign in</Link> to write down a problem.
+        </Notice>
+      </div>
     );
   }
 
-  function addSolution() {
-    setSolutions((prev) => [...prev, '']);
-  }
-
-  function updateSolution(index: number, value: string) {
-    setSolutions((prev) => prev.map((s, i) => (i === index ? value : s)));
-  }
-
-  function removeSolution(index: number) {
-    setSolutions((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-
-    if (!problem.trim()) {
-      setError('Please describe the problem before submitting.');
-      return;
-    }
-
-    const filledSolutions = solutions.filter((s) => s.trim());
-    if (filledSolutions.length === 0) {
-      setError('Please add at least one proposed solution.');
-      return;
-    }
-
-    if (selectedLevels.length === 0) {
-      setError('Please choose at least one level of government that should act.');
-      return;
-    }
-
-    // Validate that the user has the IDs needed for the selected governance levels.
-    if (selectedLevels.includes('city') && !user?.city_id) {
-      setError(
-        'You selected "City" but your profile has no city set. Add your city in your profile or choose a different level.',
-      );
-      return;
-    }
-    if (selectedLevels.includes('county') && !user?.county_id) {
-      setError(
-        'You selected "County" but your profile has no county set. Add your county in your profile or choose a different level.',
-      );
-      return;
-    }
-
-    // Auto-generate the title from the first 97 characters of the problem text.
-    // The backend requires a title but the civic conversation UI hides it.
-    const title =
-      problem.trim().length > 97
-        ? problem.trim().slice(0, 97) + '…'
-        : problem.trim();
-
-    setSubmitting(true);
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
     try {
-      await createPost({
-        title,
-        content: problem.trim(),
-        solutions: filledSolutions.map((content) => ({
-          content,
-          governance_levels: [...selectedLevels],
-        })),
-        locations: buildLocations(selectedLevels, user!),
+      const body = await post<{ id: number; message: string }>("/posts", {
+        problem_text: problem,
+        solutions: solutions.map((s) => s.trim()).filter(Boolean),
+        communities: chosen.map((key) => {
+          const [level, entityId] = key.split(":");
+          const umbrellaId = picked[key];
+          return {
+            level,
+            entity_id: Number(entityId),
+            umbrella_id:
+              mode === "author_selected" && umbrellaId ? Number(umbrellaId) : null,
+          };
+        }),
+        category_choice: mode,
       });
-      router.push('/feed');
-    } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.data?.detail) {
-        const detail = err.response.data.detail;
-        if (Array.isArray(detail)) {
-          setError(detail[0]?.msg ?? 'Submission failed. Please check your inputs.');
-        } else {
-          setError(typeof detail === 'string' ? detail : 'Submission failed. Please check your inputs.');
-        }
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
-    } finally {
-      setSubmitting(false);
+      router.push(`/posts/${body.id}`);
+    } catch (problemRaised) {
+      setError(
+        problemRaised instanceof ApiError
+          ? problemRaised.message
+          : "Something went wrong.",
+      );
+      setBusy(false);
     }
   }
-
-  // Render nothing until auth check resolves — avoids a flash of the form
-  // before the redirect fires on unauthenticated visits.
-  if (!authChecked) return null;
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      {/* Header */}
-      <header className="border-b border-gray-800 px-4 py-3 flex items-center justify-between">
-        <Link href="/feed" className="text-xl font-bold text-white">
-          Direct Democracy Cali
-        </Link>
-        <Link href="/feed" className="text-gray-400 hover:text-white text-sm underline">
-          Back to feed
-        </Link>
-      </header>
-
-      <div className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold mb-1">What&apos;s on your mind?</h1>
-        <p className="text-gray-400 mb-8">
-          Tell your community about a problem you&apos;ve seen — and what you think should be
-          done about it.
-        </p>
-
-        {error && (
-          <div
-            role="alert"
-            className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-6"
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-
-          {/* ============================================================
-              PANEL 1 — The problem
-          ============================================================ */}
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
+    <>
+      <PageHeader
+        title="Write down a problem"
+        lead="And say what you think should be done about it. Nothing can be posted here without at least one proposed solution."
+      />
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        {error ? <Notice kind="bad">{error}</Notice> : null}
+        <form onSubmit={submit}>
+          <Section title="1. The problem" description="What is wrong, where, and who it affects. Between 20 and 5,000 characters.">
+            <label htmlFor="problem" className="sr-only">The problem</label>
             <textarea
               id="problem"
+              required
+              minLength={20}
+              maxLength={5000}
               rows={6}
+              className="field"
               value={problem}
               onChange={(e) => setProblem(e.target.value)}
-              placeholder="What's the problem you've seen?"
-              maxLength={5000}
-              aria-label="Describe the problem"
-              className={textareaClass}
             />
-            <p className="text-gray-600 text-xs mt-2 text-right">
-              {problem.length} / 5000
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {problem.trim().length} characters. This cannot be edited once posted —
+              it is fingerprinted when it is created.
             </p>
-          </div>
+          </Section>
 
-          {/* ============================================================
-              PANEL 2 — Proposed solutions
-          ============================================================ */}
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 space-y-4">
-            {solutions.map((sol, i) => (
-              <div key={i}>
-                {solutions.length > 1 && (
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">
-                      Solution {i + 1}
-                    </span>
+          <Section title="2. What should be done" description="At least one. Each becomes something your neighbours can support, improve, and eventually vote on.">
+            <ol className="space-y-3">
+              {solutions.map((text, index) => (
+                <li key={index}>
+                  <label htmlFor={`solution-${index}`} className="block font-medium">
+                    Solution {index + 1}
+                  </label>
+                  <textarea
+                    id={`solution-${index}`}
+                    required={index === 0}
+                    minLength={index === 0 ? 20 : undefined}
+                    maxLength={5000}
+                    rows={3}
+                    className="field mt-1"
+                    value={text}
+                    onChange={(e) => {
+                      const next = [...solutions];
+                      next[index] = e.target.value;
+                      setSolutions(next);
+                    }}
+                  />
+                  {solutions.length > 1 ? (
                     <button
                       type="button"
-                      onClick={() => removeSolution(i)}
-                      aria-label={`Remove solution ${i + 1}`}
-                      className="text-gray-500 hover:text-red-400 text-sm transition-colors"
+                      className="btn mt-1 px-2 py-1 text-sm"
+                      onClick={() => setSolutions(solutions.filter((_, i) => i !== index))}
                     >
-                      Remove
+                      Remove solution {index + 1}
                     </button>
-                  </div>
-                )}
-                <textarea
-                  rows={3}
-                  value={sol}
-                  onChange={(e) => updateSolution(i, e.target.value)}
-                  placeholder="What do you think should be done about it?"
-                  maxLength={5000}
-                  aria-label={`Solution ${i + 1}`}
-                  className={textareaClass}
-                />
-              </div>
-            ))}
-
+                  ) : null}
+                </li>
+              ))}
+            </ol>
             <button
               type="button"
-              onClick={addSolution}
-              className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+              className="btn mt-3"
+              onClick={() => setSolutions([...solutions, ""])}
             >
-              + Add another solution
+              Add another solution
             </button>
-          </div>
+          </Section>
 
-          {/* ============================================================
-              PANEL 3 — Governance level (who needs to act?)
-          ============================================================ */}
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6">
-            <p className="text-gray-200 font-medium mb-1">Who needs to act on this?</p>
-            <p className="text-gray-400 text-sm mb-4">
-              Select all that apply. This controls where your post appears and who your
-              solutions are directed at.
-            </p>
-
-            <div className="grid grid-cols-2 gap-3" role="group" aria-label="Governance level">
-              {LEVELS.map(({ key, label }) => {
-                // Show the user's real place name under the relevant card.
-                let subtitle: string | undefined;
-                if (key === 'city') subtitle = user?.city_name ?? undefined;
-                else if (key === 'county')
-                  subtitle = user?.county_name ? `${user.county_name} County` : undefined;
-                else if (key === 'state') subtitle = 'California';
-                else subtitle = 'U.S. Government';
-
-                const selected = selectedLevels.includes(key);
-
+          <Section
+            title="3. Which communities"
+            description="You can post in your city, your county, and California. Each community works on it separately, with its own votes."
+          >
+            <fieldset className="space-y-2">
+              <legend className="sr-only">Communities</legend>
+              {me.home_communities.map((community) => {
+                const key = `${community.level}:${community.entity_id}`;
                 return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => toggleLevel(key)}
-                    aria-pressed={selected}
-                    className={`rounded-xl p-4 text-left transition-all border-2 ${
-                      selected
-                        ? 'bg-blue-700 border-blue-400 text-white'
-                        : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="font-semibold">{label}</div>
-                    {subtitle && (
-                      <div
-                        className={`text-sm mt-0.5 ${selected ? 'text-blue-200' : 'text-gray-500'}`}
-                      >
-                        {subtitle}
-                      </div>
-                    )}
-                  </button>
+                  <label key={key} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={chosen.includes(key)}
+                      onChange={(e) =>
+                        setChosen(
+                          e.target.checked
+                            ? [...chosen, key]
+                            : chosen.filter((c) => c !== key),
+                        )
+                      }
+                    />
+                    <span>{community.label}</span>
+                  </label>
                 );
               })}
-            </div>
-          </div>
+            </fieldset>
+          </Section>
 
-          {/* ============================================================
-              SUBMIT
-          ============================================================ */}
+          <Section title="4. Where it gets filed">
+            <fieldset className="space-y-2">
+              <legend className="sr-only">How this gets filed</legend>
+              <label className="flex items-start gap-2 rounded-lg border border-[var(--line)] p-3">
+                <input
+                  type="radio"
+                  name="mode"
+                  className="mt-1"
+                  checked={mode === "ai"}
+                  onChange={() => setMode("ai")}
+                />
+                <span>
+                  <span className="font-medium">Let the platform file it</span>
+                  <span className="block text-sm text-[var(--muted)]">
+                    An AI model reads your problem and picks the closest umbrella
+                    in each community. It is labelled as AI-filed, it is written
+                    into the public log, and you can correct it afterwards.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 rounded-lg border border-[var(--line)] p-3">
+                <input
+                  type="radio"
+                  name="mode"
+                  className="mt-1"
+                  checked={mode === "author_selected"}
+                  onChange={() => setMode("author_selected")}
+                />
+                <span>
+                  <span className="font-medium">I will pick the umbrella myself</span>
+                  <span className="block text-sm text-[var(--muted)]">
+                    No AI is involved at all.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+
+            {mode === "author_selected" ? (
+              <div className="mt-3 space-y-3">
+                {chosen.map((key) => {
+                  const community = me.home_communities.find(
+                    (c) => `${c.level}:${c.entity_id}` === key,
+                  );
+                  return (
+                    <div key={key}>
+                      <label htmlFor={`umbrella-${key}`} className="block font-medium">
+                        Umbrella in {community?.label}
+                      </label>
+                      <select
+                        id={`umbrella-${key}`}
+                        required
+                        className="field mt-1"
+                        value={picked[key] ?? ""}
+                        onChange={(e) => setPicked({ ...picked, [key]: e.target.value })}
+                      >
+                        <option value="">Choose an umbrella</option>
+                        {(umbrellas[key] ?? []).map((umbrella) => (
+                          <option key={umbrella.id} value={umbrella.id}>
+                            {umbrella.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </Section>
+
           <button
             type="submit"
-            disabled={submitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-xl transition-colors text-base"
+            className="btn btn-primary mt-6"
+            disabled={busy || !chosen.length || !me.email_verified}
           >
-            {submitting ? 'Submitting…' : 'Submit to your community'}
+            {busy ? "Posting…" : "Post this"}
           </button>
-
-          <p className="text-gray-600 text-xs text-center pb-4">
-            Your post is visible immediately. The AI category label appears within seconds.
-          </p>
+          {!me.email_verified ? (
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Confirm your email address first — the link is in the message we
+              sent when you signed up.
+            </p>
+          ) : null}
         </form>
       </div>
-    </main>
+    </>
   );
 }

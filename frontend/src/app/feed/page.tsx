@@ -1,174 +1,156 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { getPosts, getMe, getCities, logout, Post, City, UserProfile } from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { get } from "@/lib/api";
+import { useSession } from "@/components/Session";
+import { AiInfluence, Empty, Loading, Notice, PageHeader } from "@/components/ui";
+import { useDocumentTitle } from "@/components/useDocumentTitle";
 
-// Resolves a post's locations to a human-readable string using a pre-loaded
-// city name map. Falls back to "City #N" for any city not yet in the map.
-function formatLocations(
-  locations: Post['locations'],
-  cityMap: Map<number, string>,
-): string {
-  if (!locations || locations.length === 0) return 'Unspecified location';
-  return locations
-    .map((loc) => {
-      if (loc.location_type === 'city' && loc.location_id !== null) {
-        return cityMap.get(loc.location_id ?? -1) ?? `City #${loc.location_id}`;
-      }
-      const type = loc.location_type.charAt(0).toUpperCase() + loc.location_type.slice(1);
-      return loc.location_id ? `${type} #${loc.location_id}` : type;
-    })
-    .join(', ');
-}
+type Item = {
+  id: number;
+  title: string;
+  problem_text: string;
+  author: string;
+  created_at: string;
+  label_status: string;
+  ai_influence: { label: string; explanation: string };
+  communities: { level: string; entity_id: number; umbrella_id: number | null }[];
+};
+
+type Payload = {
+  ranking: string;
+  explanation: string;
+  items: Item[];
+  filters: Record<string, string | null>;
+};
+
+const CATEGORIES = [
+  ["", "Every category"],
+  ["roads_and_infrastructure", "Roads and Infrastructure"],
+  ["housing_and_homelessness", "Housing and Homelessness"],
+  ["public_safety", "Public Safety"],
+  ["environmental_issues", "Environmental Issues"],
+  ["education", "Education"],
+  ["public_transit", "Public Transit"],
+  ["water_and_utilities", "Water and Utilities"],
+  ["parks_and_recreation", "Parks and Recreation"],
+  ["economic_development", "Economic Development"],
+  ["government_accountability", "Government Accountability"],
+];
+
+const FILING: Record<string, string> = {
+  pending: "Being filed",
+  unlabeled: "Waiting to be filed",
+  needs_review: "No umbrella covers this yet",
+  labeled: "Filed",
+};
 
 export default function FeedPage() {
-  const router = useRouter();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  // Map of city_id → city name, populated on mount from GET /cities
-  const [cityMap, setCityMap] = useState<Map<number, string>>(new Map());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  useDocumentTitle("What people are working on");
+  const { me } = useSession();
+  const [data, setData] = useState<Payload | null>(null);
+  const [community, setCommunity] = useState("");
+  const [category, setCategory] = useState("");
 
   useEffect(() => {
-    async function load() {
-      try {
-        const [fetchedPosts, me, cities] = await Promise.allSettled([
-          getPosts(),
-          getMe(),
-          getCities(),
-        ]);
-
-        if (fetchedPosts.status === 'fulfilled') {
-          setPosts(fetchedPosts.value);
-        } else {
-          setError('Could not load posts. Is the backend running?');
-        }
-
-        if (me.status === 'fulfilled') {
-          setCurrentUser(me.value);
-        }
-        // Silently ignore auth failure — anonymous browsing is allowed
-
-        if (cities.status === 'fulfilled') {
-          setCityMap(new Map(cities.value.map((c: City) => [c.id, c.name])));
-        }
-        // Silently ignore city lookup failure — feed still works, just shows "City #N"
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  function handleLogout() {
-    logout();
-    setCurrentUser(null);
-    router.refresh();
-  }
+    const params = new URLSearchParams();
+    if (community) params.set("community", community);
+    if (category) params.set("category", category);
+    const query = params.toString();
+    void get<Payload>(`/feed${query ? `?${query}` : ""}`)
+      .then(setData)
+      .catch(() => setData(null));
+  }, [community, category]);
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      {/* Header */}
-      <header className="border-b border-gray-800 px-4 py-3 flex items-center justify-between">
-        <Link href="/feed" className="text-xl font-bold text-white">
-          Direct Democracy Cali
-        </Link>
-        <div className="flex items-center gap-4">
-          {currentUser ? (
-            <>
-              <span className="text-gray-300 text-sm">{currentUser.username}</span>
-              <button
-                onClick={handleLogout}
-                className="text-gray-400 hover:text-white text-sm underline"
-              >
-                Log out
-              </button>
-            </>
-          ) : (
-            <Link href="/login" className="text-blue-400 text-sm underline">
-              Log in
-            </Link>
-          )}
-          <Link
-            href="/posts/new"
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-          >
-            New Post
-          </Link>
-        </div>
-      </header>
-
-      {/* Guest banner */}
-      {!currentUser && !loading && (
-        <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 text-center text-sm text-gray-300">
-          You are browsing as a guest.{' '}
-          <Link href="/login" className="text-blue-400 underline">
-            Log in
-          </Link>{' '}
-          to vote or post.
-        </div>
-      )}
-
-      {/* Feed */}
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-semibold mb-6">Community Posts</h2>
-
-        {loading && <p className="text-gray-400">Loading posts...</p>}
-
-        {error && (
-          <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
-
-        {!loading && posts.length === 0 && !error && (
-          <p className="text-gray-400">
-            No posts yet.{' '}
-            <Link href="/posts/new" className="text-blue-400 underline">
-              Be the first to post.
-            </Link>
-          </p>
-        )}
-
-        <ul className="space-y-4">
-          {posts.map((post) => (
-            <li
-              key={post.id}
-              className="bg-gray-800 border border-gray-700 rounded-lg p-5"
+    <>
+      <PageHeader
+        title="What people are working on"
+        lead="Every problem someone has written down, with what they think should be done about it."
+      />
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <form className="flex flex-wrap gap-4" aria-label="Filter the feed">
+          <div>
+            <label htmlFor="community" className="block text-sm font-medium">Community</label>
+            <select
+              id="community"
+              className="field mt-1"
+              value={community}
+              onChange={(e) => setCommunity(e.target.value)}
             >
-              <h3 className="text-lg font-semibold mb-1">{post.title}</h3>
-              <p className="text-gray-300 text-sm mb-3 leading-relaxed">
-                {post.content.length > 150
-                  ? post.content.slice(0, 150) + '…'
-                  : post.content}
-              </p>
+              <option value="">
+                {me ? "My three communities" : "Everywhere"}
+              </option>
+              {(me?.home_communities ?? []).map((c) => (
+                <option key={`${c.level}:${c.entity_id}`} value={`${c.level}:${c.entity_id}`}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="category" className="block text-sm font-medium">Main category</label>
+            <select
+              id="category"
+              className="field mt-1"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {CATEGORIES.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+        </form>
 
-              {post.solutions.length > 0 && (
-                <div className="bg-gray-700 rounded px-3 py-2 mb-3 text-sm">
-                  <span className="text-gray-400">Proposed solution: </span>
-                  <span className="text-gray-200">{post.solutions[0].content.slice(0, 100)}{post.solutions[0].content.length > 100 ? '…' : ''}</span>
-                </div>
-              )}
-
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>Posted by {post.username}</span>
-                <span>{formatLocations(post.locations, cityMap)}</span>
-                <span>{post.vote_count} vote{post.vote_count !== 1 ? 's' : ''}</span>
-                <span>
-                  {new Date(post.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
+        {data ? (
+          <>
+            <Notice>
+              <strong>{data.ranking}:</strong> {data.explanation}
+            </Notice>
+            {data.items.length === 0 ? (
+              <div className="mt-4">
+                <Empty>
+                  Nothing here yet.{" "}
+                  <Link href="/posts/new">Write down the first problem</Link>.
+                </Empty>
               </div>
-            </li>
-          ))}
-        </ul>
+            ) : (
+              <ol className="mt-4 space-y-3">
+                {data.items.map((item) => (
+                  <li key={item.id} className="card p-4">
+                    <h2 className="font-bold">
+                      <Link href={`/posts/${item.id}`}>{item.title}</Link>
+                    </h2>
+                    <p className="mt-1 text-sm">{item.problem_text}</p>
+                    <p className="mt-2 text-xs text-[var(--muted)]">
+                      {item.author} · {new Date(item.created_at).toLocaleDateString()} ·{" "}
+                      {FILING[item.label_status] ?? item.label_status}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {item.communities
+                        .filter((c) => c.umbrella_id)
+                        .map((c) => (
+                          <Link
+                            key={`${c.level}:${c.entity_id}`}
+                            href={`/umbrellas/${c.umbrella_id}`}
+                            className="badge no-underline"
+                          >
+                            Open the workshop
+                          </Link>
+                        ))}
+                    </div>
+                    <AiInfluence influence={item.ai_influence} />
+                  </li>
+                ))}
+              </ol>
+            )}
+          </>
+        ) : (
+          <Loading what="the feed" />
+        )}
       </div>
-    </main>
+    </>
   );
 }

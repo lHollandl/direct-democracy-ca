@@ -1,258 +1,223 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { signup, getCounties, getCities, County, City } from '@/lib/api';
-import axios from 'axios';
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { ApiError, get, post } from "@/lib/api";
+import { Notice, PageHeader } from "@/components/ui";
+import { useDocumentTitle } from "@/components/useDocumentTitle";
+
+type County = { id: number; name: string };
+type City = { id: number; name: string };
+
+const GENDERS = [
+  ["woman", "Woman"],
+  ["man", "Man"],
+  ["nonbinary", "Non-binary"],
+  ["other", "Other"],
+  ["prefer_not_to_say", "Prefer not to say"],
+];
+
+const PARTIES = [
+  ["democratic", "Democratic"],
+  ["republican", "Republican"],
+  ["green", "Green"],
+  ["libertarian", "Libertarian"],
+  ["american_independent", "American Independent"],
+  ["peace_and_freedom", "Peace and Freedom"],
+  ["no_party_preference", "No party preference"],
+  ["other", "Other"],
+  ["prefer_not_to_say", "Prefer not to say"],
+];
 
 export default function SignupPage() {
-  const router = useRouter();
-
-  // Account fields
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-
-  // Location fields — optional
+  useDocumentTitle("Join your community");
   const [counties, setCounties] = useState<County[]>([]);
   const [cities, setCities] = useState<City[]>([]);
-  const [selectedCountyId, setSelectedCountyId] = useState<number | ''>('');
-  const [selectedCityId, setSelectedCityId] = useState<number | ''>('');
-  const [loadingCounties, setLoadingCounties] = useState(false);
-  const [loadingCities, setLoadingCities] = useState(false);
+  const [countyId, setCountyId] = useState("");
+  const [termsVersion, setTermsVersion] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  // Load all 58 California counties once on mount (state_id=1)
   useEffect(() => {
-    setLoadingCounties(true);
-    getCounties(1)
-      .then(setCounties)
-      .catch(() => {/* silently skip — location is optional */})
-      .finally(() => setLoadingCounties(false));
+    void get<County[]>("/geo/counties").then(setCounties).catch(() => setCounties([]));
+    void get<{ version: string }>("/legal/current-version")
+      .then((v) => setTermsVersion(v.version))
+      .catch(() => setTermsVersion(""));
   }, []);
 
-  // Reload cities whenever the selected county changes
   useEffect(() => {
-    if (!selectedCountyId) {
+    if (!countyId) {
       setCities([]);
-      setSelectedCityId('');
       return;
     }
-    setLoadingCities(true);
-    setSelectedCityId('');
-    getCities(selectedCountyId)
-      .then(setCities)
-      .catch(() => {/* silently skip */})
-      .finally(() => setLoadingCities(false));
-  }, [selectedCountyId]);
+    void get<City[]>(`/geo/counties/${countyId}/cities`).then(setCities).catch(() => setCities([]));
+  }, [countyId]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-
-    if (!agreedToTerms) {
-      setError('You must agree to the terms of service to register.');
-      return;
-    }
-
-    setSubmitting(true);
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
+    const form = new FormData(event.currentTarget);
     try {
-      await signup(
-        username,
-        email,
-        password,
-        dateOfBirth,
-        selectedCountyId !== '' ? selectedCountyId : undefined,
-        selectedCityId !== '' ? selectedCityId : undefined,
+      await post("/auth/signup", {
+        email: form.get("email"),
+        password: form.get("password"),
+        real_name: form.get("real_name"),
+        display_name: form.get("display_name"),
+        date_of_birth: form.get("date_of_birth"),
+        gender: form.get("gender"),
+        political_party: form.get("political_party"),
+        county_id: Number(form.get("county_id")),
+        city_id: Number(form.get("city_id")),
+        terms_version: termsVersion,
+        agreed_to_terms: form.get("agreed") === "on",
+      });
+      setDone(true);
+    } catch (problem) {
+      setError(
+        problem instanceof ApiError ? problem.message : "Something went wrong.",
       );
-      router.push('/login?message=Account+created!+Please+log+in.');
-    } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   }
 
-  const inputClass = 'w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500';
-  const selectClass = 'w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed';
+  if (done) {
+    return (
+      <>
+        <PageHeader title="Check your email" />
+        <div className="mx-auto max-w-2xl px-4 py-8">
+          <Notice kind="good">
+            Your account is created. We sent a confirmation link to the address
+            you gave. Use it before posting, voting or commenting.
+          </Notice>
+          <p className="mt-4 text-sm">
+            <Link href="/login">Sign in</Link> once you have confirmed.
+          </p>
+        </div>
+      </>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold mb-2">Create an account</h1>
-        <p className="text-gray-400 mb-8">Join the civic conversation in California.</p>
-
-        {error && (
-          <div role="alert" className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
+    <>
+      <PageHeader
+        title="Join your community"
+        lead="One account per person, under your real name. What other people see is up to you — you can show your real name, a display name, or nothing at all."
+      />
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        {error ? <Notice kind="bad">{error}</Notice> : null}
+        <form onSubmit={onSubmit} className="mt-4 space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
-            />
-            <p className="text-gray-500 text-xs mt-1">
-              At least 8 characters, one uppercase letter, and one number.
+            <label htmlFor="email" className="block font-medium">Email address</label>
+            <input id="email" name="email" type="email" required autoComplete="email" className="field mt-1" />
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Used to confirm your account and reset your password. Never shown to anyone.
             </p>
           </div>
-
           <div>
-            <label htmlFor="dob" className="block text-sm font-medium text-gray-300 mb-1">
-              Date of birth{' '}
-              <span className="text-gray-500 font-normal">(required by law for users under 13)</span>
-            </label>
-            <input
-              id="dob"
-              type="date"
-              required
-              value={dateOfBirth}
-              onChange={(e) => setDateOfBirth(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-
-          {/* Location — optional, warm conversational copy per design intent */}
-          <div className="pt-2 pb-1 border-t border-gray-800">
-            <p className="text-gray-200 font-medium mb-1">Where do you live?</p>
-            <p className="text-gray-400 text-sm mb-4">
-              This helps us show you what&apos;s happening in your community. You can skip
-              this and set it later.
+            <label htmlFor="password" className="block font-medium">Password</label>
+            <input id="password" name="password" type="password" required autoComplete="new-password" className="field mt-1" />
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              At least 8 characters, with a capital letter and a number.
             </p>
-
-            <div className="space-y-3">
-              <div>
-                <label htmlFor="county" className="block text-sm font-medium text-gray-300 mb-1">
-                  County <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <select
-                  id="county"
-                  value={selectedCountyId}
-                  onChange={(e) => setSelectedCountyId(e.target.value ? Number(e.target.value) : '')}
-                  disabled={loadingCounties}
-                  aria-busy={loadingCounties}
-                  className={selectClass}
-                >
-                  <option value="">
-                    {loadingCounties ? 'Loading…' : 'Skip for now'}
-                  </option>
-                  {counties.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} County
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="city" className="block text-sm font-medium text-gray-300 mb-1">
-                  City <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <select
-                  id="city"
-                  value={selectedCityId}
-                  onChange={(e) => setSelectedCityId(e.target.value ? Number(e.target.value) : '')}
-                  disabled={!selectedCountyId || loadingCities}
-                  aria-busy={loadingCities}
-                  className={selectClass}
-                >
-                  <option value="">
-                    {!selectedCountyId
-                      ? 'Choose a county first'
-                      : loadingCities
-                      ? 'Loading…'
-                      : cities.length === 0
-                      ? 'No cities listed for this county yet'
-                      : 'Skip for now'}
-                  </option>
-                  {cities.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="real_name" className="block font-medium">Your real name</label>
+              <input id="real_name" name="real_name" required autoComplete="name" className="field mt-1" />
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                So one person holds one account. Shown only if you choose to show it.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="display_name" className="block font-medium">Display name</label>
+              <input id="display_name" name="display_name" required className="field mt-1" />
+              <p className="mt-1 text-sm text-[var(--muted)]">The name most people will see.</p>
             </div>
           </div>
-
-          <div className="flex items-start gap-3">
-            <input
-              id="terms"
-              type="checkbox"
-              checked={agreedToTerms}
-              onChange={(e) => setAgreedToTerms(e.target.checked)}
-              className="mt-1"
-            />
-            <label htmlFor="terms" className="text-sm text-gray-300">
-              I agree to the{' '}
-              <Link href="/terms" className="text-blue-400 underline">
-                terms of service
-              </Link>
+          <div>
+            <label htmlFor="date_of_birth" className="block font-medium">Date of birth</label>
+            <input id="date_of_birth" name="date_of_birth" type="date" required className="field mt-1" />
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Checked once, to confirm you are old enough. The minimum age is on the{" "}
+              <Link href="/settings">settings page</Link>.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="county_id" className="block font-medium">County you live in</label>
+              <select
+                id="county_id"
+                name="county_id"
+                required
+                className="field mt-1"
+                value={countyId}
+                onChange={(e) => setCountyId(e.target.value)}
+              >
+                <option value="">Choose a county</option>
+                {counties.map((county) => (
+                  <option key={county.id} value={county.id}>{county.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="city_id" className="block font-medium">City you live in</label>
+              <select id="city_id" name="city_id" required className="field mt-1" disabled={!cities.length}>
+                <option value="">
+                  {countyId ? "Choose a city" : "Choose a county first"}
+                </option>
+                {cities.map((city) => (
+                  <option key={city.id} value={city.id}>{city.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="text-sm text-[var(--muted)]">
+            Your city and county decide which three communities you belong to:
+            your city, your county, and California. You can read anywhere, and
+            post and vote in those three.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="gender" className="block font-medium">Gender</label>
+              <select id="gender" name="gender" required defaultValue="prefer_not_to_say" className="field mt-1">
+                {GENDERS.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="political_party" className="block font-medium">Political party</label>
+              <select id="political_party" name="political_party" required defaultValue="no_party_preference" className="field mt-1">
+                {PARTIES.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="text-sm text-[var(--muted)]">
+            Gender and political party are used for public totals only. They
+            never change what you see, and they never change what your vote is
+            worth.
+          </p>
+          <div className="rounded-lg border border-[var(--line)] p-3">
+            <label htmlFor="agreed" className="flex items-start gap-2">
+              <input id="agreed" name="agreed" type="checkbox" required className="mt-1" />
+              <span className="text-sm">
+                I have read the <Link href="/legal/terms">terms</Link> and the{" "}
+                <Link href="/legal/privacy">privacy policy</Link>, and I understand
+                that the cryptographic fingerprints of what I post are permanent
+                and are never deleted, even if I delete my account.
+              </span>
             </label>
           </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded transition-colors"
-          >
-            {submitting ? 'Creating account...' : 'Create account'}
+          <button type="submit" className="btn btn-primary" disabled={busy || !termsVersion}>
+            {busy ? "Creating your account…" : "Create my account"}
           </button>
         </form>
-
-        <p className="text-gray-400 text-sm mt-6 text-center">
-          Already have an account?{' '}
-          <Link href="/login" className="text-blue-400 underline">
-            Log in
-          </Link>
-        </p>
       </div>
-    </main>
+    </>
   );
 }
