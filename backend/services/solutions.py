@@ -72,7 +72,11 @@ async def create_from_post_community(
         )
     log.info(
         "solutions_created_from_post",
-        extra={"post_id": post.id, "umbrella_id": umbrella.id, "created": len(created)},
+        extra={
+            "post_id": post.id,
+            "umbrella_id": umbrella.id,
+            "solutions_created": len(created),
+        },
     )
     return created
 

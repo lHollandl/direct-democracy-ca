@@ -15,7 +15,7 @@ from backend.clients import redis as redis_client
 from backend.config.settings_env import get_env_settings
 from backend.db import dispose_engine
 from backend.errors import install_error_handlers
-from backend.jobs import scheduler
+from backend.jobs import runner, scheduler
 from backend.logging_config import configure_logging
 from backend.middleware import install_middleware
 from backend.routers import (
@@ -59,6 +59,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await runner.drain()
         await scheduler.stop()
         await redis_client.close_redis()
         await dispose_engine()

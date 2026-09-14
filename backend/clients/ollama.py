@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import yaml
 
 from backend.config.settings_env import get_env_settings, repo_root
 from backend.errors import ExternalServiceDown
@@ -39,6 +40,15 @@ class PromptFile:
     path: Path
     text: str
     sha256: str
+    #: The prompt file's YAML header block, read for documentation and for the
+    #: `format` schema below.
+    header: dict
+    #: A JSON Schema, written in the prompt file's header as `format:`. When a
+    #: file declares one it is handed to Ollama, which then constrains the
+    #: model to emit JSON of that shape. The shape is still stated in prose in
+    #: the file, because the file is the contract (CLAUDE.md Law 7); this only
+    #: stops a small model from wrapping it in commentary or mismatched braces.
+    output_format: dict | None
 
 
 @lru_cache(maxsize=32)
@@ -50,11 +60,20 @@ def load_prompt(name: str) -> PromptFile:
             code="prompt_file_missing",
         )
     text = path.read_text(encoding="utf-8")
+    header: dict = {}
+    match = _FRONT_MATTER.match(text)
+    if match:
+        try:
+            header = yaml.safe_load(match.group(0).strip("-\n")) or {}
+        except yaml.YAMLError:
+            header = {}
     return PromptFile(
         name=name,
         path=path,
         text=text,
         sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        header=header,
+        output_format=header.get("format"),
     )
 
 
@@ -97,11 +116,21 @@ class OllamaClient:
     async def generate(self, prompt_file: str, variables: dict[str, Any]) -> tuple[str, PromptFile]:
         prompt = load_prompt(prompt_file)
         body = render(prompt, variables)
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "prompt": body,
+            "stream": False,
+            # Temperature 0: the same input should file a post the same way
+            # twice. A labeler that wanders is a labeler nobody can audit.
+            "options": {"temperature": 0},
+        }
+        if prompt.output_format:
+            payload["format"] = prompt.output_format
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
                     f"{self.base_url}/api/generate",
-                    json={"model": self.model, "prompt": body, "stream": False},
+                    json=payload,
                 )
                 response.raise_for_status()
                 data = response.json()

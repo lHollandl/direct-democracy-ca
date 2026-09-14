@@ -2,7 +2,7 @@
 
 ARCHITECTURE.md §8.3. The `console` backend writes the whole message to the log,
 which is how Demo 1 reads verification links. The `smtp` backend is real but
-untested against a live server — the technical-debt note in TODO.md says so.
+untested against a live server, which the tracker's technical-debt list says.
 """
 
 from __future__ import annotations

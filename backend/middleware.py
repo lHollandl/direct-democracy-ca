@@ -62,7 +62,7 @@ class WriteRateLimitMiddleware(BaseHTTPMiddleware):
 
     If Redis is unreachable the limiter falls open with a logged warning: the
     platform staying up matters more than a local rate limit (ARCHITECTURE.md
-    §8.4). That is recorded as technical debt in TODO.md.
+    §8.4). That is recorded in the tracker's technical-debt list.
     """
 
     async def dispatch(self, request: Request, call_next):

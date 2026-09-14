@@ -5,9 +5,9 @@ documents for each demo until the director declares a keeper build, and is
 immutable from that build onward (DATABASE.md §6). Foreign keys may point at
 Foundation tables; nothing here touches one. Schema only.
 
-Revision ID: a4071cd2e97c
+Revision ID: b4b4da0b6e54
 Revises: 
-Create Date: 2026-09-13 17:36:48.974506
+Create Date: 2026-09-13 18:10:45.408957
 
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = 'a4071cd2e97c'
+revision: str = 'b4b4da0b6e54'
 down_revision: str | None = None
 branch_labels: Sequence[str] | None = ('iteration',)
 depends_on: str | None = None
@@ -228,7 +228,7 @@ def upgrade() -> None:
     op.create_table('post_communities',
     sa.Column('post_id', sa.Integer(), nullable=False),
     sa.Column('community_level', postgresql.ENUM('city', 'county', 'state', 'federal', name='community_level_enum', create_type=False), nullable=False),
-    sa.Column('community_entity_id', sa.Integer(), sa.Identity(always=True), nullable=False),
+    sa.Column('community_entity_id', sa.Integer(), nullable=False),
     sa.Column('umbrella_id', sa.Integer(), nullable=True),
     sa.Column('main_category_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

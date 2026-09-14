@@ -1,6 +1,6 @@
 ---
 name: reference_select
-version: 1
+version: 2
 purpose: >
   Pick the most useful search results for an umbrella and write one plain
   sentence per pick saying why it is relevant.
@@ -12,6 +12,20 @@ inputs:
 output: >
   A single JSON object and nothing else:
   {"picks": [{"result_number": <int>, "why": "<one sentence>"}]}
+format:
+  type: object
+  required: [picks]
+  properties:
+    picks:
+      type: array
+      items:
+        type: object
+        required: [result_number, why]
+        properties:
+          result_number:
+            type: integer
+          why:
+            type: string
 ---
 
 Residents are working on this problem:

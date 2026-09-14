@@ -38,7 +38,10 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 class SignupIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8, max_length=72)
+    #: The length and content rules live in services/security.py so the
+    #: person is told in plain words what is wrong (CLAUDE.md §8); only
+    #: bcrypt's hard 72-byte limit is enforced here.
+    password: str = Field(max_length=72)
     real_name: str = Field(min_length=2, max_length=120)
     display_name: str = Field(min_length=2, max_length=40)
     date_of_birth: date
@@ -171,7 +174,7 @@ async def forgot_password(body: ForgotIn, session: SessionDep) -> Message:
 
 class ResetIn(BaseModel):
     token: str
-    new_password: str = Field(min_length=8, max_length=72)
+    new_password: str = Field(max_length=72)
 
 
 @router.post("/reset-password", response_model=Message)

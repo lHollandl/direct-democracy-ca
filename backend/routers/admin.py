@@ -11,12 +11,13 @@ vote, ever.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from backend.deps import AdminUser, SessionDep
 from backend.errors import NotFound
 from backend.jobs import labeling as labeling_job
+from backend.jobs import runner
 from backend.repositories import cycles as cycles_repo
 from backend.repositories import users as users_repo
 from backend.routers.common import Message
@@ -184,9 +185,7 @@ async def recommend_references(
 
 
 @router.post("/posts/{post_id}/relabel", response_model=Message)
-async def relabel_post(
-    post_id: int, admin: AdminUser, session: SessionDep, background: BackgroundTasks
-) -> Message:
+async def relabel_post(post_id: int, admin: AdminUser, session: SessionDep) -> Message:
     post = await posts_service.require_post(session, post_id)
     await admin_log.record(
         session,
@@ -196,7 +195,12 @@ async def relabel_post(
         subject_id=post.id,
         old_value={"label_status": post.label_status},
     )
-    background.add_task(labeling_job.label_post_task, post.id)
+    post_id_to_relabel = post.id
+    runner.spawn_after_commit(
+        session,
+        lambda: labeling_job.label_post_task(post_id_to_relabel),
+        name=f"relabel:{post_id_to_relabel}",
+    )
     return Message(message="Queued for filing again.")
 
 

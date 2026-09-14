@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, status
+from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from backend.deps import SessionDep, VerifiedUser, require_member
 from backend.errors import NotFound
+from backend.jobs import runner
 from backend.jobs import similarity as similarity_job
 from backend.repositories import solutions as solutions_repo
 from backend.routers.common import Message
@@ -29,7 +30,6 @@ async def propose_amendment(
     body: AmendmentIn,
     user: VerifiedUser,
     session: SessionDep,
-    background: BackgroundTasks,
 ) -> dict:
     solution = await solutions_service.require_solution(session, solution_id)
     level, entity_id = await _community_of_solution(session, solution)
@@ -42,7 +42,11 @@ async def propose_amendment(
         rationale=body.rationale,
     )
     amendment_id = amendment.id
-    background.add_task(similarity_job.similarity_check_task, amendment_id)
+    runner.spawn_after_commit(
+        session,
+        lambda: similarity_job.similarity_check_task(amendment_id),
+        name=f"similarity_check:{amendment_id}",
+    )
     return {
         "id": amendment_id,
         "message": (

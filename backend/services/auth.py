@@ -205,7 +205,11 @@ async def refresh(session: AsyncSession, raw_refresh_token: str) -> tuple[User, 
     if row is None:
         raise Unauthorized("Please sign in again.", code="refresh_invalid")
     if row.replaced_by_id is not None or row.revoked_at is not None:
-        revoked = await users_repo.revoke_refresh_chain(session, row)
+        # The revocation has to outlive this request. Raising `Unauthorized`
+        # rolls the request's transaction back, so the chain is revoked in its
+        # own committed transaction first — otherwise a stolen token would
+        # survive the very check that detected it.
+        revoked = await _revoke_chain_in_own_transaction(row.id)
         log.warning(
             "refresh_token_reuse_detected",
             extra={"user_id": row.user_id, "revoked_tokens": revoked},
@@ -224,6 +228,17 @@ async def refresh(session: AsyncSession, raw_refresh_token: str) -> tuple[User, 
     new_raw, expires = await _issue_refresh_token(session, user.id, replaces=row.id)
     access, _jti, _exp = security.create_access_token(user.id)
     return user, access, new_raw, expires
+
+
+async def _revoke_chain_in_own_transaction(refresh_token_id: int) -> int:
+    from backend.db import session_scope
+    from backend.models import RefreshToken
+
+    async with session_scope() as fresh:
+        row = await fresh.get(RefreshToken, refresh_token_id)
+        if row is None:
+            return 0
+        return await users_repo.revoke_refresh_chain(fresh, row)
 
 
 async def logout(

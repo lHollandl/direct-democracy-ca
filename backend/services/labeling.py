@@ -104,6 +104,31 @@ async def label_post(session: AsyncSession, post: Post) -> dict:
     except (TypeError, ValueError):
         confidence = None
 
+    # Small models sometimes answer for the same community twice, or invent a
+    # community that was never listed. The first answer that names an umbrella
+    # actually present in that community wins; everything else is ignored and
+    # recorded, so the public log shows what the model really said.
+    choices: dict[tuple[str, int], int | None] = {}
+    duplicates: list[dict] = []
+    for entry in parsed.get("umbrellas", []) or []:
+        try:
+            key = (str(entry["community_level"]), int(entry["community_entity_id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        raw_id = entry.get("umbrella_id")
+        chosen = (
+            int(raw_id)
+            if isinstance(raw_id, (int, str)) and str(raw_id).isdigit()
+            else None
+        )
+        resolves = chosen is not None and chosen in umbrella_index.get(key, {})
+        if key in choices:
+            duplicates.append({"community": f"{key[0]}:{key[1]}", "umbrella_id": chosen})
+            if choices[key] is None and resolves:
+                choices[key] = chosen
+            continue
+        choices[key] = chosen if resolves else None
+
     # The row exists before anything it produced is visible (Law 7).
     action = await ai_log.record(
         session,
@@ -119,18 +144,11 @@ async def label_post(session: AsyncSession, post: Post) -> dict:
             "umbrellas": parsed.get("umbrellas", []),
             "confidence": confidence,
             "category_recognised": category is not None,
+            "repeated_or_unlisted_communities": duplicates,
         },
         confidence=confidence,
     )
 
-    choices: dict[tuple[str, int], int | None] = {}
-    for entry in parsed.get("umbrellas", []) or []:
-        try:
-            key = (str(entry["community_level"]), int(entry["community_entity_id"]))
-        except (KeyError, TypeError, ValueError):
-            continue
-        raw_id = entry.get("umbrella_id")
-        choices[key] = int(raw_id) if isinstance(raw_id, (int, str)) and str(raw_id).isdigit() else None
 
     filed = 0
     needs_review = 0

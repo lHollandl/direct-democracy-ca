@@ -1,6 +1,6 @@
 ---
 name: reference_queries
-version: 1
+version: 2
 purpose: >
   Turn an umbrella's problem statement and its leading solutions into one to
   three web search queries that would find useful background for the people
@@ -13,6 +13,14 @@ inputs:
 output: >
   A single JSON object and nothing else:
   {"queries": ["...", "..."]}
+format:
+  type: object
+  required: [queries]
+  properties:
+    queries:
+      type: array
+      items:
+        type: string
 ---
 
 Residents of {{community}} are working on this problem together:

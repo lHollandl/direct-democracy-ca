@@ -37,6 +37,19 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
+def safe_extra(**fields) -> dict:
+    """Rename any field that would collide with a LogRecord attribute.
+
+    `logging` raises when an `extra` key shadows one of its own (`created`,
+    `module`, `message`, ...). A log line must never be the reason a background
+    job dies, so the collision is renamed rather than raised.
+    """
+    return {
+        (f"field_{key}" if key in _STANDARD else key): value
+        for key, value in fields.items()
+    }
+
+
 def configure_logging(level: str = "INFO") -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())

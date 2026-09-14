@@ -2,7 +2,7 @@
 
 One interface, one implementation per `SEARCH_PROVIDER`. If `SEARCH_API_KEY` is
 unset the admin trigger returns 503 `search_not_configured` and nothing else
-breaks — the director has not chosen a provider yet (TODO P0-13), and a stub
+breaks — the director has not chosen a provider yet (tracker item P0-13), and a stub
 that invented results would be worse than an honest refusal.
 """
 

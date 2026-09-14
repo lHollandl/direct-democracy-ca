@@ -1,0 +1,316 @@
+"""The jury and the ballot in the cases the documents single out (DEMOCRACY §8, §10)."""
+
+from __future__ import annotations
+
+import pytest
+
+from backend.db import session_scope
+from backend.repositories import cycles as cycles_repo
+from backend.tests.conftest import make_umbrella, make_user, set_setting
+
+
+async def _dominant_solution(client, author, voters, umbrella) -> int:
+    created = await client.post(
+        f"/umbrellas/{umbrella}/solutions",
+        headers=author["headers"],
+        json={"text": "Reopen the restrooms and put them on the daily cleaning round."},
+    )
+    solution_id = created.json()["id"]
+    for voter in voters:
+        await client.put(
+            "/votes",
+            headers=voter["headers"],
+            json={"target_type": "solution", "target_id": solution_id, "direction": 1},
+        )
+    return solution_id
+
+
+@pytest.fixture
+async def town(client):
+    await set_setting("ballot_min_dominant_days", "0")
+    umbrella = await make_umbrella(name="Parks", statement="Park restrooms are locked.")
+    director = await make_user(client, email="dir@example.com", display_name="Dir", admin=True)
+    people = [
+        await make_user(client, email=f"p{i}@example.com", display_name=f"Person{i}")
+        for i in range(5)
+    ]
+    return {"umbrella": umbrella, "director": director, "people": people}
+
+
+async def test_the_draw_excludes_authors_and_administrators_and_is_logged(client, town):
+    author = town["people"][0]
+    solution_id = await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    assert prepared.status_code == 200
+    cycle_id = prepared.json()["cycle_id"]
+
+    async with session_scope() as session:
+        jury = await cycles_repo.jury_for_cycle(session, cycle_id)
+        jurors = await cycles_repo.jurors(session, jury.id)
+        pool = set(jury.eligible_pool)
+        assert author["id"] not in pool, "the author of a qualified solution cannot judge it"
+        assert town["director"]["id"] not in pool, "administrators are not drawn"
+        assert len(jury.random_bytes) == 64, "the draw records the randomness it used"
+        assert jury.size_requested == 3
+        assert len(jurors) == 3
+        assert {j.user_id for j in jurors} <= pool
+
+
+async def test_declining_draws_a_replacement_immediately(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    drawn = []
+    for person in town["people"]:
+        duties = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        if duties:
+            drawn.append((person, duties[0]["juror_id"]))
+    assert len(drawn) == 3
+
+    person, juror_id = drawn[0]
+    declined = await client.post(f"/jurors/{juror_id}/decline", headers=person["headers"])
+    assert declined.status_code == 200
+    assert declined.json()["replacement_drawn"] is True
+
+    async with session_scope() as session:
+        jury = await cycles_repo.jury_for_cycle(session, cycle_id)
+        jurors = await cycles_repo.jurors(session, jury.id)
+        assert len(jurors) == 4
+        assert any(j.status == "declined" for j in jurors)
+        assert any(j.status == "drawn" for j in jurors)
+
+
+async def test_a_juror_who_never_answers_is_not_seated_and_not_replaced(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    accepted = 0
+    for person in town["people"]:
+        duties = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        if duties and accepted < 2:
+            await client.post(f"/jurors/{duties[0]['juror_id']}/accept", headers=person["headers"])
+            accepted += 1
+
+    opened = await client.post(
+        f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"]
+    )
+    assert opened.json()["jurors_drawn"] == 3
+    assert opened.json()["jurors_seated"] == 2
+
+    async with session_scope() as session:
+        jury = await cycles_repo.jury_for_cycle(session, cycle_id)
+        jurors = await cycles_repo.jurors(session, jury.id)
+        assert sum(1 for j in jurors if j.status == "no_response") == 1
+        assert jury.seated_count == 2
+
+
+async def test_one_holdback_out_of_two_seated_jurors_is_not_a_majority(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+    item_id = (await client.get(f"/cycles/{cycle_id}/ballot")).json()["items"][0][
+        "ballot_item_id"
+    ]
+
+    seated = []
+    for person in town["people"]:
+        duties = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        if duties and len(seated) < 2:
+            await client.post(f"/jurors/{duties[0]['juror_id']}/accept", headers=person["headers"])
+            seated.append((person, duties[0]["juror_id"]))
+
+    person, juror_id = seated[0]
+    held = await client.post(
+        f"/ballot-items/{item_id}/holdback",
+        headers=person["headers"],
+        json={
+            "juror_id": juror_id,
+            "reason_category": "incomplete",
+            "reason_text": "One juror out of two is not more than half of the seated jury.",
+        },
+    )
+    assert held.status_code == 200
+
+    opened = await client.post(
+        f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"]
+    )
+    assert opened.json()["items_held_back"] == 0, "one of two is not more than half"
+
+
+async def test_both_seated_jurors_holding_back_stops_the_item(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+    item_id = (await client.get(f"/cycles/{cycle_id}/ballot")).json()["items"][0][
+        "ballot_item_id"
+    ]
+
+    seated = []
+    for person in town["people"]:
+        duties = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        if duties and len(seated) < 2:
+            await client.post(f"/jurors/{duties[0]['juror_id']}/accept", headers=person["headers"])
+            seated.append((person, duties[0]["juror_id"]))
+    for person, juror_id in seated:
+        await client.post(
+            f"/ballot-items/{item_id}/holdback",
+            headers=person["headers"],
+            json={
+                "juror_id": juror_id,
+                "reason_category": "not_actionable",
+                "reason_text": "Two of two seated jurors is more than half of the jury.",
+            },
+        )
+
+    opened = await client.post(
+        f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"]
+    )
+    assert opened.json()["items_held_back"] == 1
+    assert opened.json()["items_votable"] == 0
+
+
+async def test_the_cycle_state_machine_refuses_a_jump(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    early_close = await client.post(
+        f"/admin/cycles/{cycle_id}/close", headers=town["director"]["headers"]
+    )
+    assert early_close.status_code == 409
+
+    early_publish = await client.post(
+        f"/admin/cycles/{cycle_id}/publish", headers=town["director"]["headers"]
+    )
+    assert early_publish.status_code == 409
+    assert early_publish.json()["error"] == "cycle_wrong_state", (
+        "a ballot with items goes through jury review and a vote before it is published"
+    )
+
+    second = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    assert second.status_code == 409
+    assert second.json()["error"] == "cycle_already_open"
+
+
+async def test_a_redraw_is_logged_with_its_reason(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    redrawn = await client.post(
+        f"/admin/cycles/{cycle_id}/redraw-jury",
+        headers=town["director"]["headers"],
+        json={"reason": "The first draw picked three people from the same household."},
+    )
+    assert redrawn.status_code == 200
+    log = (await client.get("/admin/log")).json()
+    assert log["items"][0]["action"] == "redraw_jury"
+    assert "same household" in log["items"][0]["reason"]
+
+
+async def test_a_ballot_vote_needs_membership_and_an_open_ballot(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+    item_id = (await client.get(f"/cycles/{cycle_id}/ballot")).json()["items"][0][
+        "ballot_item_id"
+    ]
+
+    too_early = await client.put(
+        f"/cycles/{cycle_id}/ballot/{item_id}/vote",
+        headers=author["headers"],
+        json={"choice": "yes"},
+    )
+    assert too_early.status_code == 409
+
+    await client.post(f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"])
+    outsider = await make_user(
+        client, email="out@example.com", display_name="Out", city_id=2, county_id=2
+    )
+    refused = await client.put(
+        f"/cycles/{cycle_id}/ballot/{item_id}/vote",
+        headers=outsider["headers"],
+        json={"choice": "yes"},
+    )
+    assert refused.status_code == 403
+
+    assert (await client.get(f"/cycles/{cycle_id}/ballot")).status_code == 200, (
+        "anyone may read a ballot; only members vote on it"
+    )
+
+
+async def test_a_tie_fails_and_the_quorum_is_respected(client, town):
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    await set_setting("ballot_quorum_min", "3")
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+    item_id = (await client.get(f"/cycles/{cycle_id}/ballot")).json()["items"][0][
+        "ballot_item_id"
+    ]
+    await client.post(f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"])
+
+    await client.put(
+        f"/cycles/{cycle_id}/ballot/{item_id}/vote",
+        headers=town["people"][1]["headers"],
+        json={"choice": "yes"},
+    )
+    await client.put(
+        f"/cycles/{cycle_id}/ballot/{item_id}/vote",
+        headers=town["people"][2]["headers"],
+        json={"choice": "no"},
+    )
+    closed = await client.post(
+        f"/admin/cycles/{cycle_id}/close", headers=town["director"]["headers"]
+    )
+    assert closed.json()["results"][0]["result"] == "failed", "a tie fails, and quorum was 3"

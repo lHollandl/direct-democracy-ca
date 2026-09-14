@@ -584,7 +584,7 @@ class PostCommunity(Base):
         ForeignKey("posts.id", ondelete="CASCADE"), primary_key=True
     )
     community_level: Mapped[str] = mapped_column(community_level_enum, primary_key=True)
-    community_entity_id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    community_entity_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     umbrella_id: Mapped[int | None] = mapped_column(
         ForeignKey("umbrellas.id"), nullable=True
     )

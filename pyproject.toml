@@ -37,4 +37,6 @@ testpaths = ["backend/tests"]
 markers = [
     "live: hits the real Ollama; opt in with -m live",
 ]
+# The live checks are opt-in: `pytest -m live` (ARCHITECTURE.md §10).
+addopts = "-m 'not live'"
 filterwarnings = ["ignore::DeprecationWarning"]
