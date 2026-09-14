@@ -16,14 +16,14 @@ here is mocked.
 
     $ python backend/scripts/walkthrough_extended.py
 
-Reads verification tokens from the running server's log (EMAIL_BACKEND=console),
-via UVICORN_LOG env var (default /tmp/uvicorn.log).
+Reads verification tokens from the running server's log
+(EMAIL_BACKEND=console); expects the server's stdout/stderr redirected to
+/tmp/uvicorn.log, as SANDBOX.md's run instructions do.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 import time
@@ -34,8 +34,8 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.stdout.reconfigure(line_buffering=True)  # subprocess output must interleave in order
 
-BASE_URL = os.environ.get("WALKTHROUGH_BASE_URL", "http://127.0.0.1:8000")
-LOG_PATH = Path(os.environ.get("UVICORN_LOG", "/tmp/uvicorn.log"))
+BASE_URL = "http://127.0.0.1:8000"
+LOG_PATH = Path("/tmp/uvicorn.log")
 CITY_ID = 408  # San Jose
 COUNTY_ID = 43  # Santa Clara
 
