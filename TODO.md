@@ -16,8 +16,13 @@
 *As of 2026-09-14. Demo 1 is built on `demo/01`: both halves, front to back,
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
-in `briefs/evidence/demo-01/`. Nothing has been merged to `main`; the audit run
-comes next. Phase 0 remains complete except the optional search provider.*
+in `briefs/evidence/demo-01/`. Audit run 1 returned FIX REQUIRED (one HIGH,
+three LOW); fix run 1 (FIX-01 through FIX-07) is complete — layering enforced
+and tested, job scheduling moved into services, `pyproject.toml` fixed,
+`comments.content_hash` corrected, the three previously-unproven scenarios
+scripted and passing, the full evidence set re-run clean. Nothing has been
+merged to `main`; the next audit run comes next. Phase 0 remains complete
+except the optional search provider.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -49,7 +54,7 @@ comes next. Phase 0 remains complete except the optional search provider.*
 | Summary document | I | Built: canonical JSON, SHA-256, verifier, hash list, PDF, `mailto:` | |
 | Director controls | I | Built; every one writes to the public admin log | |
 | Frontend | I/F | Every route in ARCHITECTURE §9 built and rendering | No browser available, so no screenshots |
-| Demo database | — | Loaded by the build walkthrough; `ballot_min_dominant_days` back to 3 | Cycle 2 in San Jose is `prepared` with zero items and blocks the next prepare until the director publishes it |
+| Demo database | — | Rebuilt from empty for fix run 1 and reloaded by `walkthrough_extended.py`; `ballot_min_dominant_days` back to 3 | San Jose cycle 1 is published (passed); Santa Clara County cycle 1 (empty) is published and cycle 2 is `prepared` with zero items, waiting on the director to publish it before a third can be prepared |
 
 ---
 
@@ -169,6 +174,40 @@ documents, not from this code.
 
 ---
 
+## Phase 2a — demo-01 fix run 1
+
+Fixes for `audits/demo-01-audit-1.md` (CRITICAL 0 · HIGH 1 · MEDIUM 0 ·
+LOW 3 · NOTE 2; verdict FIX REQUIRED), from `briefs/demo-01-fix-1.md`. Each
+id is one commit on `demo/01`; full evidence in
+`briefs/evidence/demo-01/fix-1-verification.txt`.
+
+- [x] **FIX-01** Layering (HIGH): every router calls only services, every
+  service reads and writes only through its aggregate's repository module;
+  `backend/tests/test_layering.py` added (AST-based, enforces both rules and
+  that no router imports a job)
+- [x] **FIX-02** Background-job scheduling moved from routers into the
+  service that owns the transaction (resolves audit ambiguity 1; now in
+  ARCHITECTURE.md §2/§7)
+- [x] **FIX-03** `pyproject.toml`'s `version` fixed to PEP 440
+  (`"0.1.0"`); `pip install -e .` succeeds; `BUILD_LABEL` unaffected
+- [x] **FIX-04** `comments.content_hash` was missing `parent_id`
+  (DATABASE.md §4.11); `amendments.content_hash` already matched §4.9
+  exactly
+- [x] **FIX-05** HISTORY.md correction: Session 1's "199 passed" narrative
+  should read 201 (the evidence file and the audit both say so); corrected
+  in Session 3's entry, Session 1's left as-is (append-only)
+- [x] **FIX-06** `backend/scripts/walkthrough_extended.py`: six accounts
+  exercise the two-community post (four `solutions` rows), a jury
+  decline-with-replacement and a no-response juror, a hold-back short of a
+  majority, and a zero-item cycle publish that unblocks the next one —
+  none of which three accounts can produce
+- [x] **FIX-07** Re-ran the build brief's full evidence set (migrations from
+  empty, `verify_schema.py`, seed dry-run, full test suite including
+  `test_layering.py`, every required grep, `git status`/`git log`) after
+  FIX-01 through FIX-06; all clean
+
+---
+
 ## Phase 3 — Demo 2 candidates
 
 Not scheduled. Pulled forward by the director after Demo 1 is used.
@@ -265,6 +304,29 @@ What makes it bite, not only what it is.
   their expiry. Bites at deployment: there is no shared storage and no
   encryption at rest.
 
+### Found by demo-01 fix run 1 (2026-09-14)
+
+- **`juries_service.redraw` marks the outgoing jurors `status = "replaced"`
+  and then deletes their jury row**, whose `ON DELETE CASCADE` removes those
+  juror rows before the status change is ever visible to a reader. Found
+  while moving the function to comply with layering (FIX-01); preserved
+  exactly, since the fix brief named layering, not this. Bites if anything
+  ever reads a redrawn jury's history expecting to find `replaced` rows —
+  today, nothing does.
+- **`backend/scripts/walkthrough_extended.py` reads verification tokens from
+  `/tmp/uvicorn.log`**, a fixed path, on the assumption the server's
+  stdout/stderr is redirected there. Bites if the server is ever run with
+  logging configured differently — the script will time out looking for a
+  token that was written somewhere else.
+- **The labeler does not reliably find a matching umbrella when one post
+  goes to two communities with different topics on offer.** FIX-06's
+  walkthrough needed the documented author-correction path
+  (`POST /posts/{id}/label/correct`) to file both communities, even with a
+  problem text written to closely match one umbrella name per community.
+  Bites anyone assuming AI labeling alone files every multi-community post;
+  it is designed to be correctable for exactly this reason (DEMOCRACY §9.1),
+  but a demo script or a new user could still be surprised by a `needs_review`.
+
 ---
 
-*Last updated: 2026-09-14 — Demo 1 built on `demo/01` by an unattended Claude Code run.*
+*Last updated: 2026-09-14 — demo-01 fix run 1 completed on `demo/01` by an unattended Claude Code run.*

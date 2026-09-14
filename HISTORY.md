@@ -2154,3 +2154,224 @@ did not, because it is their action to take, not the build's.
 Report: `audits/demo-01-audit-1.md`. Counts: CRITICAL 0 · HIGH 1 · MEDIUM 0 ·
 LOW 3 · NOTE 2. Verdict: **FIX REQUIRED**. Findings live in the report, not
 here.
+
+---
+
+## 2026-09-14 — Session 2 (Claude.ai planning session — audit review and document updates)
+
+**Completed:**
+- Reviewed the demo-01 build entry and `audits/demo-01-audit-1.md` (CRITICAL 0 · HIGH 1 · MEDIUM 0 · LOW 3 · NOTE 2; FIX REQUIRED). Both always-critical traps clean. Fix brief `briefs/demo-01-fix-1.md` written.
+- Adopted into the documents every decision the build made: seed keys transcribed; admin only by `grant_admin.py` (DEMOCRACY §13, ARCHITECTURE §4); JSON Schema in prompt headers and temperature 0 (ARCHITECTURE §8.1); labeler answer selection with ignored answers logged (DEMOCRACY §9.1); embedding actions' sentinel `prompt_file` (DATABASE §3.10); amendment and comment hash fields (DATABASE §4.9, §4.11); `POSTGRES_*` in `.env` (ARCHITECTURE §3); 72-byte password cap (CLAUDE.md Law 13, director-approved typo-grade addition); gradient headers until the director supplies photography.
+- Document corrections the run found: DATABASE §3.11 export sentence; ARCHITECTURE §6 `/auth/me` vs `/me/*`; ARCHITECTURE §10 "throwaway database"; DEMOCRACY §10.2 note on the unreachable guard.
+- ARCHITECTURE §2 and §7 now state that the service owning the transaction schedules background jobs (resolves audit ambiguity 1) and that `test_layering.py` enforces the layer boundaries.
+
+**Decisions made:**
+1. The HIGH layering finding stands; fixed in a fix run rather than downgraded. Reason: it reproduces the legacy code's shape that ARCHITECTURE §12 exists to remove, and the layer split is what keeps future audits cheap.
+2. Fix runs use a fresh sandbox (`ddc-demo-NN-fix-K`) from a synced host branch; re-entering an existing sandbox with a new prompt is undocumented (SANDBOX.md §9).
+3. Embedding actions keep the sentinel `prompt_file` the build chose rather than making the Foundation columns nullable, to avoid touching the Foundation migration before its first merge.
+
+**Issues encountered:**
+- SANDBOX.md §5 named the Docker Hub blob host `production.cloudflare.docker.com`; the real host is `production.cloudfront.docker.com`. The build could not pull images; the rule was corrected before the audit, which pulled cleanly. This resolves audit ambiguity 2. SANDBOX.md corrected.
+- `--clone` copies the host's local branches: the audit sandbox started with `demo/01` at `main` because the host's local branch was stale. SANDBOX.md §6.2 now requires syncing the branch before every run.
+- The audit sandbox's source tree is writable; the read-only mount in AUDIT.md §1 is not enforced. Recorded in SANDBOX.md §6.5 and §9; the diff check is the safeguard.
+- Neither the build's nor the auditor's walkthrough exercised the two-community post, a jury decline and no-response, or the zero-item cycle — three accounts cannot produce them. The fix brief requires all three with six accounts.
+
+**Document changes flagged:**
+- The director owes real California photography for page headers (style brief) whenever ready; nothing blocks on it.
+- P0-13 (search provider) still open.
+
+---
+
+## 2026-09-14 — Session 3 (Claude Code build — demo-01, fix run 1)
+
+Unattended run on `demo/01` inside a Docker Sandbox, from the fix brief
+`briefs/demo-01-fix-1.md`, after audit run 1 returned `FIX REQUIRED`
+(`audits/demo-01-audit-1.md`: CRITICAL 0 · HIGH 1 · MEDIUM 0 · LOW 3 · NOTE 2).
+FIX-01 through FIX-07 completed, one commit each; evidence pasted below and
+committed under `briefs/evidence/demo-01/`.
+
+**Notes:** Step 0 — pre-checks
+
+```
+$ git branch --show-current
+demo/01
+$ git log --oneline -3
+867d68f Post-audit document updates; fix brief demo-01-fix-1
+743aa79 audit demo-01 run 1
+1d1465f Restore ballot_min_dominant_days to 3 with a logged reason
+```
+
+The newest commit is the director's post-audit document update, not the
+auditor's own commit as the brief's Step 0 literally describes — expected,
+since the brief that names this pre-check is itself the newer commit. Not a
+document conflict; noted rather than resolved silently.
+
+```
+$ ls backend/config/
+__init__.py  categories.py  seed_cities.csv  seed_geography.yaml
+seed_officials.yaml  seed_settings.yaml  seed_umbrellas.yaml
+```
+All five seed files present.
+
+```
+$ docker compose --env-file .env -f infra/docker-compose.yml up -d
+...
+Image postgres:16 Pulled
+Image redis:7 Pulled
+Container ddc_postgres Started
+Container ddc_redis Started
+$ docker compose --env-file .env -f infra/docker-compose.yml ps
+NAME           IMAGE         ...  STATUS                   PORTS
+ddc_postgres   postgres:16   ...  Up (healthy)             0.0.0.0:5432->5432/tcp
+ddc_redis      redis:7       ...  Up (healthy)             0.0.0.0:6379->6379/tcp
+```
+Compose succeeded on the first try in this sandbox — SANDBOX.md §5's corrected
+blob-CDN host resolves audit ambiguity 2. No `.env` existed; one was generated
+with fresh `JWT_SECRET`/`POSTGRES_PASSWORD` (not committed).
+
+```
+$ curl -sS $OLLAMA_BASE_URL/api/tags
+{"models":[{"name":"nomic-embed-text:latest",...},{"name":"llama3.2:latest",...},...]}
+```
+
+**Completed:**
+
+- **FIX-01 (HIGH, layering)** — commit `20e02ea`. Every router now calls only
+  service functions; every service reads and writes only through its
+  aggregate's repository module. Fixed by adding thin service functions where
+  a router needed one (`services/geography.py`, `services/legal.py`,
+  `auth_service.me_view`, `solutions_service.detail_view`,
+  `cycles_service.for_community`, `juries_service.admin_user_view`, and
+  others) and repository functions where a service was building its own query
+  (`users_repo.anonymize`, `users_repo.count_active_members` /
+  `active_member_ids`, `posts_repo.by_author` /
+  `problem_reports_for_umbrella`, the new `repositories/data_exports.py`,
+  and more). Added `backend/tests/test_layering.py`: an AST-based check (not
+  a regex) that walks every router and service file and fails with the file
+  and line of any router importing `backend.repositories`/`backend.clients`/
+  `backend.jobs`, or any service calling
+  `session.execute`/`session.get`/`select(` directly. Re-ran the audit's two
+  exact greps — both return nothing. Full test suite:
+  `203 passed, 2 deselected in 96.72s` then `2 passed, 203 deselected` for
+  `-m live` — the same 201 tests as the build, plus the two new layering
+  tests, all still passing. No behavior changed.
+- **FIX-02 (job scheduling)** — commit `49078dc`. Moved every
+  `runner.spawn_after_commit` call out of routers into the service function
+  that owns the transaction (`posts_service.create` and
+  `posts_service.request_relabel` schedule labeling;
+  `amendments_service.propose` schedules the similarity check;
+  `export_service.request_export` schedules the export build) — resolves the
+  audit's document ambiguity 1, now settled in ARCHITECTURE.md §2/§7. No
+  router imports `backend.jobs` any more; `test_layering.py`'s router check
+  now also catches that. Full suite still 203 + 2 passing.
+- **FIX-03 (LOW, `pyproject.toml`)** — commit `34ea10b`. `version = "0.1.0"`;
+  `BUILD_LABEL` (unaffected, a separate `.env` key) still carries the demo
+  label. `pip install --break-system-packages -e ".[dev]"` now succeeds —
+  pasted in `briefs/evidence/demo-01/fix-1-verification.txt` is the
+  downstream test-suite run against the resulting environment; the install
+  itself is not re-pasted since it is long and unchanged in shape from a
+  normal dependency resolution.
+- **FIX-04 (canonical hash fields)** — commit `b16fb80`.
+  `amendments.content_hash` already matched DATABASE.md §4.9's field list
+  exactly ({solution_id, base_version, proposed_text, rationale, author_id,
+  created_at}) — no change needed. `comments.content_hash` was missing
+  `parent_id`, required by DATABASE.md §4.11's field list
+  ({target_type, target_id, parent_id, text, author_id, created_at}); fixed
+  in `hashing.comment_content_hash` and its two callers
+  (`services/comments.py`, `jobs/reconcile.py`'s hash-mismatch check). Hashes
+  on existing rows are not a concern per the brief — the database is
+  rebuilt.
+- **FIX-05 (HISTORY correction)** — this entry. Session 1's "The test suite"
+  section reads `"199 passed, 2 deselected in 95.59s"`; the evidence file it
+  cites, `briefs/evidence/demo-01/tests.txt`, and the audit's own independent
+  run both read `201 passed`. Every test genuinely passed; the number
+  transcribed into the narrative was wrong, not the run. Session 1's entry is
+  not edited (HISTORY.md is append-only) — this is the correction.
+- **FIX-06 (the three unproven scenarios)** — commit `98d0253`.
+  `backend/scripts/walkthrough_extended.py`, run against a live server with
+  six accounts (one admin who is also the post's author, five ordinary
+  members, all residents of San Jose / Santa Clara County), exercises:
+  (a) one post with two solution texts filed to both the city and the county
+  community — four `solutions` rows, two per umbrella, each with its
+  `post_solution_id` (confirmed by a direct database read; the API never
+  returns that column); (b) members vote a city solution dominant and
+  qualified, `ballot_min_dominant_days` lowered to 0 with a logged reason and
+  restored to 3 afterward; the jury draw (size 3, pool of 5) is exercised for
+  real with genuine cryptographic randomness — one juror accepts, one
+  declines and a replacement is drawn and accepts, one never responds; opening
+  the ballot seats exactly the two who accepted (`seated_count = 2`) and
+  marks the silent one `no_response`; one seated juror holds the item back,
+  and with two seated, one hold-back is not a majority, so the item stays
+  votable — confirmed via `GET /cycles/{id}/ballot` before it is voted to a
+  pass and the cycle published; (c) the county's copy of the post is never
+  voted on, so nothing qualifies there — `prepare` produces a zero-item,
+  no-jury cycle in `prepared`, published directly with an empty summary and
+  its hash, and cycle 2 prepares immediately after, proving the community is
+  not left blocked. Evidence at
+  `briefs/evidence/demo-01/walkthrough_extended.txt`.
+- **FIX-07 (re-run the full evidence set)** — commit `210dfdc`. Migrations
+  from empty (on a throwaway scratch database, so the live demo database
+  FIX-06 populated was not disturbed), `verify_schema.py` (no drift),
+  `seed --dry-run` (0 pending writes, matching the build's own 590/0/0
+  shape), the full test suite including `test_layering.py` (203 + 2, all
+  passing), the build brief's three greps, the audit's two layering-violation
+  greps, and `git status`/`git log`. Pasted in full at
+  `briefs/evidence/demo-01/fix-1-verification.txt`.
+
+**Decisions made:**
+
+1. **FIX-05's correction is this entry, not a separate commit.** The work
+   item only has content once "your own entry" exists to state it in, so it
+   is folded into this final HISTORY.md append rather than given its own
+   mid-sequence commit the way FIX-01–FIX-04, FIX-06 and FIX-07 are.
+2. **The walkthrough falls back to author-correction rather than retrying or
+   mocking the labeler.** `llama3.2` did not land a confident umbrella match
+   in either community on the run that produced the committed evidence (the
+   post's two topics — encampments and regional affordability — are close
+   enough that a 3B model split on both); rather than loosen the assertion or
+   retry until the model got lucky, the script calls
+   `POST /posts/{id}/label/correct` for any community still at
+   `needs_review`, which is the exact documented path (DEMOCRACY.md §9.1) a
+   real author would use. This is more representative of real use than
+   forcing a particular AI outcome.
+3. **FIX-07's "migrations from empty" evidence uses a disposable scratch
+   database** (`fix07_scratch`, created and dropped around the two `alembic
+   upgrade` commands) rather than the live `directdemocracy` database, so the
+   demo data FIX-06's walkthrough left behind — six accounts, one published
+   city cycle, a published and a prepared-empty county cycle — survives as
+   the fix run's final demo state, the same way the build run left its own
+   demo data for the director.
+4. **The database was rebuilt from empty for this fix run** (`docker compose
+   down -v` then re-migrated and re-seeded) rather than reusing the build's
+   database, both because FIX-04 changes what a fresh comment's hash covers
+   and because the fix brief says hashes on existing demo rows are not a
+   concern — the database is rebuilt.
+
+**Issues encountered:**
+
+- **`comment_content_hash`'s new `parent_id` parameter has no default**,
+  since every comment row has a `parent_id` whether or not it is null; this
+  was a deliberate choice over a default of `None`, so a future caller cannot
+  silently omit it and reintroduce the same gap FIX-04 closed.
+- **The walkthrough script itself read two environment variables directly**
+  (`WALKTHROUGH_BASE_URL`, `UVICORN_LOG`), which the FIX-07 evidence pass's
+  own `os.environ` grep caught — Law 10 makes no exception for scripts.
+  Neither variable was ever set to anything but its default in practice, so
+  both became plain constants; see FIX-07's commit.
+- **The redraw-then-delete sequence in `juries_service.redraw`** — the
+  replaced jurors' rows are marked `status = "replaced"` and then the whole
+  jury row is deleted, which cascades and removes those juror rows before the
+  status change is ever visible to a reader — was preserved exactly as found
+  while moving it to comply with layering (FIX-01). This looks like a
+  pre-existing no-op, not something this brief named, so it was not touched;
+  flagged here rather than fixed silently.
+
+**Notes:** places a document looked wrong
+
+- None found this run beyond what Session 1 and Session 2 already recorded.
+
+**Document changes flagged:**
+
+- None. This run's changes are all code, tests and evidence; CLAUDE.md,
+  PROJECT.md, DEMOCRACY.md, DATABASE.md, ARCHITECTURE.md, SANDBOX.md,
+  AUDIT.md and `audits/` were not touched, per the fix brief.
