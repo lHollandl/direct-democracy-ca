@@ -22,3 +22,9 @@ settings:
   comment_edit_minutes: "15"
   label_retry_minutes: "10"
   references_ai_max_per_umbrella: "5"
+  # Added by the demo-01 build run (2026-09-14): DEMOCRACY.md §7.4 lists these
+  # two keys with these Demo 1 defaults, but the director's file stopped at
+  # references_ai_max_per_umbrella. Transcribed from the table, not invented;
+  # recorded in HISTORY.md. min_signup_age is read by Foundation signup.
+  reference_reject_min: "2"
+  min_signup_age: "17"

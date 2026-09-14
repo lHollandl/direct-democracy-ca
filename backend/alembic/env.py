@@ -31,7 +31,11 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-config.set_main_option("sqlalchemy.url", get_env_settings().sync_database_url)
+# The URL comes from .env through settings_env.py (CLAUDE.md Law 10) unless a
+# caller has already set one — backend/scripts/verify_schema.py points this at
+# a scratch database it builds from the migrations.
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option("sqlalchemy.url", get_env_settings().sync_database_url)
 
 
 #: `alembic -x half=foundation revision --autogenerate` restricts autogenerate
