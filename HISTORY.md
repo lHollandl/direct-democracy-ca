@@ -2146,3 +2146,11 @@ that nothing returns to the ballot unchanged. Publishing it is a director
 control (DEMOCRACY §13), and the next cycle cannot be prepared until it is
 published, so the director may want to do that before using the demo. This run
 did not, because it is their action to take, not the build's.
+
+---
+
+## 2026-09-14 — Session 2 (Claude Code audit — demo-01, run 1)
+
+Report: `audits/demo-01-audit-1.md`. Counts: CRITICAL 0 · HIGH 1 · MEDIUM 0 ·
+LOW 3 · NOTE 2. Verdict: **FIX REQUIRED**. Findings live in the report, not
+here.
