@@ -2375,3 +2375,34 @@ $ curl -sS $OLLAMA_BASE_URL/api/tags
 - None. This run's changes are all code, tests and evidence; CLAUDE.md,
   PROJECT.md, DEMOCRACY.md, DATABASE.md, ARCHITECTURE.md, SANDBOX.md,
   AUDIT.md and `audits/` were not touched, per the fix brief.
+
+---
+
+## 2026-09-14 — Session 4 (Claude Code audit — demo-01, run 2)
+
+Full audit of `demo/01` after fix run 1, from `briefs/audit.md`, written to
+`audits/demo-01-audit-2.md`. **CRITICAL 1 · HIGH 1 · MEDIUM 6 · LOW 7 ·
+NOTE 3; verdict FIX REQUIRED.** Both always-`CRITICAL` traps are clean and
+were confirmed by running the platform, not by reading it: every caller of
+`GET /cycles/{id}/ballot` sees only their own vote, the admin endpoint
+returns none, no endpoint emits a `voter_id`, and an administrator's upvote
+moved a net score by exactly one. Fix run 1's work holds — both layering
+greps return nothing, `test_layering.py` enforces them, and every one of run
+1's findings is resolved except the "one service function / No logic" half of
+ARCHITECTURE §2, which `FIX-01` is marked `[x]` for but did not deliver
+(recorded under "Previously reported, still present"). I rebuilt the database
+from empty, ran migrations, `verify_schema.py` (no drift), the seed dry-run
+(0 pending), the full suite (`203 passed`) against the real Ollama, and my own
+seven-account cycle through `curl` — signup to a published, verifying summary,
+including a zero-item cycle, a jury decline, a replacement, a no-response, and
+hold-backs on both sides of the majority rule. Every hash recomputed
+independently from raw rows, six hand-derived `threshold()` cases matched, and
+anonymization erased exactly the columns DATABASE §3.1 lists. The `CRITICAL`
+is in comments: a reply past the depth cap writes the parent author's
+resolved display name into the child's stored `text`, and therefore into its
+permanent `content_hash` — I reproduced a user's real name surviving both a
+switch to anonymous and a full account deletion. The `HIGH` is that a jury
+redraw deletes the previous jury row, destroying the pool, drawn ids and
+random bytes DEMOCRACY §8.1 requires be inspectable afterwards. Four document
+ambiguities are listed for the director. Nothing outside `audits/` and this
+entry was modified; `git diff main...HEAD --stat` is pasted in the report.
