@@ -85,13 +85,20 @@ are eligible to appear.
 Users may *read* any community. Users may *post, comment, vote, and
 serve on juries* only in their home communities.
 
+**Minimum age.** Signup requires the user to be at least
+`min_signup_age` (Demo 1: 17) on the day of signup, computed from the
+date of birth. Younger applicants are refused at signup with a plain
+message; nothing is stored. The age is checked once, at signup; a user
+who was old enough then is a full member.
+
 ### 2.4 Active users
 
 The denominator for every percentage threshold.
 
-> An **active user** of a community is a member of that community who
-> has made at least one authenticated request in the last
-> `active_user_window_days` (Demo 1: 30).
+> An **active user** of a community is a member of that community whose
+> email is verified, whose account is not deleted, and who has made at
+> least one authenticated request in the last `active_user_window_days`
+> (Demo 1: 30).
 
 Computed on demand, never cached longer than one hour. The count is
 displayed on each community's page with the definition beside it.
@@ -180,6 +187,28 @@ succeeds.
 The author may correct an AI label at any time from the post. Every
 correction is recorded on the label row (§9.2).
 
+**Where the solutions go.** A post's solution texts are stored with the
+post at submission (`post_solutions`, DATABASE §4.4). A **solution**
+(§4.3) exists only inside an umbrella, and an umbrella belongs to one
+community, so the moment a post-community is assigned an umbrella —
+by the labeler, by the author's pick, or by the author's correction —
+one solution row is created in that umbrella for **each** of the post's
+solution texts. A post going to three communities with two solution
+texts therefore produces six solutions, each with its own votes and
+amendments, because each community workshops it separately. Until a
+post-community has an umbrella (`pending`, `needs_review`,
+`unlabeled`), its solutions do not yet exist; the post page shows the
+texts with "waiting to be filed". If the author later corrects a label
+to a different umbrella, the solutions already created are **moved** to
+the new umbrella only while they have zero votes and zero amendments;
+otherwise they stay where they are and the correction is recorded but
+creates nothing new.
+
+**A post cannot be edited or deleted in Demo 1.** The problem text is
+hashed at creation (Law 6) and is immutable; the post's solutions
+evolve in the workshop. The `deleted_at` column exists for a future
+moderation design.
+
 ### 4.2 Post title
 
 Derived: the first 80 characters of the problem text, cut at a word
@@ -187,8 +216,12 @@ boundary. Not stored separately. Not editable.
 
 ### 4.3 Solutions
 
-A solution belongs to one umbrella. It is created either with a post or
-directly on an umbrella page by any member of the community.
+A solution belongs to one umbrella. It is created either from a post
+when that post-community receives its umbrella (§4.1, "Where the
+solutions go") or directly on an umbrella page by any member of the
+community. A solution created from a post records the post and the
+`post_solutions` row it came from, so the page can show "also proposed
+in Solano County" links between the copies.
 
 A solution has **versions**. Version 1 is the text as posted. Each
 absorbed amendment (§5) creates version n+1. The solution's current text
@@ -346,9 +379,11 @@ often the status flips.
 >    `ballot_min_dominant_days` (Demo 1: 3).
 > 3. Its net score ≥ `threshold(ballot_pct, ballot_min, active users of
 >    the community)`. Demo 1: `ballot_pct = 10`, `ballot_min = 5`.
-> 4. It was not held back by the jury in the previous cycle for a reason
->    that still applies (§8.4 — a held-back solution re-qualifies
->    automatically if it has a new version since the hold-back).
+> 4. If it has ever been a ballot item — passed, failed, or held back —
+>    its current version is greater than the version that was on that
+>    ballot (`current_version > last_ballot_version`). A solution does
+>    not return to the ballot unchanged; the way back is an amendment
+>    (§5), which creates a new version (§8.4, §10.5).
 
 Qualification is a **snapshot**, not a live status. Between snapshots
 the page shows "on track for the ballot" when conditions 1–3 currently
@@ -389,7 +424,14 @@ the values that were in force for that cycle.
 | `comment_max_depth` | §6 | 3 |
 | `comment_edit_minutes` | §6 | 15 |
 | `label_retry_minutes` | §4.1 | 10 |
-| `references_ai_max_per_umbrella` | §8.2 | 5 |
+| `references_ai_max_per_umbrella` | §9.4 | 5 |
+| `reference_reject_min` | §9.4 — Not-useful presses that reject a reference | 2 |
+| `min_signup_age` | §2.3 — minimum age at signup, in years | 17 |
+
+`similarity_confirm_min` applies to amendment similarity only (§5.4);
+reference rejection has its own key so the two can be tuned apart.
+`min_signup_age` is read by Foundation signup; it lives here so it is
+public and its history is kept like every other rule.
 
 Changing a setting: admin only (Demo 1); logged in the admin action log
 with old value, new value, and reason; a new row, never an update, so
@@ -405,10 +447,14 @@ When the director prepares a ballot for a community (§10.2), the
 platform draws `jury_size` (Demo 1: 3) jurors at random from that
 community's active users, excluding:
 
-- users who authored or amended any qualified solution on this ballot;
+- users who authored any version of, or have a `proposed` amendment
+  on, any qualified solution on this ballot;
 - users who served on a jury for this community within the last
   `jury_no_repeat_cycles` cycles (Demo 1: 0 — no exclusion);
 - users with `is_admin = true`.
+
+(Active users are already email-verified and not deleted, §2.4, so
+every drawn juror is able to accept.)
 
 If fewer eligible users exist than `jury_size`, the jury is the number
 available, and the summary document says so. If zero, the ballot
@@ -424,8 +470,14 @@ Provably reproducible draws are parked (PROJECT.md).
 Drawn users are notified in-app (and by email — Foundation, when email
 notifications exist; Demo 1: in-app only). Each accepts or declines
 within `jury_review_days`. A decline draws a replacement from the
-remaining pool immediately. A non-response by the end of the review
-window counts as "no hold-back" from that juror.
+remaining pool immediately. A juror who has accepted is **seated**. A
+juror who has not responded when the review window closes is marked
+`no_response`, is **not seated**, and is not replaced; the jury is the
+seated jurors, and the summary document states how many were drawn and
+how many were seated.
+
+The review window closes when the director opens the ballot (§10.3);
+there is no separate "close review" action.
 
 ### 8.3 Review
 
@@ -437,21 +489,25 @@ chosen alongside one of a fixed set of categories:
 `duplicate` · `not_actionable` · `incomplete` · `outside_governance_level`
 · `other`
 
-A hold-back requires a **majority** of the jury (more than half of the
-seated jurors) on the same solution; each juror's reason is recorded
-and all reasons are published. Jurors act independently; they do not
-see each other's votes until the window closes.
+A hold-back takes effect when **more than half of the seated jurors**
+(§8.2) have held back the same solution, counted when the ballot is
+opened; their categories need not agree. Each juror's category and
+reason are recorded and all are published. Jurors act independently;
+they do not see each other's hold-backs until the ballot opens.
 
 ### 8.4 Effect of a hold-back
 
 The solution does not appear on this ballot. It stays dominant and keeps
 its votes. It appears in the summary document under "Held back" with
-the reasons. It is automatically re-qualified for the next ballot if it
-gains a new version (an amendment addressing the reason); otherwise it
-re-qualifies only if it crosses the thresholds again and the previous
-hold-back reason is shown to the new jury, who may hold it back again
-for a *different* reason but not the same one (`reason_category` must
-differ).
+every seated juror's category and reason. The solution records
+`last_ballot_result = held_back` and the version that was held back.
+
+It returns to a later ballot under the same rule as a passed or failed
+solution (§7.2 condition 4): only once it has a new version, which
+means an amendment was absorbed. A hold-back is feedback; the response
+is an amendment. The previous hold-back reasons are shown on the
+solution page and to the next jury, which is free to hold the new
+version back again for any reason.
 
 ### 8.5 Identity
 
@@ -524,8 +580,8 @@ Procedure:
    is relevant" per pick (prompt file: `ai/prompts/reference_select.md`).
 4. Each pick becomes a reference with `source = ai`, shown with the
    label "Recommended by AI" and the reason, and a **Useful** / **Not
-   useful** pair. When `similarity_confirm_min` users press Not useful,
-   the reference is marked `rejected` (still visible under "rejected
+   useful** pair. When `reference_reject_min` (Demo 1: 2) distinct
+   users press Not useful, the reference is marked `rejected` (still visible under "rejected
    references", never deleted) and the log row records the outcome.
 
 Triggered by the director in Demo 1 (a button on the umbrella page,
@@ -568,6 +624,7 @@ it. States:
 
 ```
 workshop ──▶ prepared ──▶ jury_review ──▶ open ──▶ closed ──▶ published
+                 └──────────── (zero items only) ─────────────────┘
 ```
 
 Each transition is timestamped and recorded with who triggered it
@@ -590,9 +647,17 @@ Admin action. For the community:
 3. Draw the jury (§8.1).
 4. Transition `workshop → prepared → jury_review`.
 
-If zero solutions qualify, the cycle is prepared with zero items, the
-jury is not drawn, and the director may publish an empty summary
-("No solutions reached the ballot this cycle") or wait.
+**Ballot order.** Items are numbered (`position`) by umbrella name
+A–Z, then net score at snapshot descending, then solution id
+ascending. The ballot page, the summary document, and the jury view
+all use this order.
+
+**Zero items.** If no solution qualifies, the cycle is prepared with
+zero items and no jury is drawn. The only transition available from
+`prepared` in that case is straight to `published` — the director
+publishes an empty summary ("No solutions reached the ballot this
+cycle") whenever ready, and the next cycle can then be prepared. A
+zero-item cycle never enters `jury_review`, `open`, or `closed`.
 
 ### 10.3 Open and close
 
@@ -617,15 +682,13 @@ before any real community votes.
 ### 10.5 After close
 
 - The summary document is generated and published (§11).
-- Passed and failed items are recorded on their solutions
-  (`last_ballot_result`, `last_ballot_cycle`), shown as badges in the
-  workshop.
-- Failed solutions stay in the workshop with their votes. They may
-  qualify again in a later cycle only after gaining a new version — a
-  rejected solution does not return unchanged.
-- Passed solutions stay in the workshop marked "Passed — cycle N" and
-  are excluded from future ballots unless a new version is created
-  (a community may want to refine a passed solution).
+- Passed, failed, and held-back items are recorded on their solutions
+  (`last_ballot_result`, `last_ballot_cycle_id`, `last_ballot_version`),
+  shown as badges in the workshop.
+- All three stay in the workshop with their votes and return to a later
+  ballot only under §7.2 condition 4 — after a new version. A rejected
+  solution does not return unchanged; a passed solution is marked
+  "Passed — cycle N" and returns only if the community refines it.
 
 ---
 
@@ -643,7 +706,8 @@ export of it. Nothing personal in it.
    close timestamps. Active users at snapshot. Members who voted.
    Verification mix of voters ("142 voters: 142 unverified"). The
    sentence: "Residency is self-declared and unverified at this
-   verification level."
+   verification level." Jurors drawn and jurors seated ("3 drawn, 2
+   seated"), or "No jury was drawn" for a zero-item cycle.
 2. **Results.** For each ballot item, in ballot order: umbrella name;
    the frozen solution text (version number, hash); yes count; no count;
    result (**Passed** / **Failed**); the solution's AI-influence figure;
@@ -724,8 +788,9 @@ reason if given).
 - Change a setting (§7.4)
 - Force a label retry on a post
 - View any user's verification level and jury history (not their
-  ballot votes — ballot votes are never viewable by anyone but the
-  voter, including admins; only counts are)
+  ballot votes — a ballot vote is visible only to the voter who cast
+  it, on the ballot page and in their own export; admins and every
+  other endpoint see counts only)
 
 Admins are not exempt from any threshold and cannot vote twice, edit
 others' content, or alter votes. The admin log is public at
@@ -751,8 +816,9 @@ this document satisfies it.
 | §5 labels correctable | §4.1, §9.1 |
 | §6 community-owned solutions | §4.3 |
 | §6 hashes never deleted | §4.3 versions; §11.3 |
-| Law 1 | §4.1 |
-| Law 6 | §4.3; §11.3 |
+| §6 ballot vote visible only to its voter | §10.3; §13 |
+| Law 1 | §4.1 (`post_solutions` at insert; solutions per umbrella) |
+| Law 6 | §4.1 post immutable; §4.3; §11.3 |
 | Law 7 | §9.2; prompt files in §9.1, §9.4 |
 | Law 8 | §7.4 |
 | Law 9 | §12 |

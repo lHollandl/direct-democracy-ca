@@ -75,10 +75,8 @@ sbx
 ### 4.1 Anthropic
 Either store an API key as a sandbox secret — `sbx secret set anthropic`
 (verified) — or use `/login` inside Claude Code for a Claude
-subscription. **Confirmed 2026-09-12:** a subscription login done once
-inside a sandbox persists for later sandboxes on the same host (a
-second sandbox started straight into a working prompt). Unattended runs
-are therefore possible with the subscription.
+subscription. Sandboxes do not inherit the host's `~/.claude`; each
+sandbox authenticates on its own.
 
 ### 4.2 GitHub
 The fine-grained token from the security cleanup (repo:
@@ -185,10 +183,9 @@ pushes `demo/01` with the scoped token.
 
 ### 6.4 Use the demo
 
-Inside the sandbox the app listens on its ports. `sbx ports` manages
-port publishing to the host (**confirmed** the subcommand exists; run
-`sbx ports --help` on first use and record the exact form here). The
-frontend on 3000 and the API on 8000 are the two to publish.
+Inside the sandbox the app listens on its ports. **Confirm on first
+setup:** how `sbx` exposes a sandbox port to the host browser (port
+forwarding flag or sandbox address). Record the URL pattern here.
 
 ### 6.5 Audit sandbox
 
@@ -211,23 +208,17 @@ a `HIGH` finding against the auditor.
   after the audit is clean.
 - **Iteration:** leave `demo/01` as a branch. Start `demo/02` from
   `main`.
-- Remove the sandbox: `sbx rm ddc-demo-01` (**confirmed**; `sbx ls`
-  lists, `sbx stop` pauses without removing, `sbx prune` clears stopped
-  ones). The branch and the remote fetch survive; the VM, its database,
-  and its Docker state do not.
+- Remove the sandbox: `sbx rm ddc-demo-01` (**confirm** exact
+  subcommand). The branch and the remote fetch survive; the VM, its
+  database, and its Docker state do not.
 
 ---
 
 ## 7. Boundary Checks (run 2026-09-12 — all seven passed; screenshots held by the director)
 
 Inside a throwaway sandbox (`sbx run --clone --name boundary-test
-shell .`). The sandbox user is `agent`. With `--clone`, the host folder
-is mounted read-only at `/run/sandbox/source` and the sandbox's own
-clone is mounted read-write at the **same path as on the host** (e.g.
-`/home/kees-soares/direct-democracy-ca`), so paths in logs look like
-host paths but are inside the VM. Each sandbox is created with 64 CPUs
-and 32 GiB by default. The run log prints a `claude --resume <id>`
-line; it reopens that session inside the same sandbox.
+shell .`). The sandbox user is `agent`, home is `/home/agent`, and the
+clone is at `/home/agent/workspace`.
 
 1. `curl -sS https://api.anthropic.com` — reachable (any HTTP response).
 2. `curl -sS https://example.com` — **blocked**.
@@ -266,9 +257,10 @@ policy, the ruleset, or the token. TODO P0-15 done.
 
 Recorded in TODO P0-15's HISTORY entry when resolved:
 
-- Exact `sbx ports` syntax for publishing 3000 and 8000.
+- Port exposure for using the demo from the host browser.
 - Read-only filesystem policy for the audit sandbox.
-- (resolved) `sbx ls`, `sbx rm`, `sbx stop`, `sbx prune`, `sbx version`.
+- `sbx` subcommands for listing and removing sandboxes (`sbx --help`
+  lists them; record the exact names when first used).
 
 Sources: Docker Sandboxes docs — Install, Claude Code agent page,
 Network access policies (all dated 2026-09-10); Anthropic, "Choose a

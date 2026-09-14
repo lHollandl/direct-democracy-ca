@@ -28,6 +28,12 @@
   anonymization procedure, which erases columns, not rows.
 - **Enums** are PostgreSQL `ENUM` types named `<table>_<column>_enum`.
   Adding a value is a migration; removing one is forbidden (Law 3).
+  Two enums are shared across tables and named for what they are, not
+  where they live: `community_level_enum` (`city`, `county`, `state`,
+  `federal`) and `verification_level_enum` (`unverified`, `phone`,
+  `address`, `voter`). No other enum is shared.
+- **Reserved words** are never table or column names (`references`,
+  `order`, `user`, …); hence `umbrella_references`, not `references`.
 - **Hashes** are `CHAR(64)` hex SHA-256.
 - **Foreign keys** are always indexed (Law 4). Composite uniqueness is
   a named `UNIQUE` constraint: `uq_<table>_<cols>`.
@@ -44,7 +50,7 @@
 | Half | Tables | Migration practice |
 |---|---|---|
 | **Foundation** | `users`, `user_display_settings`, `refresh_tokens`, `email_verifications`, `password_resets`, `terms_versions`, `terms_acceptances`, `states`, `counties`, `cities`, `officials`, `settings`, `admin_actions`, `ai_actions`, `data_exports` | Alembic chain `foundation/`. Immutable once applied. |
-| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `comments`, `votes`, `references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Regenerated fresh per demo until the keeper. |
+| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Regenerated fresh per demo until the keeper. |
 
 Two Alembic branches in one `alembic/versions/` directory, labeled
 `foundation` and `iteration`, so `alembic upgrade foundation@head` and
@@ -69,12 +75,12 @@ Law 8) that must survive a demo teardown.
 | `password_hash` | text NOT NULL | bcrypt; erased on deletion |
 | `real_name` | text NOT NULL | erased on deletion |
 | `display_name` | text NOT NULL | unique among live users (`uq_users_display_name` partial where `deleted_at IS NULL`); erased on deletion |
-| `date_of_birth` | date NOT NULL | COPPA; erased on deletion |
+| `date_of_birth` | date NOT NULL | signup refuses if age on the signup date < `min_signup_age` (settings, DEMOCRACY §2.3); erased on deletion |
 | `gender` | enum `users_gender_enum` (`woman`, `man`, `nonbinary`, `other`, `prefer_not_to_say`) NOT NULL | aggregate reporting only; erased on deletion |
 | `political_party` | enum `users_political_party_enum` (`democratic`, `republican`, `green`, `libertarian`, `american_independent`, `peace_and_freedom`, `no_party_preference`, `other`, `prefer_not_to_say`) NOT NULL | California's qualified parties; aggregate only; erased on deletion |
-| `county_id` | int FK `counties` NOT NULL | home county; nulled on deletion |
-| `city_id` | int FK `cities` NOT NULL | home city; must belong to `county_id` (checked in application); nulled on deletion |
-| `verification_level` | enum `users_verification_level_enum` (`unverified`, `phone`, `address`, `voter`) NOT NULL DEFAULT `unverified` | disclosed in aggregate; never weights a vote |
+| `county_id` | int FK `counties` NOT NULL | home county; **kept** on deletion (CLAUDE §6) |
+| `city_id` | int FK `cities` NOT NULL | home city; must belong to `county_id` (checked in application); **kept** on deletion (CLAUDE §6) |
+| `verification_level` | enum `verification_level_enum` (shared, §1) NOT NULL DEFAULT `unverified` | disclosed in aggregate; never weights a vote |
 | `email_verified_at` | timestamptz NULL | write actions require non-null |
 | `is_admin` | bool NOT NULL DEFAULT false | |
 | `last_active_at` | timestamptz NULL | updated at most once per minute per user on authenticated requests; the "active user" source |
@@ -88,10 +94,10 @@ Indexes: `email`, `county_id`, `city_id`, `last_active_at`,
 one transaction: `email` → `deleted+<id>@invalid`, `password_hash` →
 `'!'`, `real_name` → `''`, `display_name` → `Former Community Member`,
 `date_of_birth` → `1900-01-01`, `gender` and `political_party` →
-`prefer_not_to_say`, `county_id`/`city_id` → kept (needed so past votes
-still count in the right community — location is not identifying at
-city granularity; director decision recorded 2026-09-07), `deleted_at`
-set, all `refresh_tokens` revoked, `user_display_settings` reset. Posts,
+`prefer_not_to_say`, `county_id`/`city_id` → kept (CLAUDE §6: the
+civic record stays in the right community), `last_active_at` → NULL
+(a deleted account is never an active user), `deleted_at` set, all
+`refresh_tokens` revoked, `user_display_settings` reset. Posts,
 solutions, comments, votes, jury service, and AI outcomes are untouched
 (CLAUDE §6).
 
@@ -144,16 +150,17 @@ user).
 `cities`: `id`, `county_id` FK, `name`, `incorporated` bool, `fips`
 char(7) UNIQUE NULL.
 
-Seed: California, 58 counties, all incorporated cities, from
-`backend/config/seed_geography.yaml` (director-placed; the build stops
-if absent). Unique `(county_id, name)` on cities.
+Seed: California and 58 counties from `backend/config/seed_geography.yaml`;
+cities from `backend/config/seed_cities.csv` (both director-placed; the
+build stops if either is absent or the CSV has no data rows). Unique
+`(county_id, name)` on cities.
 
 ### 3.7 `officials`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | int PK | |
-| `community_level` | enum `community_level_enum` (`city`, `county`, `state`, `federal`) NOT NULL | |
+| `community_level` | enum `community_level_enum` (shared, §1) NOT NULL | |
 | `community_entity_id` | int NOT NULL | id in `cities` / `counties` / `states` per level |
 | `office` | text NOT NULL | "Mayor", "Council Member, District 3" |
 | `holder_name` | text NULL | |
@@ -215,8 +222,16 @@ frozen thereafter.
 
 `id`, `user_id` FK, `requested_at`, `completed_at` NULL, `file_path`
 text NULL, `expires_at`. Export JSON contains the user's row, display
-settings, terms acceptances, and every Iteration row they authored or
-voted on, assembled by `backend/services/export.py`.
+settings, terms acceptances, jury service, and every Iteration row they
+authored or voted on, including their own ballot votes.
+
+The exporter respects the boundary rule. `backend/services/export.py`
+(Foundation) gathers the Foundation data and then calls every
+registered **export contributor**: a function `contribute(user_id) ->
+dict` that Iteration registers at startup
+(`backend/services/export_iteration.py::contribute`). Foundation code
+never names an Iteration table; when no contributor is registered the
+export contains only Foundation data and says so.
 
 ---
 
@@ -256,16 +271,38 @@ Index on the community pair.
 | `ai_contribution_percentage` | smallint NOT NULL DEFAULT 0 | Law: every post records it |
 | `content_hash` | char(64) NOT NULL | SHA-256 of canonical JSON `{problem_text, author_id, created_at, ai_contribution_percentage}`; immutable |
 | `created_at` | | |
-| `deleted_at` | | soft |
+| `deleted_at` | | soft; no endpoint sets it in Demo 1 |
 
-### 4.4 `post_communities`
+No column of `posts` is updated after insert except `label_status`.
+A post is inserted in the same transaction as its `post_solutions`
+rows, and the service refuses a post with zero solution texts (Law 1).
+
+### 4.4 `post_solutions`
+
+The author's solution texts as submitted, one row each, in order. The
+staging record from which workshop solutions are created (DEMOCRACY
+§4.1).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | int PK | |
+| `post_id` | int FK `posts` NOT NULL | |
+| `position` | smallint NOT NULL | 1-based order in the post |
+| `text` | text NOT NULL | 20–5,000 chars |
+| `ai_contribution_percentage` | smallint NOT NULL DEFAULT 0 | |
+| `content_hash` | char(64) NOT NULL | canonical JSON `{post_id, position, text, created_at}` |
+| `created_at` | | |
+
+Unique `(post_id, position)`. Immutable.
+
+### 4.5 `post_communities`
 
 One row per community the author selected: `post_id` FK,
 `community_level`, `community_entity_id`, `umbrella_id` FK NULL (set by
 label or author), `main_category_id` FK NULL. PK `(post_id,
 community_level, community_entity_id)`. Index `umbrella_id`.
 
-### 4.5 `labels`
+### 4.6 `labels`
 
 One row per labeling attempt per post-community: `id`, `post_id` FK,
 `community_level`, `community_entity_id`, `ai_action_id` FK
@@ -275,14 +312,15 @@ One row per labeling attempt per post-community: `id`, `post_id` FK,
 NULL, `corrected_umbrella_id` FK NULL, `created_at`. Never updated
 except `outcome` and `corrected_umbrella_id`, once.
 
-### 4.6 `solutions`
+### 4.7 `solutions`
 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | int PK | |
 | `umbrella_id` | int FK NOT NULL | |
-| `post_id` | int FK NULL | null when created directly on the umbrella |
-| `author_id` | int FK `users` NOT NULL | version-1 author |
+| `post_id` | int FK `posts` NULL | null when created directly on the umbrella |
+| `post_solution_id` | int FK `post_solutions` NULL | the text it was created from; one solution per (`post_solution_id`, `umbrella_id`) |
+| `author_id` | int FK `users` NOT NULL | version-1 author (the post's author when created from a post) |
 | `current_version` | int NOT NULL DEFAULT 1 | |
 | `net_score` | int NOT NULL DEFAULT 0 | cache |
 | `is_dominant` | bool NOT NULL DEFAULT false | cache of DEMOCRACY §7.1 |
@@ -292,10 +330,19 @@ except `outcome` and `corrected_umbrella_id`, once.
 | `last_ballot_version` | int NULL | version that was on that ballot |
 | `created_at`, `updated_at`, `deleted_at` | | |
 
-Index `umbrella_id`, `author_id`, `(umbrella_id, net_score DESC,
-created_at)`.
+Index `umbrella_id`, `author_id`, `post_id`, `post_solution_id`,
+`(umbrella_id, net_score DESC, created_at)`. Unique
+`(post_solution_id, umbrella_id)` where `post_solution_id IS NOT NULL`.
 
-### 4.7 `solution_versions`
+**Creation from a post** (`backend/services/solutions.py::create_from_post_community`):
+in the same transaction that sets `post_communities.umbrella_id`, one
+`solutions` row and one version-1 `solution_versions` row are inserted
+per `post_solutions` row of that post. **Label correction** to a
+different umbrella moves those solutions (updates `umbrella_id`) only
+if every one of them has zero `votes` and zero `amendments`; otherwise
+they are left in place (DEMOCRACY §4.1).
+
+### 4.8 `solution_versions`
 
 `id`, `solution_id` FK, `version` int, `text` text, `created_by` FK
 `users` (v1: author; later: the amendment's author), `amendment_id` FK
@@ -304,7 +351,7 @@ char(64) NOT NULL (canonical JSON `{solution_id, version, text,
 created_by, created_at}`), `created_at`. Unique `(solution_id,
 version)`. Immutable.
 
-### 4.8 `amendments`
+### 4.9 `amendments`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -324,7 +371,7 @@ version)`. Immutable.
 
 Index `solution_id`, `(solution_id, status)`.
 
-### 4.9 `amendment_similarity`
+### 4.10 `amendment_similarity`
 
 `id`, `amendment_a_id` FK, `amendment_b_id` FK (a < b), `score`
 numeric(4,3), `ai_action_id` FK `ai_actions`, `decision` enum
@@ -334,7 +381,7 @@ numeric(4,3), `ai_action_id` FK `ai_actions`, `decision` enum
 `amendment_similarity_votes`: `similarity_id` FK, `user_id` FK, `choice`
 enum (`same`, `different`), `created_at`; PK `(similarity_id, user_id)`.
 
-### 4.10 `comments`
+### 4.11 `comments`
 
 `id`, `target_type` enum (`umbrella`, `solution`), `target_id` int,
 `parent_id` FK `comments` NULL, `depth` smallint NOT NULL, `author_id`
@@ -343,7 +390,7 @@ FK, `text` text (1–2,000), `edited_at` NULL, `removed_at` NULL,
 0, `content_hash` char(64), `created_at`. Index `(target_type,
 target_id, parent_id)`, `author_id`.
 
-### 4.11 `votes`
+### 4.12 `votes`
 
 Workshop votes, one table: `id`, `user_id` FK, `target_type` enum
 (`solution`, `amendment`, `comment`), `target_id` int, `direction`
@@ -354,20 +401,21 @@ deletes the row (the only hard delete in Iteration; the net-score
 history is not a civic record, and the ballot votes — which are — are a
 separate table that is never deleted).
 
-### 4.12 `references`, `reference_feedback`
+### 4.13 `umbrella_references`, `reference_feedback`
 
-`references`: `id`, `umbrella_id` FK, `url` text, `title` text, `note`
+`umbrella_references` (not `references` — a PostgreSQL reserved word):
+`id`, `umbrella_id` FK, `url` text, `title` text, `note`
 text (the "why"), `source` enum (`user`, `ai`), `added_by` FK `users`
 NULL, `ai_action_id` FK NULL, `status` enum (`active`, `rejected`)
 DEFAULT `active`, `created_at`. Index `umbrella_id`.
 
-`reference_feedback`: `reference_id` FK, `user_id` FK, `useful` bool,
+`reference_feedback`: `reference_id` FK `umbrella_references`, `user_id` FK, `useful` bool,
 `created_at`; PK `(reference_id, user_id)`.
 
 `ai_actions.output` for `reference_recommend` stores the queries, the
 provider, and the raw result set (DEMOCRACY §9.4).
 
-### 4.13 `cycles`
+### 4.14 `cycles`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -383,24 +431,31 @@ provider, and the raw result set (DEMOCRACY §9.4).
 
 Unique `(community_level, community_entity_id, number)`. Partial unique
 index: at most one row per community with `state <> 'published'`.
+Allowed transitions are exactly DEMOCRACY §10.1, including `prepared →
+published` when and only when the cycle has zero ballot items; the
+service refuses any other jump.
 
-### 4.14 `ballot_items`
+### 4.15 `ballot_items`
 
 `id`, `cycle_id` FK, `solution_id` FK, `solution_version` int (frozen),
-`umbrella_id` FK, `net_score_at_snapshot` int, `position` int,
-`held_back` bool DEFAULT false, `yes_count` int NULL, `no_count` int
-NULL, `result` enum (`passed`, `failed`, `held_back`) NULL,
-`created_at`. Unique `(cycle_id, solution_id)`.
+`umbrella_id` FK, `net_score_at_snapshot` int, `position` int (ballot
+order per DEMOCRACY §10.2: umbrella name A–Z, net score at snapshot
+descending, solution id ascending; 1-based), `held_back` bool DEFAULT
+false, `yes_count` int NULL, `no_count` int NULL, `result` enum
+(`passed`, `failed`, `held_back`) NULL, `created_at`. Unique
+`(cycle_id, solution_id)`, unique `(cycle_id, position)`.
 
-### 4.15 `ballot_votes`
+### 4.16 `ballot_votes`
 
 `id`, `ballot_item_id` FK, `voter_id` FK `users`, `choice` enum (`yes`,
-`no`), `voter_verification_level` (same enum as users), `created_at`,
-`updated_at`. Unique `(ballot_item_id, voter_id)`. **Never deleted;
-never exposed per-voter through any endpoint, including admin.** Counts
-only.
+`no`), `voter_verification_level` `verification_level_enum` (shared,
+§1), `created_at`, `updated_at`. Unique `(ballot_item_id, voter_id)`.
+**Never deleted. A vote row is exposed to exactly one person: the voter
+who cast it**, on `GET /cycles/{id}/ballot` (their own choices) and in
+their own data export. No endpoint, admin or otherwise, returns another
+user's vote or any vote with a voter id; everything else is counts.
 
-### 4.16 `juries`, `jurors`, `jury_holdbacks`
+### 4.17 `juries`, `jurors`, `jury_holdbacks`
 
 `juries`: `id`, `cycle_id` FK UNIQUE, `size_requested` int,
 `eligible_pool` jsonb (user ids), `random_bytes` char(64), `drawn_at`,
@@ -414,11 +469,15 @@ only.
 `jury_holdbacks`: `id`, `jury_id` FK, `juror_id` FK, `ballot_item_id` FK,
 `reason_category` enum (`duplicate`, `not_actionable`, `incomplete`,
 `outside_governance_level`, `other`), `reason_text` text (20–1,000),
-`created_at`. Unique `(juror_id, ballot_item_id)`. A hold-back takes
-effect when rows for a `ballot_item_id` exceed half of seated jurors
-(`status = accepted`), computed at review close.
+`created_at`. Unique `(juror_id, ballot_item_id)`. A **seated** juror
+is one with `status = accepted`; `no_response` jurors are not seated
+and not replaced (DEMOCRACY §8.2). A hold-back takes effect when rows
+for a `ballot_item_id` from seated jurors exceed half the number of
+seated jurors, computed once when the ballot is opened. `juries` also
+records `seated_count` int (set at open) so the summary can print
+"drawn / seated".
 
-### 4.17 `summaries`
+### 4.18 `summaries`
 
 `id`, `cycle_id` FK UNIQUE, `data` jsonb NOT NULL (the canonical
 document data, DEMOCRACY §11.2), `summary_hash` char(64) NOT NULL,
@@ -430,7 +489,8 @@ document data, DEMOCRACY §11.2), `summary_hash` char(64) NOT NULL,
 
 | File | Fills | Build behavior if missing |
 |---|---|---|
-| `backend/config/seed_geography.yaml` | states, counties, cities | stop and report |
+| `backend/config/seed_geography.yaml` | state and 58 counties | stop and report |
+| `backend/config/seed_cities.csv` | incorporated cities (county, city, incorporated, fips) — director exports from the CA Department of Finance E-1 list | stop and report if it contains no data rows |
 | `backend/config/seed_officials.yaml` | officials | stop and report |
 | `backend/config/seed_umbrellas.yaml` | umbrellas for test communities | stop and report |
 | `backend/config/seed_settings.yaml` | settings defaults (DEMOCRACY §7.4) | stop and report |
@@ -439,6 +499,18 @@ document data, DEMOCRACY §11.2), `summary_hash` char(64) NOT NULL,
 Seeding is `python -m backend.seed --dry-run` / `--apply`. Re-runnable:
 a second run reports what already holds and writes nothing. Reports
 coverage both ways: rows in file not in DB, rows in DB not in file.
+
+The runner substitutes `${NAME}` in any YAML string value with the
+configuration value of that name (read through `settings_env.py`, never
+`os.environ`), and stops with the name in the error if it is unset.
+Demo 1 uses this for `${OFFICIALS_TEST_EMAIL}` in
+`seed_officials.yaml`. The cities CSV has a header row `county,city,
+incorporated,fips`; county names must match `seed_geography.yaml`
+exactly or the runner stops and lists the mismatches.
+
+The seed files live in `backend/config/` — the director moves them
+there from `seeds/` in the follow-up PR (TODO P0-12); the build stops
+if they are not found at these paths.
 
 ---
 

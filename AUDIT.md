@@ -76,8 +76,9 @@ map against the code, not the document against itself. Specific traps:
 - `except: pass`, bare `except:`, `TODO`, `FIXME` (Law 12).
 - A router touching a repository, a client, or the session directly
   (ARCHITECTURE §2).
-- Any endpoint that returns a ballot vote with a voter id
-  (DATABASE §4.15) — always `CRITICAL`.
+- Any endpoint that returns a ballot vote to anyone other than the
+  voter who cast it, or returns a voter id with any vote
+  (DATABASE §4.16) — always `CRITICAL`.
 - Any code path that changes a vote's weight or count based on
   verification level, admin status, or anything but the voter's choice
   — always `CRITICAL`.

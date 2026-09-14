@@ -66,8 +66,9 @@ Halves of the Codebase"). This table is the authoritative assignment.
 | California geography: state, counties, cities | Ballot: cycle, items, yes/no votes, results |
 | Officials directory (schema and seed) | Summary document: generation, hashing, public pages, PDF export |
 | Admin role and admin action log | Director controls for the cycle |
-| Settings table and the public settings page | References: user-added and AI-recommended |
+| Settings table and the public pages: settings, AI action log, admin log | References: user-added and AI-recommended |
 | AI action log (table) | AI influence display |
+| `/admin` page (settings change) | Cycle controls on `/admin` |
 | Deployment (deferred) | All UI for the above |
 
 Iteration code may read Foundation tables but never migrates them.
@@ -88,14 +89,16 @@ Iteration side and a first real version on the Foundation side.
 - Docker Compose: Postgres, Redis. Fresh secrets.
 - FastAPI backend on async SQLAlchemy + asyncpg. Alembic from a fresh
   initial migration for Foundation tables.
-- Signup: email, password, real name, display name, date of birth, city,
-  county, gender, political party, terms agreement with version. Email
-  verification required before any write action. Verification level
+- Signup: email, password, real name, display name, date of birth
+  (minimum age 17 — `min_signup_age`), city, county, gender, political
+  party, terms agreement with version. Email verification required
+  before any write action. Verification level
   starts at `unverified`.
 - Login, logout, refresh tokens, password reset by email.
 - Display settings: show real name / show display name / anonymous.
-- Data export (JSON) and account deletion with anonymization
-  ("Former Community Member").
+- Data export (JSON; Iteration data via a registered contributor) and
+  account deletion with anonymization ("Former Community Member";
+  home city and county retained per CLAUDE §6).
 - Privacy policy, terms of service, cookie consent — placeholder legal
   text clearly marked as draft.
 - Geography seed: California, all 58 counties, all incorporated cities.
@@ -180,8 +183,9 @@ network access only to the host's Ollama, Anthropic's API, and the
 package registries. Claude Code can build anything inside a trial and
 cannot touch anything outside it. SANDBOX.md defines the setup.
 
-**One branch per trial.** `demo/NN` is branched from `main`, checked
-out as a git worktree into its own directory, built in its own sandbox.
+**One branch per trial.** `demo/NN` is branched from `main` and built
+in its own sandbox, which holds its own clone of the repository (clone
+mode, SANDBOX.md §6) — the host checkout is never written to.
 Foundation improvements merge to `main` by pull request. Demo branches
 never merge unless declared a keeper.
 
