@@ -248,6 +248,7 @@ async def _check_hashes(session: AsyncSession, report: dict) -> None:
         computed = hashing.comment_content_hash(
             target_type=row.target_type,
             target_id=row.target_id,
+            parent_id=row.parent_id,
             author_id=row.author_id,
             text=row.text_body,
             created_at=row.created_at,

@@ -94,6 +94,7 @@ async def create(
         content_hash=hashing.comment_content_hash(
             target_type=target_type,
             target_id=target_id,
+            parent_id=parent_id,
             author_id=author.id,
             text=body,
             created_at=now,

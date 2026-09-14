@@ -126,15 +126,18 @@ def comment_content_hash(
     *,
     target_type: str,
     target_id: int,
+    parent_id: int | None,
     author_id: int,
     text: str,
     created_at: datetime,
 ) -> str:
-    """DATABASE.md §4.11 requires a hash; fields chosen as for amendments."""
+    """DATABASE.md §4.11's exact canonical field list (fix demo-01 run 1:
+    `parent_id` was missing)."""
     return hash_payload(
         {
             "author_id": author_id,
             "created_at": iso(created_at),
+            "parent_id": parent_id,
             "target_id": target_id,
             "target_type": target_type,
             "text": text,
