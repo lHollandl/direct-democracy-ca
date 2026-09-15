@@ -91,6 +91,61 @@ async def test_declining_draws_a_replacement_immediately(client, town):
         assert any(j.status == "drawn" for j in jurors)
 
 
+async def test_the_published_header_counts_drawn_replaced_and_seated(client, town):
+    """DEMOCRACY §11.2 item 1 — "4 drawn, 1 replaced, 2 seated": every person
+    ever drawn for the current jury, including the one a decline replaced."""
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    drawn = []
+    for person in town["people"]:
+        duties = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        if duties:
+            drawn.append((person, duties[0]["juror_id"]))
+    assert len(drawn) == 3
+
+    declining, decline_id = drawn[0]
+    declined = await client.post(f"/jurors/{decline_id}/decline", headers=declining["headers"])
+    assert declined.json()["replacement_drawn"] is True
+
+    for person in town["people"]:
+        duties = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        for duty in duties:
+            if duty["status"] == "drawn":
+                await client.post(f"/jurors/{duty['juror_id']}/accept", headers=person["headers"])
+
+    opened = await client.post(
+        f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"]
+    )
+    assert opened.status_code == 200
+    assert opened.json()["jurors_drawn"] == 4, "3 original draws plus the one replacement"
+    assert opened.json()["jurors_seated"] == 3
+
+    item_id = (await client.get(f"/cycles/{cycle_id}/ballot")).json()["items"][0]["ballot_item_id"]
+    for person in town["people"]:
+        await client.put(
+            f"/cycles/{cycle_id}/ballot/{item_id}/vote",
+            headers=person["headers"],
+            json={"choice": "yes"},
+        )
+    await client.post(f"/admin/cycles/{cycle_id}/close", headers=town["director"]["headers"])
+    published = await client.post(
+        f"/admin/cycles/{cycle_id}/publish", headers=town["director"]["headers"]
+    )
+    assert published.status_code == 200
+    header = published.json()["document"]["header"]
+    assert header["jury"] == "4 drawn, 1 replaced, 3 seated"
+    assert header["jurors_drawn"] == 4
+    assert header["jurors_replaced"] == 1
+    assert header["jurors_seated"] == 3
+
+
 async def test_a_juror_who_never_answers_is_not_seated_and_not_replaced(client, town):
     author = town["people"][0]
     await _dominant_solution(client, author, town["people"][1:], town["umbrella"])

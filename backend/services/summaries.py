@@ -82,6 +82,11 @@ async def build_data(session: AsyncSession, *, cycle: Cycle) -> dict:
     jury = await cycles_repo.jury_for_cycle(session, cycle.id)
     jurors = await cycles_repo.jurors(session, jury.id) if jury else []
     seated = [j for j in jurors if j.status == "accepted"]
+    # A decline draws an immediate replacement for the same seat (DEMOCRACY.md
+    # §8.2); the declining juror's own row stays "declined" on this, the
+    # current, jury — "replaced" is reserved for a whole redraw superseding a
+    # prior jury (DATABASE.md §4.17), which is a different row entirely.
+    replaced = [j for j in jurors if j.status == "declined"]
     seat_numbers = {j.id: n for n, j in enumerate(seated, start=1)}
     holdbacks = await cycles_repo.holdbacks(session, jury.id) if jury else []
     voters = await cycles_repo.distinct_voters(session, cycle.id)
@@ -103,11 +108,12 @@ async def build_data(session: AsyncSession, *, cycle: Cycle) -> dict:
             "Residency is self-declared and unverified at this verification level."
         ),
         "jury": (
-            f"{len(jurors)} drawn, {len(seated)} seated"
+            f"{len(jurors)} drawn, {len(replaced)} replaced, {len(seated)} seated"
             if jury
             else "No jury was drawn"
         ),
         "jurors_drawn": len(jurors),
+        "jurors_replaced": len(replaced),
         "jurors_seated": len(seated),
         "build": get_env_settings().BUILD_LABEL,
     }

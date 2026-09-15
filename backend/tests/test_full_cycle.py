@@ -192,7 +192,7 @@ async def test_a_problem_becomes_a_published_result(client):
     assert document["header"]["members_who_voted"] == 3
     assert document["header"]["verification_mix"] == "3 voters: 3 unverified"
     assert "Residency is self-declared" in document["header"]["residency_note"]
-    assert document["header"]["jury"] == "1 drawn, 1 seated"
+    assert document["header"]["jury"] == "1 drawn, 0 replaced, 1 seated"
     assert document["results"][0]["result"] == "Passed"
     assert document["held_back"][0]["jury_reasons"][0]["juror"] == "Juror 1 of 1"
     assert len(document["how_this_was_produced"]) == 5
