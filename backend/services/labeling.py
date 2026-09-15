@@ -107,7 +107,9 @@ async def label_post(session: AsyncSession, post: Post) -> dict:
     # Small models sometimes answer for the same community twice, or invent a
     # community that was never listed. The first answer that names an umbrella
     # actually present in that community wins; everything else is ignored and
-    # recorded, so the public log shows what the model really said.
+    # recorded, so the public log shows what the model really said (DEMOCRACY
+    # §9.1 — both the repeated and the unlisted case land in this field; audit
+    # demo-01 run 2 found the unlisted case was silently dropped).
     choices: dict[tuple[str, int], int | None] = {}
     duplicates: list[dict] = []
     for entry in parsed.get("umbrellas", []) or []:
@@ -121,7 +123,11 @@ async def label_post(session: AsyncSession, post: Post) -> dict:
             if isinstance(raw_id, (int, str)) and str(raw_id).isdigit()
             else None
         )
-        resolves = chosen is not None and chosen in umbrella_index.get(key, {})
+        if key not in umbrella_index:
+            # The model named a community the author never selected.
+            duplicates.append({"community": f"{key[0]}:{key[1]}", "umbrella_id": chosen})
+            continue
+        resolves = chosen is not None and chosen in umbrella_index[key]
         if key in choices:
             duplicates.append({"community": f"{key[0]}:{key[1]}", "umbrella_id": chosen})
             if choices[key] is None and resolves:

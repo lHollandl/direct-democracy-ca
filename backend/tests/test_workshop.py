@@ -183,6 +183,33 @@ async def test_unreadable_model_output_is_logged_as_a_failure_not_guessed(client
     assert "error" in log["items"][0]["output"]
 
 
+async def test_the_labeler_records_a_community_it_invented(client, world):
+    """MEDIUM, audit demo-01 run 2: DEMOCRACY §9.1 says both a repeated answer
+    and an answer for a community the author never selected land in
+    `output.repeated_or_unlisted_communities`; only the repeated case was
+    recorded. The post below selects only `city:1`; the mocked answer also
+    names `county:1`, which was never selected."""
+    ollama_client.get_ollama().responses["labeler.md"] = json.dumps(
+        {
+            "main_category": "Public Safety",
+            "umbrellas": [
+                {"community_level": "city", "community_entity_id": 1, "umbrella_id": world["safety"]},
+                {"community_level": "county", "community_entity_id": 1, "umbrella_id": 999},
+            ],
+            "confidence": 0.9,
+        }
+    )
+    created = await _post(client, world["ann"], communities=[{"level": "city", "entity_id": 1}])
+    await settle_jobs()
+    post = (await client.get(f"/posts/{created.json()['id']}")).json()
+    assert post["label_status"] == "labeled"
+    assert post["communities"][0]["umbrella_name"] == "Pedestrian Safety"
+
+    log = (await client.get("/ai/actions")).json()
+    ignored = log["items"][0]["output"]["repeated_or_unlisted_communities"]
+    assert {"community": "county:1", "umbrella_id": 999} in ignored
+
+
 async def test_the_author_can_confirm_or_correct_the_filing(client, world):
     ollama_client.get_ollama().responses["labeler.md"] = labeler_answer(
         main_category="Public Safety", umbrella_id=world["roads"], level="city", entity_id=1
