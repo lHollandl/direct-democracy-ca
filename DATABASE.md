@@ -482,6 +482,16 @@ superseded jury keep their rows and statuses.
 `no_response`), `replaced_by_id` FK `jurors` NULL, `created_at`,
 `updated_at`. Unique `(jury_id, user_id)`.
 
+Two different things happen to jurors and the columns are used
+differently for each. **Per-seat replacement** (DEMOCRACY §8.2): a juror
+declines → their row keeps `status = declined` and `replaced_by_id`
+points at the newly drawn juror's row. **Whole-jury supersession**
+(DEMOCRACY §13 re-draw): every juror of the superseded jury gets
+`status = replaced` and `replaced_by_id` stays NULL — the replacement is
+the new `juries` row, not a seat. The summary header's "r replaced"
+(DEMOCRACY §11.2) counts `declined` jurors on the **current** jury; it
+never counts the `replaced` status.
+
 `jury_holdbacks`: `id`, `jury_id` FK, `juror_id` FK, `ballot_item_id` FK,
 `reason_category` enum (`duplicate`, `not_actionable`, `incomplete`,
 `outside_governance_level`, `other`), `reason_text` text (20–1,000),

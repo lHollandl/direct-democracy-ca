@@ -33,6 +33,15 @@ Do **not** read any earlier `audits/demo-NN-audit-*.md` until your own
 findings list is written; then read them and add a section "Previously
 reported, still present" for anything silently dropped.
 
+**If this trial already has an audit report and the last build run was a
+fix run** (its HISTORY entry says "fix run"), AUDIT.md §2 applies: first
+re-verify every finding the previous report made, each by running the
+platform, not by reading the fix entry; then compare the fix run's diff
+(`git diff <previous audit commit>...HEAD --stat`) with the files those
+findings named. If the diff stays inside them, the re-audit **is** the
+audit — report and stop. If it touches other files, do the full §4 pass
+as well. Say in the Summary which scope you ran and why.
+
 ## Step 0 — Pre-checks (paste the output of each)
 
 1. `git branch --show-current` — must be `demo/NN`.

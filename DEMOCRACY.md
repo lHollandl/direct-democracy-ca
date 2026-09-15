@@ -778,8 +778,9 @@ personalization: which three, not what's in them.
 On each summary page, **Send to my representatives** opens the user's
 own mail client (`mailto:`) with: recipients = every officials-directory
 entry for that community; subject = "Ballot results — [community],
-cycle N"; body = a short note and the summary URL and hash. The user
-sends it from their own address. The platform sends nothing and records
+cycle N"; body = a short note, the summary's **absolute** URL (built
+from `PUBLIC_BASE_URL`, so the link works in a representative's inbox),
+and the hash. The user sends it from their own address. The platform sends nothing and records
 nothing about the send — it cannot know whether the user pressed send.
 
 **Demo 1:** every directory entry is the director's test address.

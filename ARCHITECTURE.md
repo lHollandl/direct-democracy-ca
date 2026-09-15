@@ -104,6 +104,7 @@ Docker Compose with `--env-file`. There is no separate `infra/.env` or
 | `OFFICIALS_TEST_EMAIL` | Demo 1 directory address |
 | `BUILD_LABEL` | `demo-01`; stamped on `ai_actions` |
 | `CORS_ORIGINS` | |
+| `PUBLIC_BASE_URL` | the address the frontend is reached at (Demo 1: `http://localhost:3000`); used wherever a link must work outside the site — the `mailto:` body, the PDF footer, the summary's verify text |
 | `RATE_LIMIT_WRITE_PER_MINUTE` (30) | |
 | `LOG_LEVEL` | |
 
@@ -261,7 +262,8 @@ connection). Periodic jobs are started in the lifespan.
 | `label_post` | after `POST /posts` commits | calls Ollama; writes `ai_actions` then `labels` then `post_communities.umbrella_id`; sets `label_status` |
 | `label_retry` | every `label_retry_minutes` | re-queues `unlabeled` posts, and `pending` posts older than the retry window whose job never started |
 | `similarity_check` | after amendment create | embeds, compares, writes `amendment_similarity` |
-| `recommend_references` | admin trigger | DEMOCRACY §9.4 |
+| `recommend_references` | admin trigger (`POST /admin/umbrellas/{id}/recommend-references`) — the endpoint returns 202 `pending` at once; the Ollama and search calls run in this job | DEMOCRACY §9.4 |
+| `build_export` | after `POST /me/export` commits | assembles the export file; DATABASE §3.11 |
 | `reconcile` | 03:00 daily and on demand | DATABASE §7 |
 | `evaluate_dominance` | inside `reconcile`, and after every solution vote | DEMOCRACY §7.1 |
 | `expire_exports` | hourly | delete export files past `expires_at` (files only; rows stay) |
