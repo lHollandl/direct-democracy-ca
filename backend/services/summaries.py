@@ -133,24 +133,35 @@ async def build_data(session: AsyncSession, *, cycle: Cycle) -> dict:
                 version.ai_contribution_percentage if version else 0
             )["label"],
         }
+        reasons = [
+            {
+                "juror": f"Juror {seat_numbers.get(h.juror_id, '?')} of {len(seated)}",
+                "category": h.reason_category,
+                "reason": h.reason_text,
+            }
+            for h in holdbacks
+            if h.ballot_item_id == item.id and h.juror_id in seat_numbers
+        ]
         if item.held_back:
-            reasons = [
-                {
-                    "juror": f"Juror {seat_numbers.get(h.juror_id, '?')} of {len(seated)}",
-                    "category": h.reason_category,
-                    "reason": h.reason_text,
-                }
-                for h in holdbacks
-                if h.ballot_item_id == item.id and h.juror_id in seat_numbers
-            ]
             held_back_section.append({**entry, "jury_reasons": reasons})
         else:
+            # DEMOCRACY.md §11.2 item 2 — a hold-back that did not reach a
+            # majority still ran the item through the ballot, but every
+            # juror's reason is still published (§8.3; audit demo-01 run 2).
             results.append(
                 {
                     **entry,
                     "yes": item.yes_count or 0,
                     "no": item.no_count or 0,
                     "result": "Passed" if item.result == "passed" else "Failed",
+                    "juror_concerns": (
+                        {
+                            "label": f"Juror concerns ({len(reasons)} of {len(seated)} seated)",
+                            "reasons": reasons,
+                        }
+                        if reasons
+                        else None
+                    ),
                 }
             )
 

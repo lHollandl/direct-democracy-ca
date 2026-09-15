@@ -411,6 +411,27 @@ async def holdback_history_for_solution(
     return [(holdback, item) for holdback, item in rows]
 
 
+async def current_ballot_item_for_solution(
+    session: AsyncSession, solution_id: int
+) -> tuple[BallotItem, Cycle] | None:
+    """The most recent ballot item for this solution whose cycle has passed
+    jury review — the point from which "Jury notes" is shown on the solution
+    page (DEMOCRACY.md §8.3)."""
+    row = (
+        await session.execute(
+            select(BallotItem, Cycle)
+            .join(Cycle, Cycle.id == BallotItem.cycle_id)
+            .where(
+                BallotItem.solution_id == solution_id,
+                Cycle.state.in_(("open", "closed", "published")),
+            )
+            .order_by(Cycle.number.desc())
+            .limit(1)
+        )
+    ).first()
+    return (row[0], row[1]) if row else None
+
+
 async def previous_jury_user_ids(
     session: AsyncSession, level: str, entity_id: int, last_n_cycles: int
 ) -> set[int]:

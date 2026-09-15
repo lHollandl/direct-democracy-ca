@@ -373,6 +373,36 @@ async def review_items(session: AsyncSession, *, cycle: Cycle, juror: Juror) -> 
     return out
 
 
+async def jury_notes_for_solution(session: AsyncSession, solution_id: int) -> dict | None:
+    """"Jury notes" on the solution page, from the moment the ballot opens
+    (DEMOCRACY.md §8.3): every seated juror's category and reason for this
+    solution's current ballot item, whether or not the hold-back reached a
+    majority. `None` before the ballot has opened, or once it has and no
+    juror held the item back."""
+    found = await cycles_repo.current_ballot_item_for_solution(session, solution_id)
+    if found is None:
+        return None
+    item, cycle = found
+    jury = await cycles_repo.jury_for_cycle(session, cycle.id)
+    if jury is None:
+        return None
+    jurors = await cycles_repo.jurors(session, jury.id)
+    seated = [j for j in jurors if j.status == "accepted"]
+    seat_numbers = {j.id: n for n, j in enumerate(seated, start=1)}
+    notes = [
+        {
+            "juror": f"Juror {seat_numbers[h.juror_id]} of {len(seated)}",
+            "category": h.reason_category,
+            "reason": h.reason_text,
+        }
+        for h in await cycles_repo.holdbacks(session, jury.id)
+        if h.ballot_item_id == item.id and h.juror_id in seat_numbers
+    ]
+    if not notes:
+        return None
+    return {"cycle_number": cycle.number, "seated": len(seated), "notes": notes}
+
+
 async def previous_holdback_reasons(
     session: AsyncSession, solution_id: int, current_cycle_id: int
 ) -> list[dict]:

@@ -159,6 +159,82 @@ async def test_one_holdback_out_of_two_seated_jurors_is_not_a_majority(client, t
     assert opened.json()["items_held_back"] == 0, "one of two is not more than half"
 
 
+async def test_a_minority_holdback_is_still_published(client, town):
+    """MEDIUM, audit demo-01 run 2: a hold-back that did not reach a majority
+    used to be stored and never surfaced anywhere, even though the endpoint
+    tells every juror their reason will be published (DEMOCRACY.md §8.3,
+    §11.2 item 2). Every hold-back is published now, on the solution page
+    from the moment the ballot opens and in the summary."""
+    author = town["people"][0]
+    solution_id = await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+    item_id = (await client.get(f"/cycles/{cycle_id}/ballot")).json()["items"][0][
+        "ballot_item_id"
+    ]
+
+    seated = []
+    for person in town["people"]:
+        duties = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        if duties and len(seated) < 2:
+            await client.post(f"/jurors/{duties[0]['juror_id']}/accept", headers=person["headers"])
+            seated.append((person, duties[0]["juror_id"]))
+
+    # A solution page has no jury notes before the ballot opens.
+    before = (await client.get(f"/solutions/{solution_id}")).json()
+    assert before["jury_notes"] is None
+
+    person, juror_id = seated[0]
+    held = await client.post(
+        f"/ballot-items/{item_id}/holdback",
+        headers=person["headers"],
+        json={
+            "juror_id": juror_id,
+            "reason_category": "incomplete",
+            "reason_text": "The repainting schedule is sound but the timeline is missing.",
+        },
+    )
+    assert held.status_code == 200
+    assert "published with the results" in held.json()["note"]
+
+    opened = await client.post(
+        f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"]
+    )
+    assert opened.json()["items_held_back"] == 0, "one of two seated is not a majority"
+
+    page = (await client.get(f"/solutions/{solution_id}")).json()
+    assert page["jury_notes"] is not None
+    assert page["jury_notes"]["seated"] == 2
+    assert len(page["jury_notes"]["notes"]) == 1
+    note = page["jury_notes"]["notes"][0]
+    assert note["category"] == "incomplete"
+    assert note["reason"] == "The repainting schedule is sound but the timeline is missing."
+    assert "of 2" in note["juror"]
+
+    for voter in town["people"]:
+        await client.put(
+            f"/cycles/{cycle_id}/ballot/{item_id}/vote",
+            headers=voter["headers"],
+            json={"choice": "yes"},
+        )
+    await client.post(f"/admin/cycles/{cycle_id}/close", headers=town["director"]["headers"])
+    published = await client.post(
+        f"/admin/cycles/{cycle_id}/publish", headers=town["director"]["headers"]
+    )
+    assert published.status_code == 200
+    result_entry = published.json()["document"]["results"][0]
+    assert result_entry["result"] == "Passed"
+    assert result_entry["juror_concerns"]["reasons"][0]["reason"] == (
+        "The repainting schedule is sound but the timeline is missing."
+    )
+    assert result_entry["juror_concerns"]["reasons"][0]["category"] == "incomplete"
+    assert "1 of 2" in result_entry["juror_concerns"]["label"]
+
+
 async def test_both_seated_jurors_holding_back_stops_the_item(client, town):
     author = town["people"][0]
     await _dominant_solution(client, author, town["people"][1:], town["umbrella"])

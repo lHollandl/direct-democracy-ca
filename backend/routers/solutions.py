@@ -9,6 +9,7 @@ from backend.deps import OptionalUser, SessionDep, VerifiedUser
 from backend.services import ai_log
 from backend.services import amendments as amendments_service
 from backend.services import comments as comments_service
+from backend.services import juries as juries_service
 from backend.services import rules
 from backend.services import similarity as similarity_service
 from backend.services import solutions as solutions_service
@@ -123,6 +124,7 @@ async def get_solution(solution_id: int, session: SessionDep, viewer: OptionalUs
         "ai_influence": ai_log.influence(
             versions[-1].ai_contribution_percentage if versions else 0
         ),
+        "jury_notes": await juries_service.jury_notes_for_solution(session, solution.id),
     }
 
 
