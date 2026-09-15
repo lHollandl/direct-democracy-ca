@@ -36,7 +36,7 @@ def validate_password(password: str) -> None:
     if not any(c.isdigit() for c in password):
         problems.append("contain a number")
     if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
-        problems.append("be no longer than 72 characters")
+        problems.append("be no longer than 72 bytes")
     if problems:
         raise ValidationFailed(
             "Your password needs to " + ", and ".join(problems) + ".",

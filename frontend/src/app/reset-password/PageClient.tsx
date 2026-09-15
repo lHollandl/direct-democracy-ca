@@ -63,7 +63,9 @@ function ResetForm() {
           />
           <FieldError name="new_password" fieldErrors={fieldErrors} />
           <p id="new_password-hint" className="mt-1 text-sm text-[var(--muted)]">
-            At least 8 characters, with a capital letter and a number.
+            At least 8 characters, with a capital letter and a number, and at
+            most 72 bytes long (most letters are 1 byte each; some accented
+            or non-English letters count as more).
           </p>
         </div>
         <button type="submit" className="btn btn-primary w-full" disabled={busy || !token}>

@@ -142,7 +142,9 @@ export default function SignupPage() {
             />
             <FieldError name="password" fieldErrors={fieldErrors} />
             <p id="password-hint" className="mt-1 text-sm text-[var(--muted)]">
-              At least 8 characters, with a capital letter and a number.
+              At least 8 characters, with a capital letter and a number, and
+              at most 72 bytes long (most letters are 1 byte each; some
+              accented or non-English letters count as more).
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

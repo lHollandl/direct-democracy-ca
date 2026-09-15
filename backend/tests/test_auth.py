@@ -62,7 +62,16 @@ async def test_signup_age_gate_reads_the_setting_not_a_constant(client):
 
 @pytest.mark.parametrize(
     "password, problem",
-    [("short1A", "8 characters"), ("alllowercase1", "capital"), ("NoDigitsHere", "number")],
+    [
+        ("short1A", "8 characters"),
+        ("alllowercase1", "capital"),
+        ("NoDigitsHere", "number"),
+        # FIX-33 (LOW, audit demo-01 run 4): the check is byte-based (bcrypt's
+        # limit), and the message must say so — 41 characters of an accented
+        # letter is 81 bytes, well under Pydantic's 72-*character* cap but
+        # over the 72-*byte* one.
+        ("É" * 40 + "1", "72 bytes"),
+    ],
 )
 async def test_password_policy(client, password, problem):
     response = await client.post(
