@@ -216,14 +216,20 @@ async def seed_geography(session: AsyncSession, apply: bool) -> tuple[Report, Re
     return state_report, county_report, city_report
 
 
+def _read_cities_csv() -> list[dict]:
+    with CITIES_FILE.open(encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
 async def _seed_cities(session: AsyncSession, apply: bool, county_names: set[str]) -> Report:
     report = Report("geography: cities")
     if not CITIES_FILE.exists():
         raise SeedError(
             f"{CITIES_FILE} is missing. It is a director-placed seed file (DATABASE.md §5)."
         )
-    with CITIES_FILE.open(encoding="utf-8", newline="") as handle:
-        rows = list(csv.DictReader(handle))
+    # No blocking calls inside async def (Law 11) — the file is small but the
+    # rule makes no CLI-path exception (audit demo-01 run 2).
+    rows = await asyncio.to_thread(_read_cities_csv)
     expected_header = {"county", "city", "incorporated", "fips"}
     if not rows:
         raise SeedError(f"{CITIES_FILE} has a header but no data rows.")

@@ -1,36 +1,10 @@
-"use client";
+import type { Metadata } from "next";
+import PageClient from "./PageClient";
 
-import { useEffect, useState } from "react";
-import { get } from "@/lib/api";
-import { Loading, Markdown, Notice, PageHeader } from "@/components/ui";
-import { useDocumentTitle } from "@/components/useDocumentTitle";
-
-type Legal = {
-  version: string;
-  is_draft: boolean;
-  draft_warning: string;
-  markdown: string;
+export const metadata: Metadata = {
+  title: "Privacy policy",
 };
 
-export default function LegalPage() {
-  useDocumentTitle("Privacy policy");
-  const [doc, setDoc] = useState<Legal | null>(null);
-
-  useEffect(() => {
-    void get<Legal>("/legal/privacy").then(setDoc).catch(() => setDoc(null));
-  }, []);
-
-  if (!doc) return <Loading what="this page" />;
-
-  return (
-    <>
-      <PageHeader title="Privacy policy" lead={`Version ${doc.version}`} />
-      <div className="mx-auto max-w-2xl px-4 py-8">
-        {doc.is_draft ? <Notice kind="bad">{doc.draft_warning}</Notice> : null}
-        <div className="mt-6">
-          <Markdown text={doc.markdown} />
-        </div>
-      </div>
-    </>
-  );
+export default function Page() {
+  return <PageClient />;
 }

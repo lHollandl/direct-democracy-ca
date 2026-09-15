@@ -42,8 +42,9 @@ class SettingSpec:
                 return float(Decimal(raw))
             return raw
         except (ValueError, ArithmeticError) as exc:
+            words = {"int": "a whole number", "decimal": "a number"}.get(self.kind, "text")
             raise ValidationFailed(
-                f"The value for {self.key} must be a {self.kind}.", code="bad_setting_value"
+                f"The value for {self.key} must be {words}.", code="bad_setting_value"
             ) from exc
 
 

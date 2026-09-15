@@ -4,7 +4,15 @@ import { SessionProvider } from "@/components/Session";
 import SiteNav from "@/components/SiteNav";
 
 export const metadata: Metadata = {
-  title: "Direct Democracy Cali",
+  title: {
+    default: "Direct Democracy Cali",
+    // Every route sets its own `metadata.title`, rendered into this
+    // template server-side, so the title in the served HTML is right
+    // before any client JavaScript runs (WCAG 2.4.2; CLAUDE.md §8; audit
+    // demo-01 run 2 — every route used to serve the same title and set the
+    // real one from a client-side useEffect after hydration).
+    template: "%s · Direct Democracy Cali",
+  },
   description:
     "Document a problem in your community, work on solutions with your neighbours, vote, and send the result to the people who represent you.",
 };

@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 
 from backend.clients import redis as redis_client
 from backend.config.settings_env import get_env_settings
+from backend.errors import Unauthorized
 from backend.logging_config import request_id_var
 from backend.services import security
 
@@ -101,8 +102,13 @@ def _caller_key(request: Request) -> str:
         try:
             payload = security.decode_access_token(header[7:])
             return f"user:{payload['sub']}"
-        except Exception:
-            pass
+        except Unauthorized as exc:
+            # Falls back to the IP bucket, which is the correct behavior for
+            # an expired or malformed token — but logged, so a genuine fault
+            # in decode_access_token does not silently degrade every
+            # authenticated caller to a shared bucket unnoticed (Law 12;
+            # audit demo-01 run 2).
+            log.debug("rate_limit_caller_key_fell_back_to_ip", extra={"reason": exc.code})
     client = request.client.host if request.client else "unknown"
     return f"ip:{client}"
 

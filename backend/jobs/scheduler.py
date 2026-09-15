@@ -19,6 +19,11 @@ log = logging.getLogger(__name__)
 _tasks: list[asyncio.Task] = []
 RECONCILE_AT = time(hour=3, minute=0)
 EXPORT_EXPIRY_INTERVAL_SECONDS = 3600
+#: Last resort only, when `label_retry_minutes` cannot be read at all (the
+#: settings table or Redis is unavailable) — not a substitute for the
+#: setting, which decides no democratic status either way (CLAUDE.md Law 8;
+#: audit demo-01 run 2).
+LABEL_RETRY_FALLBACK_SECONDS = 600
 
 
 async def start() -> None:
@@ -34,8 +39,12 @@ async def stop() -> None:
     for task in _tasks:
         try:
             await task
-        except (asyncio.CancelledError, Exception):  # noqa: B014 - never crash on shutdown
+        except asyncio.CancelledError:
             pass
+        except Exception:  # noqa: B014 - never crash on shutdown, but log it (Law 12)
+            log.warning(
+                "background_job_failed_on_shutdown", exc_info=True, extra={"job": task.get_name()}
+            )
     _tasks.clear()
     log.info("background_jobs_stopped")
 
@@ -46,7 +55,7 @@ async def _label_retry_loop() -> None:
             interval = await labeling_job.retry_interval_seconds()
         except Exception:
             log.exception("label_retry_interval_unavailable")
-            interval = 600
+            interval = LABEL_RETRY_FALLBACK_SECONDS
         await asyncio.sleep(interval)
         await labeling_job.label_retry_task()
 

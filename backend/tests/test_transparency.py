@@ -72,6 +72,21 @@ async def test_umbrellas_paginate_and_refuse_an_over_limit(client):
     assert len(seen_ids) == 3, "no umbrella repeated or skipped across pages"
 
 
+async def test_a_bad_setting_value_reads_in_plain_words(client):
+    """LOW, audit demo-01 run 2: the message read "must be a int" (CLAUDE §8
+    — plain language over jargon)."""
+    director = await make_user(
+        client, email="dir2@example.com", display_name="Dir2", admin=True
+    )
+    response = await client.post(
+        "/admin/settings",
+        headers=director["headers"],
+        json={"key": "jury_size", "value": "not-a-number", "reason": "testing"},
+    )
+    assert response.status_code == 422
+    assert response.json()["message"] == "The value for jury_size must be a whole number."
+
+
 async def test_an_unknown_setting_is_refused(client):
     director = await make_user(
         client, email="dir@example.com", display_name="Dir", admin=True

@@ -107,9 +107,8 @@ def amendment_content_hash(
     rationale: str,
     created_at: datetime,
 ) -> str:
-    """DATABASE.md §4.9 requires a hash; the document does not fix its fields,
-    so the build uses the same shape as every other one: the content plus who
-    wrote it and when."""
+    """DATABASE.md §4.9's exact canonical field list: `{solution_id,
+    base_version, proposed_text, rationale, author_id, created_at}`."""
     return hash_payload(
         {
             "author_id": author_id,
