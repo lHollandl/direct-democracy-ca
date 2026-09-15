@@ -13,22 +13,30 @@
 
 ## Current Status Snapshot
 
-*As of 2026-09-14. Demo 1 is built on `demo/01`: both halves, front to back,
+*As of 2026-09-15. Demo 1 is built on `demo/01`: both halves, front to back,
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
 in `briefs/evidence/demo-01/`. Audit run 1 returned FIX REQUIRED (one HIGH,
 three LOW); fix run 1 (FIX-01 through FIX-07) is complete. Audit run 2
 returned FIX REQUIRED (CRITICAL 1 · HIGH 1 · MEDIUM 6 · LOW 7 · NOTE 3); fix
-run 2 (FIX-08 through FIX-20) is complete — the deep-reply name leak and the
-jury-redraw deletion are both fixed, every hold-back is published, router
-layering now enforces one service module per endpoint, the labeler records
-invented communities, `/umbrellas` paginates, `grant_admin.py` and the depth
-wording were confirmed as already correct, frontend dependencies and seven
-LOW findings fixed, a WCAG 2.1 AA pass covers every form and every page's
-`<h1>`, and the summary header states drawn/replaced/seated. Full evidence
-in HISTORY.md's Session 5 entry. Nothing has been merged to `main`; the next
-audit run comes next. Phase 0 remains complete except the optional search
-provider.*
+run 2 (FIX-08 through FIX-20) is complete. Audit run 3 returned FIX REQUIRED
+(HIGH 1 · MEDIUM 3 · LOW 2); fix run 3 (FIX-21 through FIX-27) is complete —
+all seven previously-unpaginated list endpoints now paginate, reference
+recommendation runs as a background job with a "recommending" indicator on
+the umbrella page, label confirm/correct require a verified user,
+`geo.py::community`/`::officials` and `amendments.py::propose_amendment` are
+down to one service call each (plus four further offenders the stricter
+layering test found: `references.py::reference_feedback` and three
+`summaries.py` endpoints paired with a resolver that wasn't named
+`require_*`), the mailto/PDF footer/verify-section URLs are absolute via the
+new `PUBLIC_BASE_URL`, and `ARCHITECTURE.md §7`'s `build_export` row was
+confirmed to already match the code (no change needed). Full evidence in
+HISTORY.md's Session 7 entry. Nothing has been merged to `main`; the next
+audit run comes next — likely a re-audit under AUDIT.md §2 given how small
+this run was. Phase 0 remains complete except the optional search provider.
+This run also found the sandbox could pull Docker Hub blob-CDN images for
+the first time (`docker compose up` succeeded cleanly), unlike every prior
+run — see Technical Debt.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -273,6 +281,43 @@ needed); full evidence in HISTORY.md's Session 5 entry.
 
 ---
 
+## Phase 2c — demo-01 fix run 3
+
+Fixes for `audits/demo-01-audit-3.md` (HIGH 1 · MEDIUM 3 · LOW 2; verdict
+FIX REQUIRED), from `briefs/demo-01-fix-3.md`. Full evidence in HISTORY.md's
+Session 2 entry (2026-09-15).
+
+- [x] **FIX-21** (HIGH) All seven previously-unpaginated list endpoints now
+  paginate: `umbrellas.py::umbrella_solutions`, `::umbrella_comments`,
+  `::umbrella_references`, `transparency.py::settings_history`,
+  `ballots.py::community_cycles`, `amendments.py::list_amendments`,
+  `summaries.py::hash_list`; `backend/tests/test_pagination.py` added, a
+  completeness check over every live GET route, not a hand-picked list
+- [x] **FIX-22** (MEDIUM) `recommend_references` now runs as a background
+  job (`backend/jobs/references.py`), scheduled via `spawn_after_commit`
+  after a fast synchronous eligibility check; the endpoint returns 202
+  `{"status": "pending"}`; the umbrella references listing reports
+  `"recommending"` until the `ai_actions` row exists
+- [x] **FIX-23** (MEDIUM) `posts.py::confirm_label` and `::correct_label`
+  now require `VerifiedUser`, not merely a signed-in user
+- [x] **FIX-24** (MEDIUM) `geo.py::community` and
+  `amendments.py::propose_amendment` reduced to one service call each;
+  `test_layering.py` now counts distinct service functions, not modules —
+  the stricter test found four further offenders
+  (`geo.py::officials`, `references.py::reference_feedback`,
+  `summaries.py::summary_json`/`::summary_verify`/`::summary_pdf`), all
+  fixed rather than narrowing the test
+- [x] **FIX-25** (LOW) `PUBLIC_BASE_URL` added (`settings_env.py`,
+  `.env.example`); the `mailto:` body, the PDF footer, and the summary
+  page's verify section all use an absolute URL now
+- [x] **FIX-26** (LOW) No code change — `build_export` already matched
+  ARCHITECTURE §7's job table; confirmed by reading the code directly
+- [x] **FIX-27** Full evidence set re-run (migrations, `verify_schema.py`,
+  seed dry-run, full suite — 218 + 2 live — every required grep,
+  `npm audit`, `git status`/`git log`); all clean
+
+---
+
 ## Phase 3 — Demo 2 candidates
 
 Not scheduled. Pulled forward by the director after Demo 1 is used.
@@ -329,7 +374,13 @@ What makes it bite, not only what it is.
   moment the director or an audit run assumes the compose file works — it is
   written from the documents, not from a successful run. Add the CDN host to
   the sandbox policy, or accept that infrastructure is only ever tested on the
-  workstation.
+  workstation. **Resolved in fix run 3's sandbox (2026-09-15):** the blob CDN
+  was reachable and `docker compose --env-file .env -f infra/docker-compose.yml
+  up -d` pulled `postgres:16` and `redis:7` and started both containers
+  cleanly — this run used the real compose file for the first time. Left open
+  as debt since it depends on the sandbox's own network policy at the time,
+  not on anything this repository controls, and could regress on a future
+  sandbox.
 - **No browser can be installed in the sandbox.** The Chrome-for-Testing
   download host is blocked, so no build run can take a screenshot, drive a page,
   or run an automated accessibility audit. Every frontend claim in this build is
@@ -421,4 +472,4 @@ What makes it bite, not only what it is.
 
 ---
 
-*Last updated: 2026-09-14 — demo-01 fix run 2 completed on `demo/01` by an unattended Claude Code run.*
+*Last updated: 2026-09-15 — demo-01 fix run 3 completed on `demo/01` by an unattended Claude Code run.*
