@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
 
 from backend.deps import OptionalUser, SessionDep, VerifiedUser, require_member
+from backend.routers.common import CursorParam, DEFAULT_LIMIT, LimitParam
 from backend.services import comments as comments_service
 from backend.services import references as references_service
 from backend.services import rules
@@ -19,9 +20,13 @@ router = APIRouter(prefix="/umbrellas", tags=["umbrellas"])
 async def list_umbrellas(
     session: SessionDep,
     community: str = Query(description="level:entity_id, e.g. city:42"),
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
 ) -> dict:
     level, _, raw_id = community.partition(":")
-    return await umbrellas_service.listing(session, level, int(raw_id))
+    return await umbrellas_service.listing(
+        session, level, int(raw_id), cursor=cursor, limit=limit
+    )
 
 
 @router.get("/{umbrella_id}")

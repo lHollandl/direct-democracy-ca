@@ -28,9 +28,13 @@ from backend.services import similarity as similarity_service
 from backend.services.display import author_displays
 
 
-async def listing(session: AsyncSession, level: str, entity_id: int) -> dict:
+async def listing(
+    session: AsyncSession, level: str, entity_id: int, *, cursor: int | None, limit: int
+) -> dict:
     community = await community_service.resolve(session, level, entity_id)
-    umbrellas = await umbrellas_repo.for_community(session, level, entity_id)
+    umbrellas = await umbrellas_repo.for_community_page(
+        session, level, entity_id, cursor=cursor, limit=limit
+    )
     categories = await umbrellas_repo.categories_by_ids(
         session, [u.main_category_id for u in umbrellas]
     )
@@ -51,6 +55,7 @@ async def listing(session: AsyncSession, level: str, entity_id: int) -> dict:
             }
             for u in umbrellas
         ],
+        "next_cursor": umbrellas[-1].id if len(umbrellas) == limit else None,
     }
 
 

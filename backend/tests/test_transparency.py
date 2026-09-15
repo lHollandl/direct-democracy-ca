@@ -44,6 +44,34 @@ async def test_changing_a_setting_appends_a_row_and_is_logged(client):
     assert log["items"][0]["new_value"] == {"key": "jury_size", "value": 5}
 
 
+async def test_umbrellas_paginate_and_refuse_an_over_limit(client):
+    """MEDIUM, audit demo-01 run 2: `GET /umbrellas` returned a bare list with
+    no `next_cursor` and accepted any `limit`. ARCHITECTURE §6 names five
+    fixed-size reference lists as the only pagination exemptions — umbrellas
+    is not one of them, since it "grows without bound once the proposal
+    system lands"."""
+    for name in ("Crosswalks", "Potholes", "Streetlights"):
+        await make_umbrella(name=name, statement=f"{name} need attention.")
+
+    over_limit = await client.get("/umbrellas?community=city:1&limit=500")
+    assert over_limit.status_code == 422
+
+    first_page = await client.get("/umbrellas?community=city:1&limit=2")
+    assert first_page.status_code == 200
+    page = first_page.json()
+    assert len(page["umbrellas"]) == 2
+    assert page["next_cursor"] is not None
+
+    second_page = (
+        await client.get(f"/umbrellas?community=city:1&limit=2&cursor={page['next_cursor']}")
+    ).json()
+    assert len(second_page["umbrellas"]) == 1
+    assert second_page["next_cursor"] is None
+
+    seen_ids = {u["id"] for u in page["umbrellas"]} | {u["id"] for u in second_page["umbrellas"]}
+    assert len(seen_ids) == 3, "no umbrella repeated or skipped across pages"
+
+
 async def test_an_unknown_setting_is_refused(client):
     director = await make_user(
         client, email="dir@example.com", display_name="Dir", admin=True

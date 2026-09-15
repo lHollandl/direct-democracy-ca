@@ -23,6 +23,30 @@ async def for_community(
     return list((await session.execute(stmt.order_by(Umbrella.name))).scalars().all())
 
 
+async def for_community_page(
+    session: AsyncSession,
+    level: str,
+    entity_id: int,
+    *,
+    cursor: int | None,
+    limit: int,
+    active_only: bool = True,
+) -> list[Umbrella]:
+    """`GET /umbrellas?community=` — this list grows without bound once the
+    proposal system lands (ARCHITECTURE.md §6; audit demo-01 run 2), so it
+    paginates like every other list endpoint, unlike the five named
+    exemptions."""
+    stmt = select(Umbrella).where(
+        Umbrella.community_level == level, Umbrella.community_entity_id == entity_id
+    )
+    if active_only:
+        stmt = stmt.where(Umbrella.status == "active")
+    if cursor is not None:
+        stmt = stmt.where(Umbrella.id > cursor)
+    stmt = stmt.order_by(Umbrella.id).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
 async def by_ids(session: AsyncSession, ids: list[int]) -> dict[int, Umbrella]:
     if not ids:
         return {}
