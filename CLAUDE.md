@@ -135,7 +135,8 @@ the more secure option even if it takes longer to build.
 
 **8. Accessibility and inclusion.**
 Democracy only works when everyone can participate. Every component is
-accessible — ARIA labels, keyboard navigation, screen readers. Plain
+accessible — ARIA labels, keyboard navigation, screen readers — to the
+WCAG 2.1 AA standard, which is the named bar for every page. Plain
 language over jargon in all UI copy. The platform works on low-end
 devices and slow connections, and every page works with images off.
 Never assume the user is technical. Complex concepts — hashing, AI

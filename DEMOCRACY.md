@@ -334,8 +334,15 @@ Threaded discussion, Reddit-style, on two things only: an umbrella's
 problem (§3.3 item 3) and each dominant solution (§3.3 item 5). No
 comments on posts, non-dominant solutions, amendments, or references.
 
-- Depth: replies nest to `comment_max_depth` (Demo 1: 3). Deeper replies
-  attach to the depth-3 comment with "replying to @display".
+- Depth: a comment's `depth` is 0 for a top-level comment and grows by
+  one per reply, up to `comment_max_depth` (Demo 1: 3 — so four visible
+  levels, 0–3). A reply to a depth-3 comment is stored at depth 3 under
+  the same parent, with `reply_to_comment_id` pointing at the comment it
+  answered. The page renders "replying to @display" from that id **at
+  read time**, through the author-display rule (DATABASE §3.2). The
+  stored `text` is only what the person typed — never a name, which
+  would freeze someone's identity into a permanent hash (CLAUDE §6,
+  Law 6; audit demo-01 run 2).
 - Length: 1–2,000 chars.
 - Ordering within a thread: net score descending, ties oldest first.
 - Up/down votes; net score; nothing hidden by score.
@@ -462,7 +469,9 @@ proceeds with no jury review and the summary says so.
 
 The draw uses the platform's cryptographic random source. The draw is
 **logged**: the eligible pool (user ids), the drawn ids, the timestamp,
-and the random bytes used, so it can be inspected after the fact.
+and the random bytes used, so it can be inspected after the fact. A
+re-draw (§13) creates a new draw and marks the old one superseded; no
+draw is ever deleted.
 Provably reproducible draws are parked (PROJECT.md).
 
 ### 8.2 Notification and acceptance
@@ -492,8 +501,11 @@ chosen alongside one of a fixed set of categories:
 A hold-back takes effect when **more than half of the seated jurors**
 (§8.2) have held back the same solution, counted when the ballot is
 opened; their categories need not agree. Each juror's category and
-reason are recorded and all are published. Jurors act independently;
-they do not see each other's hold-backs until the ballot opens.
+reason are recorded and **every one is published**, whether or not it
+reached a majority: on the solution's page under "Jury notes" from the
+moment the ballot opens, and in the summary document (§11.2). A juror
+is told exactly this when they submit. Jurors act independently; they
+do not see each other's hold-backs until the ballot opens.
 
 ### 8.4 Effect of a hold-back
 
@@ -721,12 +733,15 @@ export of it. Nothing personal in it.
    close timestamps. Active users at snapshot. Members who voted.
    Verification mix of voters ("142 voters: 142 unverified"). The
    sentence: "Residency is self-declared and unverified at this
-   verification level." Jurors drawn and jurors seated ("3 drawn, 2
+   verification level." Jurors drawn and jurors seated, counting every
+   person ever drawn including replacements ("4 drawn, 1 replaced, 2
    seated"), or "No jury was drawn" for a zero-item cycle.
 2. **Results.** For each ballot item, in ballot order: umbrella name;
    the frozen solution text (version number, hash); yes count; no count;
    result (**Passed** / **Failed**); the solution's AI-influence figure;
-   author display as of snapshot. Failed items are included.
+   author display as of snapshot. Failed items are included. Under any
+   item a juror held back without a majority: "Juror concerns (n of m
+   seated)" with each category and reason, attributed "Juror n of m".
 3. **Held back.** For each held-back solution: umbrella; text; the jury
    category and every juror's written reason, attributed "Juror n of
    m".
@@ -797,7 +812,9 @@ writes an admin action log row (who, what, subject, old/new values,
 reason if given).
 
 - Prepare ballot for a community (§10.2)
-- Re-draw jury (only while `jury_review`; logged with reason)
+- Re-draw jury (only while `jury_review`; logged with reason). The
+  previous draw is **kept** — its pool, drawn ids, random bytes, and
+  jurors' statuses stay inspectable, marked superseded (§8.1)
 - Open ballot; close ballot; publish summary
 - Trigger reference recommendation on an umbrella (§9.4)
 - Change a setting (§7.4)

@@ -390,12 +390,16 @@ enum (`same`, `different`), `created_at`; PK `(similarity_id, user_id)`.
 ### 4.11 `comments`
 
 `id`, `target_type` enum (`umbrella`, `solution`), `target_id` int,
-`parent_id` FK `comments` NULL, `depth` smallint NOT NULL, `author_id`
-FK, `text` text (1–2,000), `edited_at` NULL, `removed_at` NULL,
-`net_score` int DEFAULT 0, `ai_contribution_percentage` smallint DEFAULT
-0, `content_hash` char(64) (canonical JSON `{target_type, target_id,
-parent_id, text, author_id, created_at}`), `created_at`. Index
-`(target_type, target_id, parent_id)`, `author_id`.
+`parent_id` FK `comments` NULL, `reply_to_comment_id` FK `comments`
+NULL (set only when the reply was re-attached at the depth cap; the
+comment it actually answered — DEMOCRACY §6), `depth` smallint NOT NULL
+(0-based), `author_id` FK, `text` text (1–2,000; exactly what the
+author typed, never a rendered name), `edited_at` NULL, `removed_at`
+NULL, `net_score` int DEFAULT 0, `ai_contribution_percentage` smallint
+DEFAULT 0, `content_hash` char(64) (canonical JSON `{target_type,
+target_id, parent_id, reply_to_comment_id, text, author_id,
+created_at}`), `created_at`. Index `(target_type, target_id,
+parent_id)`, `author_id`, `reply_to_comment_id`.
 
 ### 4.12 `votes`
 
@@ -464,9 +468,14 @@ user's vote or any vote with a voter id; everything else is counts.
 
 ### 4.17 `juries`, `jurors`, `jury_holdbacks`
 
-`juries`: `id`, `cycle_id` FK UNIQUE, `size_requested` int,
-`eligible_pool` jsonb (user ids), `random_bytes` char(64), `drawn_at`,
-`redrawn_reason` text NULL.
+`juries`: `id`, `cycle_id` FK (not unique — one row per draw),
+`size_requested` int, `eligible_pool` jsonb (user ids), `random_bytes`
+char(64), `drawn_at`, `superseded_at` timestamptz NULL, `redrawn_reason`
+text NULL (on the **superseded** row: why it was replaced). Partial
+unique index: at most one row per `cycle_id` with `superseded_at IS
+NULL` — the current jury. Rows are never deleted; a re-draw sets
+`superseded_at` on the old row and inserts a new one. Jurors of a
+superseded jury keep their rows and statuses.
 
 `jurors`: `id`, `jury_id` FK, `user_id` FK, `seat` smallint ("Juror n"),
 `status` enum (`drawn`, `accepted`, `declined`, `replaced`,

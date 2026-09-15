@@ -137,7 +137,7 @@ the key name in the error.
 - Passwords: bcrypt, cost 12, policy per Law 13; maximum 72 bytes (bcrypt's
   limit), refused with a plain message rather than silently truncated.
 - **Administrators are made only from the machine:**
-  `backend/scripts/grant_admin.py <email> [--dry-run]`. There is no
+  `backend/scripts/grant_admin.py <email> (--dry-run | --apply) [--revoke]`. There is no
   endpoint and no UI. The grant writes an `admin_actions` row like any
   other administrator action (DEMOCRACY §13).
 - Every authenticated request updates `users.last_active_at` at most
@@ -162,7 +162,17 @@ the key name in the error.
 ## 6. Endpoints
 
 `F` = Foundation, `I` = Iteration. All JSON. All list endpoints paginate
-with `?cursor=&limit=` (default 25, max 100).
+with `?cursor=&limit=` (default 25, max 100; a `limit` above 100 is
+refused with 422, never silently capped) **except** five fixed-size
+reference lists, which return whole: `GET /geo/counties`, `GET
+/geo/counties/{id}/cities`, `GET /communities/{level}/{id}/officials`,
+`GET /settings`, and the main-category list inside `GET /feed`'s filter
+metadata. No other exemptions.
+
+### Service and legal (F, public)
+`GET /health` (liveness; no database access), `GET /legal/privacy`,
+`GET /legal/terms`, `GET /legal/cookies` (current markdown), `GET
+/legal/current-version`.
 
 ### Auth and account (F)
 | | |
@@ -352,7 +362,11 @@ dropped by the test session and built from both migration chains, never
 - Auth: refresh rotation and reuse detection; blacklist on logout.
 - Every endpoint: 401/403 paths.
 - Layering (`test_layering.py`): no router imports a repository, client,
-  or session; no service calls the session or `select` directly (§2).
+  job, or session; no service calls the session or `select` directly;
+  and no endpoint function calls more than one service module beyond a
+  `require_*` resolver, or contains arithmetic on a setting (§2).
+- `npm audit --audit-level=high` in `frontend/` returns no findings;
+  it is part of every run's evidence set.
 
 Ollama and search are mocked in tests via the client interfaces; one
 opt-in test (`-m live`) hits the real Ollama to validate prompt-file
