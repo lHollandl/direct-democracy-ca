@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 from pydantic import BaseModel, Field, field_validator
 
-from backend.deps import CurrentUser, SessionDep, VerifiedUser
+from backend.deps import SessionDep, VerifiedUser
 from backend.routers.common import Message
 from backend.services import posts as posts_service
 
@@ -80,7 +80,7 @@ class CorrectIn(BaseModel):
 
 
 @router.post("/{post_id}/label/confirm", response_model=Message)
-async def confirm_label(post_id: int, user: CurrentUser, session: SessionDep) -> Message:
+async def confirm_label(post_id: int, user: VerifiedUser, session: SessionDep) -> Message:
     post = await posts_service.require_post(session, post_id)
     result = await posts_service.confirm_label(session, post=post, user=user)
     return Message(
@@ -94,7 +94,7 @@ async def confirm_label(post_id: int, user: CurrentUser, session: SessionDep) ->
 
 @router.post("/{post_id}/label/correct")
 async def correct_label(
-    post_id: int, body: CorrectIn, user: CurrentUser, session: SessionDep
+    post_id: int, body: CorrectIn, user: VerifiedUser, session: SessionDep
 ) -> dict:
     post = await posts_service.require_post(session, post_id)
     return await posts_service.correct_label(
