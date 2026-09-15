@@ -17,19 +17,25 @@
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
 in `briefs/evidence/demo-01/`. Audit run 1 returned FIX REQUIRED (one HIGH,
-three LOW); fix run 1 (FIX-01 through FIX-07) is complete — layering enforced
-and tested, job scheduling moved into services, `pyproject.toml` fixed,
-`comments.content_hash` corrected, the three previously-unproven scenarios
-scripted and passing, the full evidence set re-run clean. Nothing has been
-merged to `main`; the next audit run comes next. Phase 0 remains complete
-except the optional search provider.*
+three LOW); fix run 1 (FIX-01 through FIX-07) is complete. Audit run 2
+returned FIX REQUIRED (CRITICAL 1 · HIGH 1 · MEDIUM 6 · LOW 7 · NOTE 3); fix
+run 2 (FIX-08 through FIX-20) is complete — the deep-reply name leak and the
+jury-redraw deletion are both fixed, every hold-back is published, router
+layering now enforces one service module per endpoint, the labeler records
+invented communities, `/umbrellas` paginates, `grant_admin.py` and the depth
+wording were confirmed as already correct, frontend dependencies and seven
+LOW findings fixed, a WCAG 2.1 AA pass covers every form and every page's
+`<h1>`, and the summary header states drawn/replaced/seated. Full evidence
+in HISTORY.md's Session 5 entry. Nothing has been merged to `main`; the next
+audit run comes next. Phase 0 remains complete except the optional search
+provider.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
 | Documents | — | All nine current; consistency audit 2026-09-13 applied | Demo 1 built from them |
 | Sandbox | — | Set up and verified 2026-09-12; boundaries confirmed again by this run | The Docker Hub blob CDN and the browser download host are **not** reachable — see technical debt |
 | GitHub | — | Public repo; `main` protected; scoped sandbox token `ddc-sandbox` expires 2026-10-12 | `demo/01` pushed from the sandbox |
-| Infra (Docker Postgres + Redis) | F | `infra/docker-compose.yml` rebuilt on postgres:16 and the single root `.env`; **not run in this sandbox** | Legacy `backend/.env` and `infra/.env` were committed secrets; both removed and a `.gitignore` added |
+| Infra (Docker Postgres + Redis) | F | `infra/docker-compose.yml` on postgres:16 and the single root `.env`; ran cleanly in this sandbox (fix run 2) | Legacy `backend/.env` and `infra/.env` were committed secrets; both removed and a `.gitignore` added |
 | Backend skeleton | F | Built: layered async on asyncpg, typed errors, request ids, rate limiting | Legacy code deleted |
 | Auth | F | Built: signup with the age gate, email verification, login, refresh rotation with reuse detection, logout blacklist, password reset | |
 | Accounts / identity / display | F | Built | |
@@ -208,6 +214,65 @@ id is one commit on `demo/01`; full evidence in
 
 ---
 
+## Phase 2b — demo-01 fix run 2
+
+Fixes for `audits/demo-01-audit-2.md` (CRITICAL 1 · HIGH 1 · MEDIUM 6 ·
+LOW 7 · NOTE 3; verdict FIX REQUIRED), from `briefs/demo-01-fix-2.md`. Each
+id is one commit on `demo/01` except FIX-14 and FIX-18 (no code change
+needed); full evidence in HISTORY.md's Session 5 entry.
+
+- [x] **FIX-08** (CRITICAL) Deep replies: `comments.reply_to_comment_id`
+  added; `text` is never a rendered name; "replying to @display" rendered at
+  read time through the author-display rule; `content_hash` covers the new
+  field
+- [x] **FIX-09** (HIGH) Jury draws are never deleted: `juries.cycle_id` no
+  longer unique; `superseded_at` with a partial unique index on the current
+  jury; a redraw supersedes instead of deleting; `GET /cycles/{id}` lists
+  every draw with its status
+- [x] **FIX-10** (MEDIUM) Every hold-back published: "Jury notes" on the
+  solution page from ballot open; "Juror concerns" under any summary result
+  a juror held back without a majority
+- [x] **FIX-11** (MEDIUM) Router logic: `get_solution` and every other
+  multi-module endpoint (seven in `admin.py`, two in `amendments.py`,
+  `auth.py::logout`, `summaries.py::summary_pdf`,
+  `umbrellas.py::umbrella_solutions`) reduced to one service call each;
+  `test_layering.py` extended with an AST check for it
+- [x] **FIX-12** (MEDIUM) Labeler records communities it invents, not only
+  ones it repeats, in `output.repeated_or_unlisted_communities`
+- [x] **FIX-13** (MEDIUM) `GET /umbrellas` paginates (the only one of the
+  five originally-flagged endpoints not exempted by ARCHITECTURE §6's
+  updated wording); `limit > 100` refused with 422
+- [x] **FIX-14** (MEDIUM) `grant_admin.py` already matched ARCHITECTURE §4
+  exactly, including `--revoke`; no code change, `--help` evidenced
+- [x] **FIX-15** (MEDIUM) `next` 16.1.6 → 16.3.5; `npm audit fix`;
+  `npm audit --audit-level=high` clean
+- [x] **FIX-16** (LOW ×7) Narrowed and logged the two swallowing exception
+  handlers; moved the seed CSV read behind `asyncio.to_thread`; replaced a
+  stale docstring; named the label-retry fallback constant; fixed the
+  `bad_setting_value` grammar; every route gained server-rendered Next.js
+  `metadata`; verified the five undocumented endpoints are already in
+  ARCHITECTURE §6
+- [x] **FIX-17** WCAG 2.1 AA: `useFormError` (aria-invalid/aria-describedby,
+  focus management) applied to every form; every page's `PageHeader`
+  (and therefore its one `<h1>`) now renders unconditionally, including
+  during the loading and sign-in-gate states, not only once data has
+  loaded
+  - **[~]** `posts/new`'s dynamic solutions list and community checkboxes
+    are not individually field-mapped to `aria-invalid` — only
+    `problem_text` and the page-level banner are covered there
+- [x] **FIX-18** Comment depth wording: no code change; DEMOCRACY §6's
+  0-based depth already matches the code; re-confirmed with the depth-cap
+  test
+- [x] **FIX-19** Summary header reads "*n* drawn, *r* replaced, *s* seated";
+  `replaced` counts `declined` jurors on the current jury, not the DB status
+  `replaced` (reserved for a whole superseded jury)
+- [x] **FIX-20** Full evidence set re-run from empty (migrations,
+  `verify_schema.py`, seed dry-run, full suite — 211 + 2 live — every
+  required grep, both walkthroughs, `npm audit`, `git status`/`git log`);
+  all clean
+
+---
+
 ## Phase 3 — Demo 2 candidates
 
 Not scheduled. Pulled forward by the director after Demo 1 is used.
@@ -299,7 +364,10 @@ What makes it bite, not only what it is.
 - **Next.js 16.1.6 did not apply nested-layout metadata** to the server-rendered
   head in this build, so each page sets its own browser-tab title from the
   client instead. Bites for anything that reads the served HTML — link previews,
-  search engines — until the cause is found.
+  search engines — until the cause is found. **Resolved in fix run 2 (FIX-16):**
+  every route now exports server-side `metadata` from a thin server `page.tsx`
+  wrapping the client component; the cause was never isolated, but the
+  workaround makes it moot.
 - **Export files sit on local disk** under `var/`, deleted by an hourly job past
   their expiry. Bites at deployment: there is no shared storage and no
   encryption at rest.
@@ -312,7 +380,8 @@ What makes it bite, not only what it is.
   while moving the function to comply with layering (FIX-01); preserved
   exactly, since the fix brief named layering, not this. Bites if anything
   ever reads a redrawn jury's history expecting to find `replaced` rows —
-  today, nothing does.
+  today, nothing does. **Resolved in fix run 2 (FIX-09):** a redraw now sets
+  `superseded_at` on the old row instead of deleting it.
 - **`backend/scripts/walkthrough_extended.py` reads verification tokens from
   `/tmp/uvicorn.log`**, a fixed path, on the assumption the server's
   stdout/stderr is redirected there. Bites if the server is ever run with
@@ -327,6 +396,29 @@ What makes it bite, not only what it is.
   it is designed to be correctable for exactly this reason (DEMOCRACY §9.1),
   but a demo script or a new user could still be surprised by a `needs_review`.
 
+### Found by demo-01 fix run 2 (2026-09-14)
+
+- **`posts/new`'s accessibility wiring is incomplete.** `useFormError` covers
+  `problem_text` and the page-level banner, but the dynamic solutions list
+  and the community checkboxes are not individually mapped to
+  `aria-invalid`/`aria-describedby` — there was no clean per-item `name` to
+  key off for the solutions array, and the checkboxes don't map to a single
+  backend field. Bites if the backend ever returns a `problems` entry for
+  `solutions.1` or a specific community: today it only surfaces in the
+  page-level banner, not on the specific control.
+- **`backend/scripts/walkthrough_fix2.py` (like `walkthrough_extended.py`)
+  is not safely re-runnable against the same database** without a fresh
+  `run_id` suffix on every email/display name, and a failed attempt can
+  leave a stray non-published cycle that blocks the next prepare
+  (DEMOCRACY §10.1). Both are handled in the script (a timestamp suffix, a
+  cleanup step that publishes any stray cycle first) but the underlying
+  fragility — demo/evidence scripts assume a clean run — remains.
+- **DATABASE §4.17 and DEMOCRACY §8.2/§11.2 use "replaced" for two different
+  mechanisms**: a `jurors.status` value reachable only on a jury a redraw
+  superseded, and the summary header's per-seat replacement count, which
+  actually counts `status = declined` on the *current* jury. Flagged in
+  HISTORY.md's Session 5 entry for a clarifying sentence in DATABASE §4.17.
+
 ---
 
-*Last updated: 2026-09-14 — demo-01 fix run 1 completed on `demo/01` by an unattended Claude Code run.*
+*Last updated: 2026-09-14 — demo-01 fix run 2 completed on `demo/01` by an unattended Claude Code run.*

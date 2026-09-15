@@ -2406,3 +2406,461 @@ redraw deletes the previous jury row, destroying the pool, drawn ids and
 random bytes DEMOCRACY §8.1 requires be inspectable afterwards. Four document
 ambiguities are listed for the director. Nothing outside `audits/` and this
 entry was modified; `git diff main...HEAD --stat` is pasted in the report.
+
+## 2026-09-14 — Session 4 (Claude.ai planning session — audit run 2 review)
+
+**Completed:**
+- Reviewed `audits/demo-01-audit-2.md` (CRITICAL 1 · HIGH 1 · MEDIUM 6 · LOW 7 · NOTE 3; FIX REQUIRED) and fix run 1's entry. Fix brief `briefs/demo-01-fix-2.md` written.
+- Document changes: DEMOCRACY §6 (deep replies rendered at read time via `reply_to_comment_id`; depth is 0-based), §8.1 and §13 (no draw is ever deleted; re-draw supersedes), §8.3 (every hold-back published), §11.2 (drawn/replaced/seated; "Juror concerns" under items); DATABASE §4.11 (`reply_to_comment_id`, hash fields), §4.17 (one `juries` row per draw, `superseded_at`, partial unique on the current jury); ARCHITECTURE §4 (`grant_admin.py` syntax), §6 (five named pagination exemptions; `limit > 100` refused; `/health` and `/legal/*` listed), §10 (layering test covers one-service-per-endpoint; `npm audit` in the evidence set); CLAUDE §8 names WCAG 2.1 AA (director-approved).
+
+**Decisions made:**
+1. The CRITICAL (a parent author's display name stored and hashed into deep replies) was caused by DEMOCRACY §6's wording, which said "with 'replying to @display'" without saying render-only; the builder followed the specific sentence over DATABASE §3.2's general rule. Fixed in the document first, then the code.
+2. Minority hold-back reasons are published everywhere (solution page, summary) — CLAUDE §2, and it is what the juror was told. Director decision.
+3. WCAG 2.1 AA is the named accessibility bar for every page, from Demo 1. Director decision.
+4. "Drawn" in the summary counts everyone ever drawn, with replacements stated. `comment_max_depth` is the highest 0-based depth value; the code was right, the sentence was not.
+5. Five fixed-size reference lists are exempt from pagination by name; everything else paginates and refuses `limit > 100`.
+
+**Issues encountered:**
+- Fix run 1 marked FIX-01 done with narrower wording than the brief ("calls only services" vs "exactly one service function"); the auditor caught it. Fix briefs now say explicitly that narrowing an item is not allowed.
+- The jury-redraw deletion was flagged by fix run 1 itself as a pre-existing no-op and confirmed by the audit as a HIGH; the schema, not the code, was the cause (`juries.cycle_id` UNIQUE).
+
+**Document changes flagged:**
+- AUDIT.md §4.1 could add "any user-facing text stored from a rendered display name" as a named trap; consider in the next planning pass.
+
+## 2026-09-14 — Session 5 (Claude Code build — demo-01, fix run 2)
+
+Unattended run on `demo/01` inside a Docker Sandbox, from the fix brief
+`briefs/demo-01-fix-2.md`, after audit run 2 returned `FIX REQUIRED`
+(`audits/demo-01-audit-2.md`: CRITICAL 1 · HIGH 1 · MEDIUM 6 · LOW 7 · NOTE 3).
+FIX-08 through FIX-20 completed, one commit each except FIX-14 and FIX-18
+(code already matched the document; confirmed and evidenced, no diff).
+
+**Notes:** Step 0 — pre-checks
+
+```
+$ git branch --show-current
+demo/01
+$ git log --oneline -3
+b5ed801 Post-audit-2 document updates; fix brief demo-01-fix-2
+75c3c4b audit demo-01 run 2
+15d18ec demo-01 fix run 1 complete
+```
+
+```
+$ docker compose --env-file .env -f infra/docker-compose.yml up -d
+Container ddc_postgres Started
+Container ddc_redis Started
+$ docker compose --env-file .env -f infra/docker-compose.yml ps
+ddc_postgres   postgres:16   Up (healthy)
+ddc_redis      redis:7       Up (healthy)
+```
+No `.env` existed; generated one with fresh `JWT_SECRET`/`POSTGRES_PASSWORD`
+(not committed), `OLLAMA_BASE_URL` from SANDBOX.md §5's host address.
+
+```
+$ curl -sS $OLLAMA_BASE_URL/api/tags
+{"models":[{"name":"nomic-embed-text:latest",...},{"name":"llama3.2:latest",...},...]}
+```
+Both required models present; the suite ran against the real Ollama.
+
+**Completed:**
+
+- **FIX-08 (CRITICAL, deep replies)** — commit `d646c26`. Added
+  `comments.reply_to_comment_id` (Iteration migration and model), covered by
+  `content_hash`. `comments_service.create` no longer resolves or prepends a
+  display name to `text`; it records which comment a depth-cap reply actually
+  answered. `comments_service.thread` renders "replying to @display" at read
+  time via `author_displays`, so a name change or an account deletion reaches
+  every rendering of the reply without touching the stored row. New test
+  `test_a_deep_reply_never_freezes_a_name_into_the_stored_text` reproduces the
+  audit's exact scenario (real_name → anonymous → deleted) and asserts the
+  stored `text_body` is exactly what was typed at every step, with the hash
+  recomputing throughout. Live evidence in `walkthrough_fix2.py`'s FIX-08
+  section: `replying to @Real FixBenNNNNNN` → `@Anonymous Community Member` →
+  `@Former Community Member`, while the DB row's `text_body` stayed
+  `'Thank you for laying that out, Ben.'` the entire time.
+- **FIX-09 (HIGH, jury draws never deleted)** — commit `51803ab`.
+  `juries.cycle_id` is no longer unique; added `superseded_at` with a partial
+  unique index enforcing one current draw per cycle. `juries_service.redraw`
+  now calls `cycles_repo.supersede_jury` (sets `superseded_at` +
+  `redrawn_reason`) instead of deleting the row, so the superseded jurors'
+  `replaced` status is observable and the pool/random bytes survive.
+  `GET /cycles/{id}` gained a `juries` array listing every draw with its
+  status and each juror's seat status. New test
+  `test_a_redraw_keeps_the_previous_draw_inspectable` asserts the first
+  draw's row, pool, random bytes and juror statuses are unchanged after a
+  redraw. Live evidence in `walkthrough_fix2.py`'s FIX-09 section: after a
+  redraw, `GET /cycles/{id}` lists both jury ids, the first `status:
+  "superseded"` with its three jurors `"replaced"`, the second `"current"`
+  with fresh `"drawn"` jurors.
+- **FIX-10 (MEDIUM, every hold-back published)** — commit `349a677`. Added
+  `juries_service.jury_notes_for_solution`: "Jury notes" on
+  `GET /solutions/{id}` from the moment the ballot opens (found via the most
+  recent ballot item whose cycle has passed jury review), showing every
+  seated juror's reason regardless of majority. `summaries.py::build_data`
+  gained a `juror_concerns` field under any passed/failed result a juror held
+  back without a majority, using the same `jury_holdbacks` rows the
+  already-published held-back path uses. New test
+  `test_a_minority_holdback_is_still_published` confirms both the solution
+  page and the published summary show a minority hold-back's category and
+  reason.
+- **FIX-11 (MEDIUM, router logic)** — commit `2086dc0`. `get_solution`'s
+  entire assembly (ten service calls across five modules, three inline
+  threshold computations) moved into `solutions_service.detail_view`. The
+  same "router composes several service modules" pattern existed in seven
+  `admin.py` endpoints (each split `admin_log.record` from the action it
+  logged), `amendments.py` (`list_amendments`, `decide_similarity`),
+  `auth.py::logout`, `summaries.py::summary_pdf` and
+  `umbrellas.py::umbrella_solutions`; each now calls one service function
+  that owns its own transaction end to end, matching Law 5. Extended
+  `test_layering.py` with an AST check that fails an endpoint calling more
+  than one service module beyond a `require_*` resolver, or calling a
+  lowercase `rules.py` function directly; verified against a reconstruction
+  of the old `get_solution` (both violations flagged) before confirming the
+  fixed code passes clean.
+- **FIX-12 (MEDIUM, labeler records invented communities)** — commit
+  `6e8a7c5`. `labeling.py::label_post` now checks a community against
+  `umbrella_index` before the repeated-key branch, so an answer for a
+  community the author never selected is appended to
+  `output.repeated_or_unlisted_communities` the same as a repeated one. New
+  test mocks a labeler answer naming an unselected county and confirms it
+  lands in that field.
+- **FIX-13 (MEDIUM, pagination)** — commit `da8c18f`. `GET /umbrellas` is not
+  one of ARCHITECTURE §6's five named exemptions and "grows without bound
+  once the proposal system lands," so it now paginates
+  (`umbrellas_repo.for_community_page`, keyset by id) like every other list
+  endpoint; the other four flagged endpoints (`geo/counties`,
+  `geo/counties/{id}/cities`, `communities/{level}/{id}/officials`,
+  `settings`) already matched the exemption as written. New test confirms
+  `limit=500` is refused with 422 and that paging by cursor covers every
+  umbrella exactly once.
+- **FIX-14 (MEDIUM, `grant_admin.py`)** — no code change; `--revoke` was
+  already present. `--help` pasted below matches ARCHITECTURE §4's corrected
+  form exactly.
+- **FIX-15 (MEDIUM, frontend advisories)** — commit `53889df`. `next` and
+  `eslint-config-next` bumped 16.1.6 → 16.3.5; `npm audit fix` cleared the
+  remaining transitive advisories. `npm audit --audit-level=high` now reports
+  zero vulnerabilities (pasted below).
+- **FIX-16 (LOW ×7)** — commit `7f9a8c9`. `middleware.py::_caller_key`
+  narrowed to `except Unauthorized`, logged at debug; `scheduler.py::stop`
+  logs a task's exception before continuing instead of swallowing it;
+  `seed.py::_seed_cities`'s CSV read moved behind `asyncio.to_thread`;
+  `hashing.py::amendment_content_hash`'s stale docstring replaced with a
+  plain citation of DATABASE §4.9; the 600-second label-retry fallback is now
+  a named, commented constant; `settings.py`'s `bad_setting_value` message
+  reads "must be a whole number"; every route's `page.tsx` gained
+  server-rendered Next.js `metadata`, verified with the five previously
+  undocumented endpoints (`/health`, `/legal/*`) already listed in
+  ARCHITECTURE §6.
+- **FIX-17 (WCAG 2.1 AA)** — commits `b8c34c4`, `f705faa`. Added
+  `useFormError` (aria-invalid/aria-describedby wired to the backend's
+  per-field `problems` array, a page-level `role="alert"` banner otherwise,
+  focus moved to the first invalid field or the banner on a failed submit)
+  and applied it to every form in the frontend. `forgot-password` had no
+  `catch` at all before this — a malformed email produced an unhandled
+  rejection with no visible error — fixed alongside the accessibility wiring
+  since there was no error path to make accessible. Verified with a scratch
+  jsdom + `@testing-library/react` harness (not committed; installed with
+  `--no-save`, removed afterward) mounting the real signup form: a
+  `validation_failed` response sets `aria-invalid`/`aria-describedby` on the
+  named field and moves focus to it (pasted below); a domain error with no
+  field attribution moves focus to the alert banner instead, with no field
+  marked invalid. Gathering that evidence surfaced a second, broader gap:
+  curl against the rendered HTML showed **zero** `<h1>`s on 18 of 25 routes,
+  because every page that fetches its own data (or gates on sign-in) returned
+  `Loading`/the gate as the *entire* page before its `PageHeader` ever
+  rendered — the loading state itself had no heading. Every `page.tsx` now
+  renders `PageHeader` unconditionally, with a static fallback title where
+  the real one depends on fetched data; verified every route now serves
+  exactly one `<h1>` and a correct title before hydration (pasted below).
+  **Known gap, not claimed as done:** `posts/new`'s dynamic solutions list and
+  community checkboxes are not individually field-mapped to `aria-invalid` —
+  only `problem_text` and the page-level banner are. Marked `[~]` in TODO.md.
+- **FIX-18 (comment depth wording)** — no code change; DEMOCRACY §6's 0-based
+  depth already matches the code. `test_comments_nest_to_the_depth_cap`
+  (`comment_max_depth=2` → depths reach 0,1,2) re-run and pasted below as the
+  depth-cap re-attachment evidence.
+- **FIX-19 (summary header)** — commit `3c71294`. The header now reads
+  "*n* drawn, *r* replaced, *s* seated". A decline draws an immediate
+  replacement for the same seat but leaves the declining juror's own row
+  `declined` (DEMOCRACY §8.2) — `replaced` is a distinct `jurors` status this
+  document previously conflated it with, reserved for a whole jury superseded
+  by a redraw (DATABASE §4.17, FIX-09). The header counts `declined` jurors as
+  the replaced count. New test
+  `test_the_published_header_counts_drawn_replaced_and_seated` builds a cycle
+  with one decline-and-replacement and asserts the published header reads
+  "4 drawn, 1 replaced, 3 seated"; `test_full_cycle.py`'s existing assertion
+  updated to the new format for its no-replacement cycle
+  ("1 drawn, 0 replaced, 1 seated").
+- **FIX-20 (full evidence set)** — commit `d5a2193`, pasted in full below.
+
+**Decisions made:**
+
+1. **"Replaced" in the summary header counts `declined` jurors, not rows with
+   DB status `replaced`.** DATABASE §4.17 uses `replaced` for two different
+   things — a `jurors` row status that (per FIX-09) is now only reachable on a
+   *superseded jury* — and DEMOCRACY §11.2's "1 replaced" in "4 drawn, 1
+   replaced, 2 seated", which is about a *single seat* being replaced after a
+   decline, whose own row stays `declined`. Read literally, my first attempt
+   counted status `replaced` and got `0 replaced` on a cycle with an actual
+   decline-and-replacement, which cannot be what the example means. Counting
+   `declined` jurors on the *current* jury matches the document's own example
+   and DEMOCRACY §8.2's language ("a decline draws a replacement"). Flagged
+   below since the two documents use one word for two mechanisms.
+2. **FIX-11's "one service module beyond a `require_*` resolver" is read
+   literally**, with no additional exemption list. Every case that looked
+   like it needed one (`admin_log`, `author_displays`, `pdf.render`,
+   `community_of`/`require_member` for a membership check) was resolved by
+   moving that call inside the service function that owns the transaction —
+   which is what Law 5 already asks for — rather than carving out an
+   exemption. `backend.deps` dependencies (`require_member`,
+   `current_user`, …) are not services and were never in question.
+3. **The scratch jsdom test harness used for FIX-17's evidence is not
+   committed.** `tsx`, `jsdom`, `@testing-library/react` and
+   `@testing-library/user-event` were installed with `npm install --no-save`,
+   used to mount the real `signup/PageClient.tsx` against a mocked `fetch`,
+   and removed with a plain `npm install` afterward — `frontend/package.json`
+   and `package-lock.json` are untouched by this. Mirrors the audit's own
+   "scratch script, repository not modified" pattern for the PDF re-render.
+4. **The database was rebuilt from empty for this fix run** (`docker compose
+   down -v`, then re-migrated and re-seeded), both because FIX-08 and FIX-09
+   change what a fresh comment's and a fresh jury's hash/shape cover, and
+   because hashes on existing demo rows are not a concern per the fix brief.
+   `walkthrough_extended.py` (fix run 1's scenarios) and the new
+   `walkthrough_fix2.py` (FIX-08/FIX-09 evidence) were both run against it in
+   sequence; the resulting demo state is left for the director exactly as
+   they produced it — 33 users, 1 post, 11 solutions, 5 cycles (three
+   published, one `prepared` zero-item county cycle, one `jury_review` city
+   cycle from the redraw demo, left open deliberately so a next audit run can
+   inspect a live jury in progress).
+
+**Issues encountered:**
+
+- **My first FIX-19 implementation was wrong** (see decision 1): I initially
+  counted `jurors.status == "replaced"` for the header's replaced count,
+  which the new `test_the_published_header_counts_drawn_replaced_and_seated`
+  caught immediately (`"4 drawn, 0 replaced, 3 seated"` on a cycle with a
+  real decline). Fixed by counting `declined` instead, before the fix run
+  brief's evidence was gathered — this brief's own instruction not to narrow
+  a finding's wording is exactly why the test came before the paste.
+- **The scratch jsdom harness needed a `FormData` shim**: Node's built-in
+  (undici) `FormData` does a WebIDL brand check that rejects a jsdom-created
+  `HTMLFormElement`, so `new FormData(event.currentTarget)` inside the real
+  `onSubmit` threw cross-realm. Worked around by pointing `global.FormData` at
+  `window.FormData` (jsdom's own) for the duration of the scratch script only;
+  the actual application code is untouched.
+- **`walkthrough_fix2.py` needed unique emails/display names per run**: the
+  first two attempts collided with accounts a prior failed attempt had
+  already created (display names are unique) and with a stray non-published
+  cycle a prior attempt had left `prepared`, which blocks a new prepare
+  (DEMOCRACY §10.1). Fixed with a `run_id` timestamp suffix and a small
+  cleanup step that publishes any stray non-published cycle for the target
+  community before proceeding.
+- **Active-user growth across repeated script attempts raised the dominance
+  threshold** mid-script (each failed attempt's accounts stayed active),
+  so a single upvote that qualified in an early attempt stopped being enough
+  by the third. Fixed by upvoting with every available account until
+  `is_dominant` is true, rather than a fixed count.
+
+**Document changes flagged:**
+
+- DATABASE §4.17 and DEMOCRACY §8.2/§11.2 use "replaced" for two different
+  things (a `jurors.status` value reachable only on a superseded jury, and
+  the summary header's per-seat replacement count, which is actually the
+  `declined` status). Worth a clarifying sentence in DATABASE §4.17 tying the
+  header's "replaced" explicitly to `status = declined` on the current jury,
+  so a future reader doesn't make the same first-pass mistake this run did.
+
+**Notes:** places a document looked wrong
+
+- None beyond the one flagged above.
+
+**Evidence — pasted in full**
+
+Migrations from empty, schema, seed:
+
+```
+$ alembic upgrade foundation@head && alembic upgrade iteration@head
+INFO  Running upgrade  -> 25035d5b7ff5, Foundation initial schema — DATABASE.md §3.
+INFO  Running upgrade  -> b4b4da0b6e54, Iteration schema — Demo 1 (DATABASE.md §4).
+
+$ python backend/scripts/verify_schema.py
+[1] live database vs the ORM models              no drift
+[2] scratch database (from migrations) vs models no drift
+[3] scratch vs live, table by table               no drift — 37 tables identical
+[4] the two halves (DATABASE.md §2)               15 Foundation, 22 Iteration, none in both
+[5] every foreign key indexed (CLAUDE.md Law 4)   no problems
+=== RESULT: NO DRIFT ===
+
+$ python -m backend.seed --apply      # 590 writes
+$ python -m backend.seed --dry-run
+pending writes: 0
+Nothing to do: every seed row is already in the database.
+```
+
+Test suite, real Ollama available:
+
+```
+$ python -m pytest -q
+211 passed, 2 deselected in 108.32s
+
+$ python -m pytest -q -m live
+2 passed, 211 deselected in 3.60s
+```
+211 (up from 203 at fix run 1) + the 2 live-only tests = 213; every new test
+named above is included.
+
+The three build-brief greps, plus fix run 1's layering greps:
+
+```
+$ grep -rn "TODO\|FIXME" backend/ frontend/src/                          -> (nothing)
+$ grep -rn "os.environ" backend/ | grep -v settings_env.py                -> (nothing)
+$ grep -rn "except:\s*$\|except: pass\|except Exception: pass" backend/   -> (nothing)
+$ grep -rn "^from backend\.\(repositories\|clients\|jobs\)" backend/routers/                              -> (nothing)
+$ grep -rn "session\.\(execute\|get\|add\|commit\|scalar\|flush\)\|select(" backend/routers/               -> (nothing)
+$ grep -rn "session\.\(execute\|get\|scalar\)\|[^_a-z]select(" backend/services/                          -> (nothing)
+```
+
+Widened swallowing-handler grep (audit demo-01 run 2's own check) — the two
+previously-flagged handlers no longer match; the three remaining are narrow
+and intentional:
+
+```
+backend/jobs/scheduler.py:42:        except asyncio.CancelledError:
+backend/services/auth.py:253:        except Unauthorized:
+backend/services/settings.py:132:        except json.JSONDecodeError:
+```
+
+FIX-08 live evidence (`walkthrough_fix2.py`), rendered reply text at each
+step, with the DB row confirmed unchanged throughout:
+
+```
+=== rendered reply text, while Ben is real_name ===
+replying to @Real FixBen437744: Thank you for laying that out, Ben.
+=== rendered reply text, after Ben goes anonymous ===
+replying to @Anonymous Community Member: Thank you for laying that out, Ben.
+=== rendered reply text, after Ben's account is deleted ===
+replying to @Former Community Member: Thank you for laying that out, Ben.
+
+$ SELECT text, reply_to_comment_id, content_hash FROM comments WHERE id = <the reply>;
+text='Thank you for laying that out, Ben.'   -- exactly what Cara typed, unchanged
+reply_to_comment_id=<Ben's comment id>
+content_hash=<unchanged across all three display-name states>
+```
+
+FIX-09 live evidence (`walkthrough_fix2.py`), `GET /cycles/{id}` after a
+redraw:
+
+```
+{"jury_id": 2, "status": "superseded", "redrawn_reason": "Fix run 2 evidence: redraw and inspect both draws.",
+ "drawn": 3, "jurors": [{"seat":1,"status":"replaced"},{"seat":2,"status":"replaced"},{"seat":3,"status":"replaced"}]}
+{"jury_id": 3, "status": "current", "redrawn_reason": null,
+ "drawn": 3, "jurors": [{"seat":1,"status":"drawn"},{"seat":2,"status":"drawn"},{"seat":3,"status":"drawn"}]}
+```
+
+FIX-10/FIX-19 combined evidence, from `walkthrough_extended.py`'s published
+summary header and a minority-holdback result item:
+
+```
+"jury": "4 drawn, 1 replaced, 2 seated", "jurors_drawn": 4, "jurors_replaced": 1, "jurors_seated": 2
+"juror_concerns": {"label": "Juror concerns (1 of 2 seated)",
+  "reasons": [{"juror": "Juror 2 of 2", "category": "not_actionable",
+    "reason": "Fix run FIX-06: exercising a hold-back that should not reach a majority."}]}
+```
+
+FIX-13 live evidence:
+
+```
+$ curl "http://127.0.0.1:8000/umbrellas?community=city:408&limit=500"
+422 {"error":"validation_failed","message":"Some of what you sent could not be accepted.",
+     "problems":[{"field":"limit","problem":"Input should be less than or equal to 100"}]}
+```
+
+FIX-14 evidence:
+
+```
+$ python backend/scripts/grant_admin.py --help
+usage: grant_admin.py [-h] (--dry-run | --apply) [--revoke] email
+options: -h, --help  --dry-run  --apply  --revoke  take the administrator flag away instead
+```
+
+FIX-18 evidence (`test_comments_nest_to_the_depth_cap`, `comment_max_depth=2`):
+
+```
+$ python -m pytest -q backend/tests/test_workshop.py -k depth_cap
+1 passed
+-- five comments posted at parent_id chain None->1->2->3->4; depths recorded [0,1,2,2,2]; max(depths) == 2
+```
+
+FIX-17 accessibility evidence (scratch jsdom harness, signup form, field-level
+error):
+
+```
+=== document.activeElement ===
+INPUT#email
+=== email field wrapper HTML (error state) ===
+<div><label for="email">Email address</label>
+<input id="email" name="email" type="email" aria-describedby="email-error email-hint" aria-invalid="true">
+<p id="email-error">value is not a valid email address</p>
+<p id="email-hint">Used to confirm your account and reset your password. Never shown to anyone.</p></div>
+```
+
+...and the general-error case (no field to blame):
+
+```
+=== document.activeElement ===
+P
+email aria-invalid: null
+=== alert banner ===
+<p tabindex="-1" role="alert">That email is already registered.</p>
+```
+
+Every route's server-rendered title and `<h1>` count, `next build` running:
+
+```
+/                                     -> Direct Democracy Cali                              h1: 1
+/admin, /admin/log, /ai/actions, /ballot, /jury, /legal/{cookies,privacy,terms}, /me,
+/posts/new, /results, /settings, /summaries/hashes, /cycles/1, /posts/1, /solutions/1,
+/umbrellas/1, /summaries/city/1/1                                                            h1: 1 each
+/feed, /forgot-password, /login, /reset-password, /signup, /verify-email                     h1: 1 each
+```
+All 25 routes: HTTP 200, a unique title, exactly one `<h1>`.
+
+`npm audit --audit-level=high`:
+
+```
+found 0 vulnerabilities
+```
+
+Frontend build:
+
+```
+$ npx tsc --noEmit          -> exit 0
+$ npm run lint              -> clean
+$ npm run build             -> Compiled successfully; 25 routes
+```
+
+`/openapi.json`: 66 paths, 72 endpoint (method, path) combinations — matches
+the audit's count exactly; the five previously-undocumented ones (`/health`,
+`/legal/*`) are already listed in ARCHITECTURE §6.
+
+```
+$ git status
+On branch demo/01
+nothing to commit, working tree clean
+
+$ git log --oneline -13
+d5a2193 FIX-20: live evidence script for FIX-08 and FIX-09
+f705faa FIX-17 (continued): every page's initial render has one h1, not just the loaded state
+3c71294 FIX-19: summary header reads "n drawn, r replaced, s seated"
+b8c34c4 FIX-17: WCAG 2.1 AA form-field errors, focus management, one h1 per page
+7f9a8c9 FIX-16: seven LOW findings from audit demo-01 run 2
+53889df FIX-15: next 16.1.6 -> 16.3.5, npm audit clean
+da8c18f FIX-13: GET /umbrellas paginates
+6e8a7c5 FIX-12: labeler records communities it invents, not only ones it repeats
+2086dc0 FIX-11: one service module per router endpoint, no threshold arithmetic in routers
+349a677 FIX-10: every hold-back is published, not only ones that reach a majority
+51803ab FIX-09: jury draws are never deleted
+d646c26 FIX-08: deep replies never freeze a display name into content_hash
+b5ed801 Post-audit-2 document updates; fix brief demo-01-fix-2
+```
