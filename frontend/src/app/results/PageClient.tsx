@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { get } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { Empty, Loading, Notice, PageHeader, Section } from "@/components/ui";
@@ -35,28 +35,20 @@ export default function ResultsPage() {
     void get<Payload>("/results").then(setData).catch(() => setData(null));
   }, [me]);
 
-  if (loading) return <Loading what="your results" />;
-  if (!me) {
-    return (
-      <>
-        <PageHeader title="Results" />
-        <div className="mx-auto max-w-md px-4 py-8">
-          <Notice>
-            <Link href="/login">Sign in</Link> to see your communities&apos; results.
-          </Notice>
-        </div>
-      </>
+  let body: ReactNode;
+  if (loading) {
+    body = <Loading what="your results" />;
+  } else if (!me) {
+    body = (
+      <Notice>
+        <Link href="/login">Sign in</Link> to see your communities&apos; results.
+      </Notice>
     );
-  }
-  if (!data) return <Loading what="your results" />;
-
-  return (
-    <>
-      <PageHeader
-        title="Results"
-        lead="What your three communities have voted on. Everyone who reads one of these documents reads exactly the same thing."
-      />
-      <div className="mx-auto max-w-3xl px-4 py-8">
+  } else if (!data) {
+    body = <Loading what="your results" />;
+  } else {
+    body = (
+      <>
         <Notice>{data.note}</Notice>
         {data.communities.map((entry) => (
           <Section
@@ -104,7 +96,22 @@ export default function ResultsPage() {
             )}
           </Section>
         ))}
-      </div>
+      </>
+    );
+  }
+
+  const ready = !loading && me && data;
+  return (
+    <>
+      <PageHeader
+        title="Results"
+        lead={
+          ready
+            ? "What your three communities have voted on. Everyone who reads one of these documents reads exactly the same thing."
+            : undefined
+        }
+      />
+      <div className={`mx-auto px-4 py-8 ${ready ? "max-w-3xl" : "max-w-md"}`}>{body}</div>
     </>
   );
 }

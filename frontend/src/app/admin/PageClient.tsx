@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
@@ -65,21 +65,6 @@ export default function AdminPage() {
   const cycles = data?.cycles ?? {};
   const umbrellas = data?.umbrellas ?? {};
 
-  if (loading) return <Loading what="the administrator page" />;
-  if (!me?.is_admin) {
-    return (
-      <>
-        <PageHeader title="Administrator controls" />
-        <div className="mx-auto max-w-md px-4 py-8">
-          <Notice>
-            This page is for administrators. Everything they do is published in the{" "}
-            <Link href="/admin/log">administrator log</Link>, which anybody can read.
-          </Notice>
-        </div>
-      </>
-    );
-  }
-
   async function run(
     path: string,
     body?: unknown,
@@ -97,13 +82,20 @@ export default function AdminPage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader
-        title="Administrator controls"
-        lead="Everything on this page is written to the public administrator log, with what changed and why."
-      />
-      <div className="mx-auto max-w-3xl px-4 py-8">
+  let body: ReactNode;
+  if (loading) {
+    body = <Loading what="the administrator page" />;
+  } else if (!me?.is_admin) {
+    body = (
+      <Notice>
+        This page is for administrators. Everything they do is published in the{" "}
+        <Link href="/admin/log">administrator log</Link>, which anybody can read.
+      </Notice>
+    );
+  } else {
+    const you = me;
+    body = (
+      <>
         {message ? <Notice kind="good">{message}</Notice> : null}
         {error ? (
           <Notice kind="bad" alertRef={alertRef}>
@@ -175,7 +167,7 @@ export default function AdminPage() {
           </form>
         </Section>
 
-        {me.home_communities.map((community) => {
+        {you.home_communities.map((community) => {
           const key = `${community.level}:${community.entity_id}`;
           const list = cycles[key] ?? [];
           const live = list.find((c) => c.state !== "published");
@@ -297,7 +289,21 @@ export default function AdminPage() {
             <button type="submit" className="btn">Try filing it again</button>
           </form>
         </Section>
-      </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="Administrator controls"
+        lead={
+          me?.is_admin
+            ? "Everything on this page is written to the public administrator log, with what changed and why."
+            : undefined
+        }
+      />
+      <div className={`mx-auto px-4 py-8 ${me?.is_admin ? "max-w-3xl" : "max-w-md"}`}>{body}</div>
     </>
   );
 }

@@ -72,9 +72,8 @@ export default function SolutionPage() {
     [id],
   );
 
-  if (!data) return <Loading what="this solution" />;
-
   const canAct =
+    !!data &&
     (me?.email_verified ?? false) &&
     (me?.home_communities.some(
       (c) => c.level === data.community.level && c.entity_id === data.community.entity_id,
@@ -83,8 +82,15 @@ export default function SolutionPage() {
 
   return (
     <>
-      <PageHeader title={`A solution in ${data.umbrella.name}`} lead={data.community.label} />
+      <PageHeader
+        title={data ? `A solution in ${data.umbrella.name}` : "A solution"}
+        lead={data?.community.label}
+      />
       <div className="mx-auto max-w-3xl px-4 py-8">
+        {!data ? (
+          <Loading what="this solution" />
+        ) : (
+          <>
         <BackLink href={`/umbrellas/${data.umbrella.id}`}>Back to the workshop</BackLink>
 
         <Section title="The text as it stands now">
@@ -185,6 +191,8 @@ export default function SolutionPage() {
             />
           )}
         </Section>
+          </>
+        )}
       </div>
     </>
   );

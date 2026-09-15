@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { apiBase, del, patch, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { Loading, Notice, PageHeader, Section } from "@/components/ui";
@@ -24,18 +24,6 @@ export default function MePage() {
   const [exportId, setExportId] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
   const deleteFormRef = useRef<HTMLFormElement>(null);
-
-  if (loading) return <Loading what="your account" />;
-  if (!me) {
-    return (
-      <>
-        <PageHeader title="Your account" />
-        <div className="mx-auto max-w-md px-4 py-8">
-          <Notice>You need to <Link href="/login">sign in</Link> to see this page.</Notice>
-        </div>
-      </>
-    );
-  }
 
   async function changeMode(mode: string) {
     clear();
@@ -73,10 +61,14 @@ export default function MePage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader title="Your account" lead={me.display_name} />
-      <div className="mx-auto max-w-2xl px-4 py-8">
+  let body: ReactNode;
+  if (loading) {
+    body = <Loading what="your account" />;
+  } else if (!me) {
+    body = <Notice>You need to <Link href="/login">sign in</Link> to see this page.</Notice>;
+  } else {
+    body = (
+      <>
         {message ? <Notice kind="good">{message}</Notice> : null}
         {error ? (
           <Notice kind="bad" alertRef={alertRef}>
@@ -185,7 +177,14 @@ export default function MePage() {
             </button>
           )}
         </Section>
-      </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageHeader title="Your account" lead={me?.display_name} />
+      <div className={`mx-auto px-4 py-8 ${me ? "max-w-2xl" : "max-w-md"}`}>{body}</div>
     </>
   );
 }

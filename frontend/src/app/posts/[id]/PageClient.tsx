@@ -63,8 +63,7 @@ export default function PostPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  if (!data) return <Loading what="this post" />;
-  const isAuthor = me?.id === data.author_id;
+  const isAuthor = data ? me?.id === data.author_id : false;
 
   async function confirm() {
     setError(null);
@@ -94,8 +93,15 @@ export default function PostPage() {
 
   return (
     <>
-      <PageHeader title={data.title} lead={`Posted by ${data.author}`} />
+      <PageHeader
+        title={data?.title ?? "A problem report"}
+        lead={data ? `Posted by ${data.author}` : undefined}
+      />
       <div className="mx-auto max-w-3xl px-4 py-8">
+        {!data ? (
+          <Loading what="this post" />
+        ) : (
+          <>
         <BackLink href="/feed">Back to the feed</BackLink>
         {message ? <div className="mt-3"><Notice kind="good">{message}</Notice></div> : null}
         {error ? <div className="mt-3"><Notice kind="bad">{error}</Notice></div> : null}
@@ -206,6 +212,8 @@ export default function PostPage() {
             })}
           </ul>
         </Section>
+          </>
+        )}
       </div>
     </>
   );

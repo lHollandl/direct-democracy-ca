@@ -38,13 +38,13 @@ export default function AiActionsPage() {
     void get<Payload>("/ai/actions?limit=50").then(setData).catch(() => setData(null));
   }, []);
 
-  if (!data) return <Loading what="the AI log" />;
-
   return (
     <>
-      <PageHeader title="Everything AI has done here" lead={data.explanation} />
+      <PageHeader title="Everything AI has done here" lead={data?.explanation} />
       <div className="mx-auto max-w-4xl px-4 py-8">
-        {data.items.length === 0 ? (
+        {!data ? (
+          <Loading what="the AI log" />
+        ) : data.items.length === 0 ? (
           <Empty>No AI has acted on this platform yet.</Empty>
         ) : (
           <ol className="space-y-3">

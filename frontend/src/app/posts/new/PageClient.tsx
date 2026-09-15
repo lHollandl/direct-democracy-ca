@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { Loading, Notice, PageHeader, Section } from "@/components/ui";
@@ -40,20 +40,6 @@ export default function NewPostPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen]);
 
-  if (loading) return <Loading what="the form" />;
-  if (!me) {
-    return (
-      <>
-        <PageHeader title="Write down a problem" />
-        <div className="mx-auto max-w-md px-4 py-8">
-          <Notice>
-            <Link href="/login">Sign in</Link> to write down a problem.
-          </Notice>
-        </div>
-      </>
-    );
-  }
-
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     clear();
@@ -81,13 +67,19 @@ export default function NewPostPage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader
-        title="Write down a problem"
-        lead="And say what you think should be done about it. Nothing can be posted here without at least one proposed solution."
-      />
-      <div className="mx-auto max-w-2xl px-4 py-8">
+  let body: ReactNode;
+  if (loading) {
+    body = <Loading what="the form" />;
+  } else if (!me) {
+    body = (
+      <Notice>
+        <Link href="/login">Sign in</Link> to write down a problem.
+      </Notice>
+    );
+  } else {
+    const you = me;
+    body = (
+      <>
         {error ? (
           <Notice kind="bad" alertRef={alertRef}>
             {error}
@@ -163,7 +155,7 @@ export default function NewPostPage() {
           >
             <fieldset className="space-y-2">
               <legend className="sr-only">Communities</legend>
-              {me.home_communities.map((community) => {
+              {you.home_communities.map((community) => {
                 const key = `${community.level}:${community.entity_id}`;
                 return (
                   <label key={key} className="flex items-center gap-2">
@@ -225,7 +217,7 @@ export default function NewPostPage() {
             {mode === "author_selected" ? (
               <div className="mt-3 space-y-3">
                 {chosen.map((key) => {
-                  const community = me.home_communities.find(
+                  const community = you.home_communities.find(
                     (c) => `${c.level}:${c.entity_id}` === key,
                   );
                   return (
@@ -257,18 +249,32 @@ export default function NewPostPage() {
           <button
             type="submit"
             className="btn btn-primary mt-6"
-            disabled={busy || !chosen.length || !me.email_verified}
+            disabled={busy || !chosen.length || !you.email_verified}
           >
             {busy ? "Posting…" : "Post this"}
           </button>
-          {!me.email_verified ? (
+          {!you.email_verified ? (
             <p className="mt-2 text-sm text-[var(--muted)]">
               Confirm your email address first — the link is in the message we
               sent when you signed up.
             </p>
           ) : null}
         </form>
-      </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="Write down a problem"
+        lead={
+          me
+            ? "And say what you think should be done about it. Nothing can be posted here without at least one proposed solution."
+            : undefined
+        }
+      />
+      <div className={`mx-auto px-4 py-8 ${me ? "max-w-2xl" : "max-w-md"}`}>{body}</div>
     </>
   );
 }

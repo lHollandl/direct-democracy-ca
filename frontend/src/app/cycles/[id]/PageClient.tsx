@@ -29,15 +29,17 @@ export default function CyclePage() {
     void get<Cycle>(`/cycles/${id}`).then(setData).catch(() => setData(null));
   }, [id]);
 
-  if (!data) return <Loading what="this cycle" />;
-
   return (
     <>
       <PageHeader
-        title={`${data.community.label} — cycle ${data.number}`}
-        lead={`This cycle is ${data.state.replace("_", " ")}.`}
+        title={data ? `${data.community.label} — cycle ${data.number}` : "A ballot cycle"}
+        lead={data ? `This cycle is ${data.state.replace("_", " ")}.` : undefined}
       />
       <div className="mx-auto max-w-3xl px-4 py-8">
+        {!data ? (
+          <Loading what="this cycle" />
+        ) : (
+          <>
         <BackLink href="/ballot">Back to the ballot</BackLink>
 
         <Section title="Where it stands">
@@ -103,6 +105,8 @@ export default function CyclePage() {
             </table>
           </div>
         </Section>
+          </>
+        )}
       </div>
     </>
   );

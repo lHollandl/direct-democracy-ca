@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { apiBase, get } from "@/lib/api";
 import { Badge, Loading, Notice, PageHeader, Section } from "@/components/ui";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
@@ -67,16 +67,13 @@ export default function SummaryPage() {
     void get<Payload>(base).then(setData).catch(() => setData(null));
   }, [base]);
 
-  if (!data) return <Loading what="this document" />;
-  const header = data.document.header;
-
-  return (
-    <>
-      <PageHeader
-        title={`Ballot results — ${header.community_label}`}
-        lead={`Cycle ${header.cycle_number}`}
-      />
-      <div className="mx-auto max-w-3xl px-4 py-8">
+  let body: ReactNode;
+  if (!data) {
+    body = <Loading what="this document" />;
+  } else {
+    const header = data.document.header;
+    body = (
+      <>
         <Section title="Who voted">
           <ul className="space-y-1 text-sm">
             <li>Ballot opened: {String(header.ballot_opened_at ?? "—")}</li>
@@ -199,7 +196,17 @@ export default function SummaryPage() {
             Send to my representatives
           </a>
         </Section>
-      </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageHeader
+        title={data ? `Ballot results — ${data.document.header.community_label}` : "Ballot results"}
+        lead={data ? `Cycle ${data.document.header.cycle_number}` : undefined}
+      />
+      <div className="mx-auto max-w-3xl px-4 py-8">{body}</div>
     </>
   );
 }

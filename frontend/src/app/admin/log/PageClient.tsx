@@ -40,13 +40,13 @@ export default function AdminLogPage() {
     void get<Payload>("/admin/log?limit=50").then(setData).catch(() => setData(null));
   }, []);
 
-  if (!data) return <Loading what="the administrator log" />;
-
   return (
     <>
-      <PageHeader title="Everything an administrator has done" lead={data.explanation} />
+      <PageHeader title="Everything an administrator has done" lead={data?.explanation} />
       <div className="mx-auto max-w-4xl px-4 py-8">
-        {data.items.length === 0 ? (
+        {!data ? (
+          <Loading what="the administrator log" />
+        ) : data.items.length === 0 ? (
           <Empty>No administrator has done anything yet.</Empty>
         ) : (
           <ol className="space-y-3">

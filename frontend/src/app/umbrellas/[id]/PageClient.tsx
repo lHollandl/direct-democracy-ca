@@ -114,31 +114,33 @@ export default function UmbrellaPage() {
   const { data, reload } = useLoader<Page>(() => get<Page>(`/umbrellas/${id}`), [id]);
   const load = reload;
 
-  if (!data) return <Loading what="this workshop" />;
-
   const isMember =
-    me?.home_communities.some(
+    !!data &&
+    (me?.home_communities.some(
       (c) =>
         c.level === data.problem.community.level &&
         c.entity_id === data.problem.community.entity_id,
-    ) ?? false;
+    ) ?? false);
   const canAct = isMember && (me?.email_verified ?? false);
 
   return (
     <>
-      <PageHeader
-        title={data.problem.name}
-        lead={data.problem.statement}
-      >
-        <p className="mt-3 text-sm">
-          {data.problem.community.label}
-          {data.problem.main_category ? ` · ${data.problem.main_category}` : ""} ·{" "}
-          {data.problem.active_users} active{" "}
-          {data.problem.active_users === 1 ? "resident" : "residents"}
-        </p>
+      <PageHeader title={data?.problem.name ?? "The workshop"} lead={data?.problem.statement}>
+        {data ? (
+          <p className="mt-3 text-sm">
+            {data.problem.community.label}
+            {data.problem.main_category ? ` · ${data.problem.main_category}` : ""} ·{" "}
+            {data.problem.active_users} active{" "}
+            {data.problem.active_users === 1 ? "resident" : "residents"}
+          </p>
+        ) : null}
       </PageHeader>
 
       <div className="mx-auto max-w-3xl px-4 py-8">
+        {!data ? (
+          <Loading what="this workshop" />
+        ) : (
+          <>
         {error ? (
           <Notice kind="bad" alertRef={alertRef}>
             {error}
@@ -425,6 +427,8 @@ export default function UmbrellaPage() {
             </>
           )}
         </Section>
+          </>
+        )}
       </div>
     </>
   );

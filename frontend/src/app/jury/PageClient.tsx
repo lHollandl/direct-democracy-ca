@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
@@ -56,21 +56,6 @@ export default function JuryPage() {
     }
   }, [me]);
 
-  if (loading) return <Loading what="your jury duty" />;
-  if (!me) {
-    return (
-      <>
-        <PageHeader title="Jury duty" />
-        <div className="mx-auto max-w-md px-4 py-8">
-          <Notice>
-            <Link href="/login">Sign in</Link> to see whether you have been drawn.
-          </Notice>
-        </div>
-      </>
-    );
-  }
-  if (duties === null) return <Loading what="your jury duty" />;
-
   async function answer(jurorId: number, choice: "accept" | "decline") {
     clear();
     try {
@@ -84,13 +69,20 @@ export default function JuryPage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader
-        title="Jury duty"
-        lead="Before a ballot opens, a few residents drawn at random look over what qualified. You cannot change anything. You can hold something back, in public, with a reason."
-      />
-      <div className="mx-auto max-w-3xl px-4 py-8">
+  let body: ReactNode;
+  if (loading) {
+    body = <Loading what="your jury duty" />;
+  } else if (!me) {
+    body = (
+      <Notice>
+        <Link href="/login">Sign in</Link> to see whether you have been drawn.
+      </Notice>
+    );
+  } else if (duties === null) {
+    body = <Loading what="your jury duty" />;
+  } else {
+    body = (
+      <>
         {note ? <Notice kind="good">{note}</Notice> : null}
         {error ? (
           <Notice kind="bad" alertRef={alertRef}>
@@ -177,6 +169,22 @@ export default function JuryPage() {
             </Section>
           ))
         )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="Jury duty"
+        lead={
+          !loading && me && duties !== null
+            ? "Before a ballot opens, a few residents drawn at random look over what qualified. You cannot change anything. You can hold something back, in public, with a reason."
+            : undefined
+        }
+      />
+      <div className={`mx-auto px-4 py-8 ${!loading && me && duties !== null ? "max-w-3xl" : "max-w-md"}`}>
+        {body}
       </div>
     </>
   );

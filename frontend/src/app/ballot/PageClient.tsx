@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ApiError, get, put } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
@@ -69,21 +69,6 @@ export default function BallotPage() {
     return found;
   }, [me]);
 
-  if (loading) return <Loading what="your ballots" />;
-  if (!me) {
-    return (
-      <>
-        <PageHeader title="The ballot" />
-        <div className="mx-auto max-w-md px-4 py-8">
-          <Notice>
-            <Link href="/login">Sign in</Link> to see your community&apos;s ballot.
-          </Notice>
-        </div>
-      </>
-    );
-  }
-  if (!ballots) return <Loading what="your ballots" />;
-
   async function vote(cycleId: number, itemId: number, choice: "yes" | "no") {
     setError(null);
     try {
@@ -94,22 +79,30 @@ export default function BallotPage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader
-        title="The ballot"
-        lead="Solutions your community worked on, frozen as they were when the ballot was prepared. One vote each, counted the same."
-      />
-      <div className="mx-auto max-w-3xl px-4 py-8">
+  let body: ReactNode;
+  if (loading) {
+    body = <Loading what="your ballots" />;
+  } else if (!me) {
+    body = (
+      <Notice>
+        <Link href="/login">Sign in</Link> to see your community&apos;s ballot.
+      </Notice>
+    );
+  } else if (!ballots) {
+    body = <Loading what="your ballots" />;
+  } else {
+    const list = ballots;
+    body = (
+      <>
         {error ? <Notice kind="bad">{error}</Notice> : null}
-        {ballots.length === 0 ? (
+        {list.length === 0 ? (
           <Empty>
             No ballot has been prepared in your communities yet. Work on
             solutions in the <Link href="/feed">workshop</Link> and they will get
             there.
           </Empty>
         ) : (
-          ballots.map((ballot) => (
+          list.map((ballot) => (
             <Section
               key={ballot.cycle_id}
               title={`${ballot.community.label} — cycle ${ballot.cycle_number}`}
@@ -170,6 +163,22 @@ export default function BallotPage() {
             </Section>
           ))
         )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="The ballot"
+        lead={
+          me && ballots
+            ? "Solutions your community worked on, frozen as they were when the ballot was prepared. One vote each, counted the same."
+            : undefined
+        }
+      />
+      <div className={`mx-auto px-4 py-8 ${me && ballots ? "max-w-3xl" : "max-w-md"}`}>
+        {body}
       </div>
     </>
   );

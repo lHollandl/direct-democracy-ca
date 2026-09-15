@@ -24,13 +24,13 @@ export default function HashesPage() {
       .catch(() => setData(null));
   }, []);
 
-  if (!data) return <Loading what="the fingerprints" />;
-
   return (
     <>
-      <PageHeader title="Every published document, and its fingerprint" lead={data.explanation} />
+      <PageHeader title="Every published document, and its fingerprint" lead={data?.explanation} />
       <div className="mx-auto max-w-4xl px-4 py-8">
-        {data.summaries.length === 0 ? (
+        {!data ? (
+          <Loading what="the fingerprints" />
+        ) : data.summaries.length === 0 ? (
           <Empty>Nothing has been published yet.</Empty>
         ) : (
           <div className="overflow-x-auto">

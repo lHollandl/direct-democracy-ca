@@ -20,16 +20,20 @@ export default function LegalPage() {
     void get<Legal>("/legal/cookies").then(setDoc).catch(() => setDoc(null));
   }, []);
 
-  if (!doc) return <Loading what="this page" />;
-
   return (
     <>
-      <PageHeader title="Cookies" lead={`Version ${doc.version}`} />
+      <PageHeader title="Cookies" lead={doc ? `Version ${doc.version}` : undefined} />
       <div className="mx-auto max-w-2xl px-4 py-8">
-        {doc.is_draft ? <Notice kind="bad">{doc.draft_warning}</Notice> : null}
-        <div className="mt-6">
-          <Markdown text={doc.markdown} />
-        </div>
+        {!doc ? (
+          <Loading what="this page" />
+        ) : (
+          <>
+            {doc.is_draft ? <Notice kind="bad">{doc.draft_warning}</Notice> : null}
+            <div className="mt-6">
+              <Markdown text={doc.markdown} />
+            </div>
+          </>
+        )}
       </div>
     </>
   );
