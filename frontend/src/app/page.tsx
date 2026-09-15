@@ -1,7 +1,29 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 
-export default function Home() {
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+
+/**
+ * `jury_size` decides a democratic status and so must never be a constant in
+ * copy (CLAUDE.md Law 8) — it is read from the public settings, the same
+ * value every other page uses. `null` on a fetch failure, so the sentence
+ * below can fall back to wording that carries no number rather than a stale
+ * one (audit demo-01 run 4, LOW).
+ */
+async function citizensDrawnForJury(): Promise<number | null> {
+  try {
+    const response = await fetch(`${API_BASE}/settings`, { cache: "no-store" });
+    if (!response.ok) return null;
+    const body: { settings: { key: string; value: unknown }[] } = await response.json();
+    const row = body.settings.find((setting) => setting.key === "jury_size");
+    return typeof row?.value === "number" ? row.value : null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function Home() {
+  const jurySize = await citizensDrawnForJury();
   return (
     <>
       <PageHeader
@@ -23,8 +45,14 @@ export default function Home() {
             },
             {
               step: "3",
-              title: "Three neighbours check it over",
-              body: "Before a ballot, three residents drawn at random look at what qualified. They cannot change anything. They can hold something back, in public, with a reason.",
+              title:
+                jurySize !== null
+                  ? `${jurySize} neighbours check it over`
+                  : "Neighbours check it over",
+              body:
+                jurySize !== null
+                  ? `Before a ballot, ${jurySize} residents drawn at random look at what qualified. They cannot change anything. They can hold something back, in public, with a reason.`
+                  : "Before a ballot, residents drawn at random — see the settings page for how many — look at what qualified. They cannot change anything. They can hold something back, in public, with a reason.",
             },
             {
               step: "4",
