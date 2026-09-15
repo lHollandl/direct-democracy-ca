@@ -7,10 +7,8 @@ from pydantic import BaseModel, Field
 
 from backend.deps import OptionalUser, SessionDep, VerifiedUser, require_member
 from backend.services import comments as comments_service
-from backend.services import community as community_service
 from backend.services import references as references_service
 from backend.services import rules
-from backend.services import settings as settings_service
 from backend.services import solutions as solutions_service
 from backend.services import umbrellas as umbrellas_service
 
@@ -40,17 +38,13 @@ async def umbrella_solutions(
     umbrella_id: int, session: SessionDep, viewer: OptionalUser
 ) -> dict:
     umbrella = await solutions_service.require_umbrella(session, umbrella_id)
-    active_users = await community_service.active_user_count(
-        session, umbrella.community_level, umbrella.community_entity_id
-    )
-    values = await settings_service.all_values(session)
     return {
         "ordering": {
             "version": rules.SOLUTION_ORDER_VERSION,
             "explanation": rules.SOLUTION_ORDER_EXPLANATION,
         },
         "solutions": await umbrellas_service.solution_list(
-            session, umbrella, viewer.id if viewer else None, active_users, values
+            session, umbrella, viewer.id if viewer else None
         ),
     }
 

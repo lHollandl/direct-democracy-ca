@@ -123,6 +123,13 @@ async def decide(
     session: AsyncSession, *, similarity: AmendmentSimilarity, user: User, choice: str
 ) -> dict:
     """A person presses Same or Different. The AI suggested; this decides."""
+    from backend.deps import require_member
+    from backend.services import amendments as amendments_service
+
+    amendment = await amendments_service.require_amendment(session, similarity.amendment_a_id)
+    level, entity_id = await amendments_service.community_of(session, amendment)
+    await require_member(session, user, level, entity_id)
+
     if similarity.decision != "pending":
         raise Conflict(
             f"That pair has already been settled as {similarity.decision}.",

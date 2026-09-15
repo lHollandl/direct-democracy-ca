@@ -492,6 +492,23 @@ async def request_relabel(session: AsyncSession, post: Post) -> None:
     _schedule_labeling(session, post.id, name_prefix="relabel")
 
 
+async def request_relabel_as_admin(session: AsyncSession, *, post: Post, admin: User) -> None:
+    """Relabels and writes the admin log row in one service call
+    (ARCHITECTURE.md §2/§10)."""
+    from backend.services import admin_log
+
+    old_status = post.label_status
+    await request_relabel(session, post)
+    await admin_log.record(
+        session,
+        admin_user_id=admin.id,
+        action="force_relabel",
+        subject_type="post",
+        subject_id=post.id,
+        old_value={"label_status": old_status},
+    )
+
+
 async def require_post(session: AsyncSession, post_id: int) -> Post:
     post = await posts_repo.get(session, post_id)
     if post is None or post.deleted_at is not None:

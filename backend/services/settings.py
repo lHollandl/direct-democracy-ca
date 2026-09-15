@@ -204,9 +204,59 @@ async def change(
     return old_value, new_value
 
 
+async def change_as_admin(
+    session: AsyncSession, *, key: str, value: str, admin_user_id: int, reason: str
+) -> dict:
+    """`POST /admin/settings` — changes the setting and writes the admin log
+    row in the one service call ARCHITECTURE.md §2/§10 asks for."""
+    from backend.services import admin_log
+
+    old_value, new_value = await change(
+        session, key=key, value=value, changed_by=admin_user_id, reason=reason
+    )
+    await admin_log.record(
+        session,
+        admin_user_id=admin_user_id,
+        action="change_setting",
+        subject_type="setting",
+        old_value={"key": key, "value": old_value},
+        new_value={"key": key, "value": new_value},
+        reason=reason,
+    )
+    return {
+        "key": key,
+        "old_value": old_value,
+        "new_value": new_value,
+        "message": (
+            "Changed. The new value is on the public settings page and the change "
+            "is in the public admin log."
+        ),
+    }
+
+
 async def invalidate_cache() -> None:
     await redis_client.cache_delete_prefix(CACHE_KEY)
 
 
-async def history(session: AsyncSession, key: str | None = None):
-    return await settings_repo.history(session, key)
+async def history(session: AsyncSession, key: str | None = None) -> list[dict[str, Any]]:
+    """`GET /settings/history` — every past value, with the display name of
+    whoever changed it (ARCHITECTURE.md §2/§10: resolved here, not by the
+    router, per the author-display rule, DATABASE.md §3.2)."""
+    from backend.services.display import author_displays
+
+    rows = await settings_repo.history(session, key)
+    displays = await author_displays(session, [r.changed_by for r in rows if r.changed_by])
+    return [
+        {
+            "key": r.key,
+            "value": r.value,
+            "effective_from": r.effective_from,
+            "changed_by": (
+                displays.get(r.changed_by, "Former Community Member")
+                if r.changed_by
+                else "the platform seed"
+            ),
+            "reason": r.reason,
+        }
+        for r in rows
+    ]

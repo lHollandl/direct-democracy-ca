@@ -12,7 +12,6 @@ from backend.deps import CurrentUser, SessionDep
 from backend.errors import Unauthorized
 from backend.routers.common import Message
 from backend.services import auth as auth_service
-from backend.services import security
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -137,20 +136,10 @@ async def refresh(request: Request, response: Response, session: SessionDep) -> 
 
 @router.post("/logout", response_model=Message)
 async def logout(request: Request, response: Response, session: SessionDep) -> Message:
-    jti = None
-    exp = None
-    header = request.headers.get("Authorization", "")
-    if header.startswith("Bearer "):
-        try:
-            payload = security.decode_access_token(header[7:])
-            jti, exp = payload.get("jti"), payload.get("exp")
-        except Unauthorized:
-            pass
     await auth_service.logout(
         session,
         raw_refresh_token=request.cookies.get(REFRESH_COOKIE),
-        access_jti=jti,
-        access_exp=exp,
+        authorization_header=request.headers.get("Authorization", ""),
     )
     response.delete_cookie(REFRESH_COOKIE, path="/")
     return Message(message="Signed out.")

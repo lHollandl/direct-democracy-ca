@@ -25,6 +25,7 @@ from backend.repositories import umbrellas as umbrellas_repo
 from backend.services import ai_log
 from backend.services import community as community_service
 from backend.services import hashing
+from backend.services import pdf as pdf_service
 from backend.services import rules
 from backend.services.display import author_displays
 
@@ -347,6 +348,12 @@ async def require_summary(session: AsyncSession, *, cycle: Cycle):
     if summary is None:
         raise NotFound("That cycle has no published summary.", code="summary_not_found")
     return summary
+
+
+async def pdf_bytes(session: AsyncSession, *, cycle: Cycle, url: str) -> bytes:
+    """`GET /summaries/{level}/{entity_id}/{number}/pdf` — DEMOCRACY.md §11.6."""
+    summary = await require_summary(session, cycle=cycle)
+    return pdf_service.render(summary.data, summary.summary_hash, url)
 
 
 async def cycle_for(

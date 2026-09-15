@@ -18,7 +18,6 @@ from backend.services import admin_log
 from backend.services import ai_log
 from backend.services import rules
 from backend.services import settings as settings_service
-from backend.services.display import author_displays
 
 router = APIRouter(tags=["transparency"])
 
@@ -67,22 +66,7 @@ class SettingHistoryOut(BaseModel):
 async def settings_history(
     session: SessionDep, key: str | None = Query(default=None)
 ) -> list[SettingHistoryOut]:
-    rows = await settings_service.history(session, key)
-    displays = await author_displays(session, [r.changed_by for r in rows if r.changed_by])
-    return [
-        SettingHistoryOut(
-            key=r.key,
-            value=r.value,
-            effective_from=r.effective_from,
-            changed_by=(
-                displays.get(r.changed_by, "Former Community Member")
-                if r.changed_by
-                else "the platform seed"
-            ),
-            reason=r.reason,
-        )
-        for r in rows
-    ]
+    return [SettingHistoryOut(**row) for row in await settings_service.history(session, key)]
 
 
 class AiActionOut(BaseModel):

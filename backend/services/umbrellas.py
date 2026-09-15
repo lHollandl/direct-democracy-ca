@@ -136,11 +136,21 @@ async def solution_list(
     session: AsyncSession,
     umbrella: Umbrella,
     viewer_id: int | None,
-    active_users: int,
-    values: dict,
+    active_users: int | None = None,
+    values: dict | None = None,
 ) -> list[dict]:
     """DEMOCRACY.md §3.3 item 4 — every solution, net score descending, ties
-    oldest first. Nothing hidden."""
+    oldest first. Nothing hidden.
+
+    `active_users`/`values` are precomputed by `page()`, which already has
+    them, to avoid a second lookup; `GET /umbrellas/{id}/solutions` calls this
+    directly and leaves them to be resolved here (ARCHITECTURE.md §2/§10)."""
+    if active_users is None:
+        active_users = await community_service.active_user_count(
+            session, umbrella.community_level, umbrella.community_entity_id
+        )
+    if values is None:
+        values = await settings_service.all_values(session)
     rows = await solutions_repo.in_umbrella(session, umbrella.id)
     versions = await solutions_repo.current_versions(session, [s.id for s in rows])
     displays = await author_displays(session, [s.author_id for s in rows])

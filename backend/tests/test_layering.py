@@ -112,3 +112,106 @@ def test_no_service_touches_the_session_or_builds_its_own_query():
             continue
         violations.extend(_service_violations(path))
     assert not violations, "Layering violations in backend/services/:\n" + "\n".join(violations)
+
+
+#: A router-decorated endpoint may call any number of `require_*` resolvers —
+#: they fetch and validate, they never decide anything — but at most one
+#: *other* service module (ARCHITECTURE.md §2, §10; audit demo-01 run 2,
+#: MEDIUM: `solutions.py::get_solution` alone made ten service calls across
+#: five modules and computed three thresholds itself). `backend.deps`
+#: dependencies (`require_member`, `current_user`, ...) are not services and
+#: are not counted at all.
+_HTTP_METHODS = ("get", "post", "put", "patch", "delete")
+
+#: `rules.py` module-level constants (`RULES_VERSION`, `FEED_VERSION`, ...)
+#: are printed directly wherever a page needs to cite the rule version in
+#: force (ARCHITECTURE.md §2 — "a RULES_VERSION constant printed in every
+#: summary"); that is a plain attribute read, not a call, so it never reaches
+#: `_ServiceUsage.calls`. Calling one of `rules.py`'s actual functions —
+#: computing a threshold — is the "threshold arithmetic" §10 forbids in a
+#: router; it must happen inside a service instead.
+
+
+def _imported_service_modules(tree: ast.Module) -> dict[str, str]:
+    """Map every name a file can call straight through to the
+    `backend.services` (sub)module it resolves to — `comments_service` ->
+    `backend.services.comments`, `author_displays` ->
+    `backend.services.display` — so two different aliases for the same
+    module are not double-counted."""
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module and (
+            node.module == "backend.services" or node.module.startswith("backend.services.")
+        ):
+            for alias in node.names:
+                local_name = alias.asname or alias.name
+                module = (
+                    f"{node.module}.{alias.name}" if node.module == "backend.services" else node.module
+                )
+                aliases[local_name] = module
+    return aliases
+
+
+def _endpoint_functions(tree: ast.Module):
+    for node in tree.body:
+        if not isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef)):
+            continue
+        for deco in node.decorator_list:
+            if (
+                isinstance(deco, ast.Call)
+                and isinstance(deco.func, ast.Attribute)
+                and deco.func.attr in _HTTP_METHODS
+            ):
+                yield node
+                break
+
+
+def _router_endpoint_violations(path: Path) -> list[str]:
+    tree = _parse(path)
+    aliases = _imported_service_modules(tree)
+    violations: list[str] = []
+    for func in _endpoint_functions(tree):
+        modules_used: set[str] = set()
+        for node in ast.walk(func):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                base, attr = node.func.value.id, node.func.attr
+                module = aliases.get(base)
+                if module is None:
+                    continue
+                if attr.startswith("require_"):
+                    continue
+                if module == "backend.services.rules" and attr[:1].islower():
+                    violations.append(
+                        f"{path.name}:{node.lineno} {func.name}() calls rules.{attr}(...) — "
+                        "threshold arithmetic belongs in a service, never in a router "
+                        "(ARCHITECTURE.md §2, §10)"
+                    )
+                    continue
+                modules_used.add(module)
+            elif isinstance(node.func, ast.Name):
+                module = aliases.get(node.func.id)
+                if module is not None and not node.func.id.startswith("require_"):
+                    modules_used.add(module)
+        if len(modules_used) > 1:
+            violations.append(
+                f"{path.name} {func.name}() calls service modules {sorted(modules_used)} — "
+                "an endpoint calls at most one service module beyond a `require_*` "
+                "resolver; move the assembly into that one service function "
+                "(ARCHITECTURE.md §2, §10)"
+            )
+    return violations
+
+
+def test_no_endpoint_calls_more_than_one_service_module_or_does_threshold_arithmetic():
+    """Audit demo-01 run 2, MEDIUM: `get_solution` assembled its response from
+    ten service calls across five modules and computed thresholds inline
+    instead of calling `solutions_service.detail_view`. Fixed by FIX-11; this
+    guards against it regressing."""
+    violations: list[str] = []
+    for path in sorted(ROUTERS_DIR.glob("*.py")):
+        if path.name in ("__init__.py", "common.py"):
+            continue
+        violations.extend(_router_endpoint_violations(path))
+    assert not violations, "Layering violations in backend/routers/:\n" + "\n".join(violations)

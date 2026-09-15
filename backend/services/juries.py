@@ -458,16 +458,31 @@ async def admin_user_view(session: AsyncSession, user_id: int) -> dict:
     }
 
 
-async def redraw_for_admin(session: AsyncSession, *, cycle: Cycle, reason: str) -> dict:
-    """`POST /admin/cycles/{id}/redraw-jury` — the old jury's id (if any) plus
-    the freshly drawn one, for the admin log entry."""
+async def redraw_for_admin(
+    session: AsyncSession, *, cycle: Cycle, reason: str, admin: User
+) -> dict:
+    """`POST /admin/cycles/{id}/redraw-jury` — redraws and writes the admin
+    log row in one service call (ARCHITECTURE.md §2/§10)."""
     old_jury = await cycles_repo.jury_for_cycle(session, cycle.id)
     jury = await redraw(session, cycle=cycle, reason=reason)
     jurors = await cycles_repo.jurors(session, jury.id)
+
+    from backend.services import admin_log
+
+    await admin_log.record(
+        session,
+        admin_user_id=admin.id,
+        action="redraw_jury",
+        subject_type="cycle",
+        subject_id=cycle.id,
+        old_value={"jury_id": old_jury.id if old_jury else None},
+        new_value={"jury_id": jury.id, "drawn": len(jurors)},
+        reason=reason,
+    )
     return {
         "jury_id": jury.id,
         "drawn": len(jurors),
-        "old_jury_id": old_jury.id if old_jury else None,
+        "reason": reason,
     }
 
 

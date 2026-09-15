@@ -29,7 +29,9 @@ from backend.repositories import votes as votes_repo
 from backend.services import hashing
 from backend.services import rules
 from backend.services import settings as settings_service
+from backend.services import similarity as similarity_service
 from backend.services import solutions as solutions_service
+from backend.services.display import author_displays
 
 log = logging.getLogger(__name__)
 
@@ -271,16 +273,33 @@ async def community_of_solution(session: AsyncSession, solution: Solution) -> tu
 
 
 async def list_for_solution(session: AsyncSession, solution: Solution) -> dict:
-    """`GET /solutions/{id}/amendments` — everything but the author display
-    names and the similarity pairs, which the router adds from their own
-    service calls."""
+    """`GET /solutions/{id}/amendments` — the whole response (ARCHITECTURE.md
+    §2/§10: one service call per router endpoint beyond a `require_*`
+    resolver)."""
     rows = await solutions_repo.amendments_for(session, solution.id)
     current = await solutions_repo.current_version(session, solution.id)
     text = current.text_body if current else ""
+    displays = await author_displays(session, [a.author_id for a in rows])
     return {
-        "rows": rows,
-        "current_text": text,
+        "solution_id": solution.id,
         "current_version": solution.current_version,
         "absorption_threshold": await absorption_threshold_for(session, solution.id),
         "supporters": await solutions_repo.supporters(session, solution.id),
+        "amendments": [
+            {
+                "id": a.id,
+                "author": displays.get(a.author_id, "Former Community Member"),
+                "proposed_text": a.proposed_text,
+                "rationale": a.rationale,
+                "status": a.status,
+                "base_version": a.base_version,
+                "absorbed_as_version": a.absorbed_as_version,
+                "merged_into_id": a.merged_into_id,
+                "net_score": a.net_score,
+                "diff": diff(text, a.proposed_text),
+                "created_at": a.created_at,
+            }
+            for a in rows
+        ],
+        "similar_pairs": await similarity_service.pairs_for_solution(session, solution.id),
     }

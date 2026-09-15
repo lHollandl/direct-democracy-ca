@@ -249,6 +249,23 @@ async def recommend(session: AsyncSession, *, umbrella: Umbrella) -> dict:
     return {"added": added, "queries": queries, "ai_action_id": action.id}
 
 
+async def recommend_as_admin(session: AsyncSession, *, umbrella: Umbrella, admin: User) -> dict:
+    """`POST /admin/umbrellas/{id}/recommend-references` — recommends and
+    writes the admin log row in one service call (ARCHITECTURE.md §2/§10)."""
+    from backend.services import admin_log
+
+    result = await recommend(session, umbrella=umbrella)
+    await admin_log.record(
+        session,
+        admin_user_id=admin.id,
+        action="recommend_references",
+        subject_type="umbrella",
+        subject_id=umbrella.id,
+        new_value={"added": len(result["added"]), "queries": result["queries"]},
+    )
+    return result
+
+
 async def listing(session: AsyncSession, umbrella_id: int) -> dict:
     rows = await references_repo.for_umbrella(session, umbrella_id)
     counts = await references_repo.feedback_counts(session, [r.id for r in rows])

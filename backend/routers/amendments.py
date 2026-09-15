@@ -10,7 +10,6 @@ from backend.routers.common import Message
 from backend.services import amendments as amendments_service
 from backend.services import similarity as similarity_service
 from backend.services import solutions as solutions_service
-from backend.services.display import author_displays
 
 router = APIRouter(tags=["amendments"])
 
@@ -52,33 +51,7 @@ async def propose_amendment(
 @router.get("/solutions/{solution_id}/amendments")
 async def list_amendments(solution_id: int, session: SessionDep) -> dict:
     solution = await solutions_service.require_solution(session, solution_id)
-    data = await amendments_service.list_for_solution(session, solution)
-    rows = data["rows"]
-    text = data["current_text"]
-    displays = await author_displays(session, [a.author_id for a in rows])
-    return {
-        "solution_id": solution.id,
-        "current_version": data["current_version"],
-        "absorption_threshold": data["absorption_threshold"],
-        "supporters": data["supporters"],
-        "amendments": [
-            {
-                "id": a.id,
-                "author": displays.get(a.author_id, "Former Community Member"),
-                "proposed_text": a.proposed_text,
-                "rationale": a.rationale,
-                "status": a.status,
-                "base_version": a.base_version,
-                "absorbed_as_version": a.absorbed_as_version,
-                "merged_into_id": a.merged_into_id,
-                "net_score": a.net_score,
-                "diff": amendments_service.diff(text, a.proposed_text),
-                "created_at": a.created_at,
-            }
-            for a in rows
-        ],
-        "similar_pairs": await similarity_service.pairs_for_solution(session, solution.id),
-    }
+    return await amendments_service.list_for_solution(session, solution)
 
 
 @router.post("/amendments/{amendment_id}/withdraw", response_model=Message)
@@ -99,9 +72,6 @@ async def decide_similarity(
     similarity_id: int, body: DecisionIn, user: VerifiedUser, session: SessionDep
 ) -> dict:
     similarity = await similarity_service.require_similarity(session, similarity_id)
-    amendment = await amendments_service.require_amendment(session, similarity.amendment_a_id)
-    level, entity_id = await amendments_service.community_of(session, amendment)
-    await require_member(session, user, level, entity_id)
     return await similarity_service.decide(
         session, similarity=similarity, user=user, choice=body.choice
     )

@@ -21,9 +21,15 @@ from backend.repositories import posts as posts_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
 from backend.repositories import votes as votes_repo
+from backend.services import ai_log
+from backend.services import comments as comments_service
 from backend.services import community as community_service
 from backend.services import hashing
+from backend.services import juries as juries_service
+from backend.services import rules
 from backend.services import settings as settings_service
+from backend.services import similarity as similarity_service
+from backend.services.display import author_displays
 
 log = logging.getLogger(__name__)
 
@@ -241,9 +247,11 @@ async def require_solution(session: AsyncSession, solution_id: int) -> Solution:
 
 
 async def detail_view(session: AsyncSession, solution: Solution, viewer: User | None) -> dict:
-    """`GET /solutions/{id}` — everything but the author display names, the
-    similarity pairs and the discussion thread, which the router adds from
-    their own service calls."""
+    """`GET /solutions/{id}` — the whole page (ARCHITECTURE.md §2: one service
+    call per router endpoint beyond a `require_*` resolver; audit demo-01
+    run 2 found this assembled across ten service calls in the router)."""
+    from backend.services import amendments as amendments_service
+
     umbrella = await require_umbrella(session, solution.umbrella_id)
     versions = await solutions_repo.versions(session, solution.id)
     values = await settings_service.all_values(session)
@@ -261,13 +269,100 @@ async def detail_view(session: AsyncSession, solution: Solution, viewer: User | 
     community = await community_service.resolve(
         session, umbrella.community_level, umbrella.community_entity_id
     )
+    displays = await author_displays(
+        session, [solution.author_id] + [v.created_by for v in versions]
+    )
+    amendment_displays = await author_displays(session, [a.author_id for a in amendments])
+    current = versions[-1].text_body if versions else ""
+
     return {
-        "umbrella": umbrella,
-        "community": community,
-        "versions": versions,
-        "values": values,
-        "active_users": active_users,
+        "id": solution.id,
+        "umbrella": {"id": umbrella.id, "name": umbrella.name},
+        "community": community.as_dict(),
+        "text": current,
+        "current_version": solution.current_version,
+        "author": displays.get(solution.author_id, "Former Community Member"),
+        "net_score": solution.net_score,
         "my_vote": my_vote,
-        "amendments": amendments,
         "supporters": await solutions_repo.supporters(session, solution.id),
+        "is_dominant": solution.is_dominant,
+        "dominant_since": solution.dominant_since,
+        "dominant_threshold": rules.dominant_threshold(
+            dominant_pct=values["dominant_pct"],
+            dominant_min=values["dominant_min"],
+            active_users=active_users,
+        ),
+        "ballot_threshold": rules.ballot_threshold(
+            ballot_pct=values["ballot_pct"],
+            ballot_min=values["ballot_min"],
+            active_users=active_users,
+        ),
+        "absorption_threshold": await amendments_service.absorption_threshold_for(
+            session, solution.id
+        ),
+        "on_track_for_ballot": rules.on_track_for_ballot(
+            is_dominant_now=solution.is_dominant,
+            net_score_value=solution.net_score,
+            ballot_pct=values["ballot_pct"],
+            ballot_min=values["ballot_min"],
+            active_users=active_users,
+        ),
+        "last_ballot_result": solution.last_ballot_result,
+        "last_ballot_version": solution.last_ballot_version,
+        "return_rule_note": (
+            "A solution that has been on a ballot — passed, failed or held back — "
+            "returns only once it has a newer version. The way back is an amendment."
+        ),
+        "ownership_note": (
+            "Solutions belong to the community once posted. The author is recorded "
+            "and shown; changes happen through amendments."
+        ),
+        "versions": [
+            {
+                "version": v.version,
+                "text": v.text_body,
+                "written_by": displays.get(v.created_by, "Former Community Member"),
+                "from_amendment_id": v.amendment_id,
+                "content_hash": v.content_hash,
+                "created_at": v.created_at,
+            }
+            for v in versions
+        ],
+        "amendments": [
+            {
+                "id": a.id,
+                "author": amendment_displays.get(a.author_id, "Former Community Member"),
+                "proposed_text": a.proposed_text,
+                "rationale": a.rationale,
+                "status": a.status,
+                "base_version": a.base_version,
+                "absorbed_as_version": a.absorbed_as_version,
+                "merged_into_id": a.merged_into_id,
+                "net_score": a.net_score,
+                "diff": amendments_service.diff(current, a.proposed_text),
+                "content_hash": a.content_hash,
+                "created_at": a.created_at,
+            }
+            for a in amendments
+        ],
+        "similar_pairs": await similarity_service.pairs_for_solution(session, solution.id),
+        "discussion": (
+            await comments_service.thread(
+                session,
+                target_type="solution",
+                target_id=solution.id,
+                viewer_id=viewer.id if viewer else None,
+            )
+            if solution.is_dominant
+            else []
+        ),
+        "discussion_note": (
+            None
+            if solution.is_dominant
+            else "Discussion opens when a solution becomes dominant."
+        ),
+        "ai_influence": ai_log.influence(
+            versions[-1].ai_contribution_percentage if versions else 0
+        ),
+        "jury_notes": await juries_service.jury_notes_for_solution(session, solution.id),
     }

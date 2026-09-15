@@ -241,10 +241,17 @@ async def _revoke_chain_in_own_transaction(refresh_token_id: int) -> int:
 
 
 async def logout(
-    session: AsyncSession, *, raw_refresh_token: str | None, access_jti: str | None, access_exp: int | None
+    session: AsyncSession, *, raw_refresh_token: str | None, authorization_header: str
 ) -> None:
     """Revoke the refresh token and blacklist the access token's jti for the
     remainder of its life (ARCHITECTURE.md §4)."""
+    access_jti = access_exp = None
+    if authorization_header.startswith("Bearer "):
+        try:
+            payload = security.decode_access_token(authorization_header[7:])
+            access_jti, access_exp = payload.get("jti"), payload.get("exp")
+        except Unauthorized:
+            pass
     if raw_refresh_token:
         row = await users_repo.refresh_token_by_hash(
             session, security.token_fingerprint(raw_refresh_token)

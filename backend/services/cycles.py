@@ -114,7 +114,7 @@ async def prepare(
             "active_users": active_users,
         },
     )
-    return {
+    result = {
         "cycle_id": cycle.id,
         "number": cycle.number,
         "state": cycle.state,
@@ -153,6 +153,22 @@ async def prepare(
             "one can be prepared; no jury is drawn for an empty ballot."
         ),
     }
+
+    from backend.services import admin_log
+
+    await admin_log.record(
+        session,
+        admin_user_id=admin.id,
+        action="prepare_ballot",
+        subject_type="cycle",
+        subject_id=cycle.id,
+        new_value={
+            "community": f"{level}:{entity_id}",
+            "items": len(qualified),
+            "active_users": active_users,
+        },
+    )
+    return result
 
 
 async def _considered(
@@ -221,7 +237,7 @@ async def open_ballot(session: AsyncSession, *, cycle: Cycle, admin: User) -> di
         "ballot_opened",
         extra={"cycle_id": cycle.id, "votable": len(votable), "held_back": len(items) - len(votable)},
     )
-    return {
+    result = {
         "cycle_id": cycle.id,
         "state": cycle.state,
         "opened_at": now,
@@ -235,6 +251,22 @@ async def open_ballot(session: AsyncSession, *, cycle: Cycle, admin: User) -> di
             "window shown is what the setting says it would be."
         ),
     }
+
+    from backend.services import admin_log
+
+    await admin_log.record(
+        session,
+        admin_user_id=admin.id,
+        action="open_ballot",
+        subject_type="cycle",
+        subject_id=cycle.id,
+        new_value={
+            "items_votable": result["items_votable"],
+            "items_held_back": result["items_held_back"],
+            "jurors_seated": result["jurors_seated"],
+        },
+    )
+    return result
 
 
 async def close_ballot(session: AsyncSession, *, cycle: Cycle, admin: User) -> dict:
@@ -275,6 +307,17 @@ async def close_ballot(session: AsyncSession, *, cycle: Cycle, admin: User) -> d
     cycle.closed_at = now
     await session.flush()
     log.info("ballot_closed", extra={"cycle_id": cycle.id, "items": len(results)})
+
+    from backend.services import admin_log
+
+    await admin_log.record(
+        session,
+        admin_user_id=admin.id,
+        action="close_ballot",
+        subject_type="cycle",
+        subject_id=cycle.id,
+        new_value={"results": results},
+    )
     return {"cycle_id": cycle.id, "state": cycle.state, "closed_at": now, "results": results}
 
 
@@ -318,6 +361,17 @@ async def publish(session: AsyncSession, *, cycle: Cycle, admin: User) -> dict:
     log.info(
         "cycle_published",
         extra={"cycle_id": cycle.id, "summary_hash": summary["summary_hash"]},
+    )
+
+    from backend.services import admin_log
+
+    await admin_log.record(
+        session,
+        admin_user_id=admin.id,
+        action="publish_summary",
+        subject_type="cycle",
+        subject_id=cycle.id,
+        new_value={"summary_hash": summary["summary_hash"]},
     )
     return summary
 

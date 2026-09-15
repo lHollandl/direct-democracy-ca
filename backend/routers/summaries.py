@@ -8,7 +8,6 @@ from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
 from backend.deps import SessionDep, VerifiedUser
-from backend.services import pdf as pdf_service
 from backend.services import summaries as summaries_service
 
 router = APIRouter(tags=["summaries"])
@@ -79,9 +78,8 @@ async def summary_pdf(
     cycle = await summaries_service.cycle_for(
         session, level=level, entity_id=entity_id, number=number
     )
-    summary = await summaries_service.require_summary(session, cycle=cycle)
     url = f"/summaries/{level}/{entity_id}/{number}"
-    payload = pdf_service.render(summary.data, summary.summary_hash, url)
+    payload = await summaries_service.pdf_bytes(session, cycle=cycle, url=url)
     return Response(
         payload,
         media_type="application/pdf",
