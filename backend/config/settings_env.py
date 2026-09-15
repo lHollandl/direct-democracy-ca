@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     OFFICIALS_TEST_EMAIL: str
     BUILD_LABEL: str
     CORS_ORIGINS: str = "http://localhost:3000"
+    # The address the frontend is reached at (ARCHITECTURE.md §3) — used
+    # wherever a link must work outside the site: the `mailto:` body, the PDF
+    # footer, the summary's verify text (DEMOCRACY.md §11.5; audit demo-01
+    # run 3, LOW).
+    PUBLIC_BASE_URL: str
     RATE_LIMIT_WRITE_PER_MINUTE: int = 30
     LOG_LEVEL: str = "INFO"
 
@@ -107,6 +112,11 @@ class Settings(BaseSettings):
     @property
     def search_configured(self) -> bool:
         return bool(self.SEARCH_API_KEY and self.SEARCH_PROVIDER)
+
+    def absolute_url(self, path: str) -> str:
+        """`PUBLIC_BASE_URL` plus a site-relative path, e.g. `/summaries/...`
+        (DEMOCRACY.md §11.5)."""
+        return f"{self.PUBLIC_BASE_URL.rstrip('/')}{path}"
 
 
 @lru_cache(maxsize=1)
