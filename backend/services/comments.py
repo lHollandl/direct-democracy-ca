@@ -77,7 +77,7 @@ async def create(
                     break
                 parent = grandparent
             depth = parent.depth
-            parent_id = parent.id
+            parent_id = parent.parent_id
         else:
             depth = parent.depth + 1
             parent_id = parent.id

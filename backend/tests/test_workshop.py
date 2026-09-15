@@ -471,10 +471,14 @@ async def test_similar_amendments_are_flagged_and_people_decide(client, world):
 
 
 async def test_comments_nest_to_the_depth_cap(client, world):
-    await set_setting("comment_max_depth", "2")
+    """FIX-29 (MEDIUM, audit demo-01 run 4): a reply past the depth cap
+    re-attaches under the depth-cap comment's own parent — DEMOCRACY.md §6,
+    "under the same parent" — so the rendered tree stops growing at four
+    visible levels (0-3) instead of nesting without bound."""
     solution_id = await _dominant_solution(client, world)
     parent_id = None
     depths = []
+    ids = []
     for i in range(5):
         response = await client.post(
             "/comments",
@@ -488,10 +492,39 @@ async def test_comments_nest_to_the_depth_cap(client, world):
         )
         assert response.status_code == 201, response.text
         depths.append(response.json()["depth"])
+        ids.append(response.json()["id"])
         parent_id = response.json()["id"]
-    assert max(depths) == 2
-    deep = (await client.get(f"/umbrellas/{world['safety']}")).json()
-    assert deep is not None
+    assert depths == [0, 1, 2, 3, 3], "four visible levels, 0-3; the fifth stays at the cap"
+
+    async with session_scope() as session:
+        from backend.models import Comment
+
+        third = await session.get(Comment, ids[2])
+        fourth = await session.get(Comment, ids[3])
+        fifth = await session.get(Comment, ids[4])
+        assert fifth.reply_to_comment_id == fourth.id, "records who it actually answered"
+        assert fifth.parent_id == fourth.parent_id == third.id, (
+            "the fifth attaches beside the fourth, under the same parent — not nested under it"
+        )
+
+    def _find(thread: list[dict], comment_id: int) -> dict | None:
+        for node in thread:
+            if node["id"] == comment_id:
+                return node
+            found = _find(node["replies"], comment_id)
+            if found:
+                return found
+        return None
+
+    page = (await client.get(f"/solutions/{solution_id}")).json()
+    third_node = _find(page["discussion"], ids[2])
+    assert {child["id"] for child in third_node["replies"]} == {ids[3], ids[4]}, (
+        "the fourth and fifth render as siblings, not one nested inside the other"
+    )
+    fifth_node = _find(page["discussion"], ids[4])
+    assert fifth_node["text"] == "replying to @Ben: Reply number 4.", (
+        '"replying to @…" rendering is intact'
+    )
 
 
 async def test_a_deep_reply_never_freezes_a_name_into_the_stored_text(client, world):
