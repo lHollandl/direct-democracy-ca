@@ -42,3 +42,20 @@ async def page(
     if cursor is not None:
         stmt = stmt.where(AdminAction.id < cursor)
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def latest_for_subject(
+    session: AsyncSession, *, action: str, subject_type: str, subject_id: int
+) -> AdminAction | None:
+    return (
+        await session.execute(
+            select(AdminAction)
+            .where(
+                AdminAction.action == action,
+                AdminAction.subject_type == subject_type,
+                AdminAction.subject_id == subject_id,
+            )
+            .order_by(AdminAction.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()

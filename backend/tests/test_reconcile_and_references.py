@@ -10,7 +10,7 @@ from backend.clients import search as search_client
 from backend.db import session_scope
 from backend.jobs import reconcile as reconcile_job
 from backend.models import Post, Solution
-from backend.tests.conftest import FakeSearch, make_umbrella, make_user, set_setting
+from backend.tests.conftest import FakeSearch, make_umbrella, make_user, set_setting, settle_jobs
 
 
 async def _a_voted_solution(client):
@@ -169,13 +169,19 @@ async def test_the_recommender_logs_the_provider_the_queries_and_the_raw_results
         'restrooms are shut."}]}'
     )
 
+    pending = (await client.get(f"/umbrellas/{umbrella}/references")).json()
+    assert pending["recommending"] is False, "nothing has been triggered yet"
+
     response = await client.post(
         f"/admin/umbrellas/{umbrella}/recommend-references", headers=director["headers"]
     )
-    assert response.status_code == 200, response.text
-    assert len(response.json()["added"]) == 1
+    assert response.status_code == 202, response.text
+    assert response.json()["status"] == "pending"
+
+    await settle_jobs()
 
     listing = (await client.get(f"/umbrellas/{umbrella}/references")).json()
+    assert listing["recommending"] is False, "false again once the ai_actions row exists"
     assert listing["active"][0]["label"] == "Recommended by AI"
     assert listing["active"][0]["why"]
 
@@ -208,10 +214,16 @@ async def test_the_recommender_respects_its_per_umbrella_limit(client):
     first = await client.post(
         f"/admin/umbrellas/{umbrella}/recommend-references", headers=director["headers"]
     )
-    assert len(first.json()["added"]) == 1, "the limit is a setting, and it is obeyed"
+    assert first.status_code == 202, first.text
+    await settle_jobs()
+    listing = (await client.get(f"/umbrellas/{umbrella}/references")).json()
+    assert len(listing["active"]) == 1, "the limit is a setting, and it is obeyed"
 
     second = await client.post(
         f"/admin/umbrellas/{umbrella}/recommend-references", headers=director["headers"]
     )
-    assert second.status_code == 422
+    assert second.status_code == 422, (
+        "the fast eligibility check runs synchronously, before the job is even "
+        "scheduled, so an admin sees this refusal at once"
+    )
     assert second.json()["error"] == "reference_limit_reached"

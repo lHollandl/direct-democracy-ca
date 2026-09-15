@@ -11,7 +11,7 @@ vote, ever.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from backend.deps import AdminUser, SessionDep
@@ -87,7 +87,9 @@ async def publish_summary(cycle_id: int, admin: AdminUser, session: SessionDep) 
     return await cycles_service.publish(session, cycle=cycle, admin=admin)
 
 
-@router.post("/umbrellas/{umbrella_id}/recommend-references")
+@router.post(
+    "/umbrellas/{umbrella_id}/recommend-references", status_code=status.HTTP_202_ACCEPTED
+)
 async def recommend_references(
     umbrella_id: int, admin: AdminUser, session: SessionDep
 ) -> dict:

@@ -33,6 +33,18 @@ async def for_umbrella(session: AsyncSession, umbrella_id: int) -> list[Umbrella
     )
 
 
+async def for_umbrella_page(
+    session: AsyncSession, umbrella_id: int, *, cursor: int | None, limit: int
+) -> list[UmbrellaReference]:
+    """`GET /umbrellas/{id}/references` (ARCHITECTURE.md §6, audit demo-01
+    run 3 HIGH)."""
+    stmt = select(UmbrellaReference).where(UmbrellaReference.umbrella_id == umbrella_id)
+    if cursor is not None:
+        stmt = stmt.where(UmbrellaReference.id > cursor)
+    stmt = stmt.order_by(UmbrellaReference.id).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
 async def count_ai_active(session: AsyncSession, umbrella_id: int) -> int:
     return int(
         (
