@@ -725,7 +725,13 @@ before any real community votes.
 
 One document per community per cycle. Same content for every reader.
 Canonical form is a **web page** at a permanent public URL; a PDF is an
-export of it. Nothing personal in it.
+export of it. **Nothing personal in it**: no name, display name, user id,
+or other identifier of any member appears in the document or its
+canonical JSON. Jurors are "Juror n of m". Solutions are attributed to
+the community, not to a person — authorship lives on the solution page,
+where the display rule (DATABASE §3.2) resolves it at read time and
+account deletion reaches it. The hashed document therefore never has to
+change for anyone's sake (CLAUDE §6; audit demo-01 run 4).
 
 ### 11.2 Content, in order
 
@@ -739,7 +745,9 @@ export of it. Nothing personal in it.
 2. **Results.** For each ballot item, in ballot order: umbrella name;
    the frozen solution text (version number, hash); yes count; no count;
    result (**Passed** / **Failed**); the solution's AI-influence figure;
-   author display as of snapshot. Failed items are included. Under any
+   the line "Proposed and refined in the [community] workshop" with a
+   link to the solution page (`PUBLIC_BASE_URL/solutions/{id}`). No
+   author. Failed items are included. Under any
    item a juror held back without a majority: "Juror concerns (n of m
    seated)" with each category and reason, attributed "Juror n of m".
 3. **Held back.** For each held-back solution: umbrella; text; the jury
@@ -850,6 +858,8 @@ this document satisfies it.
 | §3 equal vote weight | §10.3 one vote per member; verification recorded, never weighted |
 | §3 identical ranking | §3.3 item 4 ordering; §12 feed-v0 |
 | §4 downvotes never hide | §3.3 item 4; §6 |
+| §4 minimum visibility for minority views | Met trivially in Demo 1: nothing ranks anything out of sight (§3.3 item 4 shows every solution; §12 feed-v0 has no ranking). The visibility rule and its §7.4 setting are owed the day any ranking feed exists (PROJECT.md parking lot, Small Voice) |
+| §6 nothing personal in the permanent record | §11.1; §11.2 item 2; §8.5 |
 | §5 AI never decides | §3.2 umbrellas; §5.4 humans confirm; §9.4 humans reject |
 | §5 every AI action logged | §9.2 |
 | §5 AI influence displayed | §9.5 |

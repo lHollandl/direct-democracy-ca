@@ -97,7 +97,7 @@ Docker Compose with `--env-file`. There is no separate `infra/.env` or
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | read by Docker Compose; must match the credentials inside `DATABASE_URL` |
 | `REDIS_URL` | |
 | `JWT_SECRET`, `ACCESS_TOKEN_MINUTES` (30), `REFRESH_TOKEN_DAYS` (14) | |
-| `EMAIL_VERIFY_HOURS` (24), `PASSWORD_RESET_MINUTES` (30) | |
+| `EMAIL_VERIFY_HOURS` (24), `PASSWORD_RESET_MINUTES` (30), `EXPORT_FILE_HOURS` (48) | |
 | `EMAIL_BACKEND` (`console` / `smtp`), `SMTP_*`, `EMAIL_FROM` | `console` prints emails to the log — Demo 1 default |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `EMBED_MODEL`, `OLLAMA_TIMEOUT_SECONDS` | host GPU |
 | `SEARCH_PROVIDER`, `SEARCH_API_KEY`, `SEARCH_BASE_URL` | reference recommendation |
@@ -120,7 +120,10 @@ the key name in the error.
   creates the user, a `terms_acceptances` row, and an email
   verification token; sends the verification email; returns 201 with
   no tokens. The account can log in but every write endpoint returns
-  403 `email_not_verified` until the link is used.
+  403 `email_not_verified` until the link is used — **except the three
+  that act only on the caller's own account**: `PATCH /me/display`,
+  `POST /me/export`, `DELETE /me`. A person's rights over their own data
+  (CLAUDE §6) never depend on our verification email having worked.
 - Login returns a 30-minute access JWT (`sub`, `exp`, `iat`, `jti`) and
   an opaque refresh token (random 32 bytes, base64url), stored hashed.
 - The refresh token travels only in an `httpOnly`, `SameSite=Strict`
@@ -331,7 +334,8 @@ Next.js App Router, TypeScript, Tailwind. `frontend/src/app/` routes:
 | `/solutions/[id]` | full solution with versions, amendments, discussion |
 | `/ballot` | current cycle for each home community |
 | `/jury` | duties |
-| `/results`, `/summaries/[level]/[id]/[number]` | the summary document |
+| `/results`, `/summaries/[level]/[id]/[number]`, `/summaries/hashes` | the summary document; the public hash list (DEMOCRACY §11.3) |
+| `/`, `/posts/[id]`, `/cycles/[id]` | landing page; a post with its label status and created solutions; a cycle with its state, items, and every jury draw |
 | `/admin` (cycle controls: prepare, redraw, open, close, publish, recommend references, relabel) | Iteration — added to the Foundation page |
 
 `frontend/src/lib/api.ts` is the only place `fetch` is called; it holds

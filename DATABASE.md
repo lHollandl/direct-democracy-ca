@@ -34,7 +34,10 @@
   `address`, `voter`). No other enum is shared.
 - **Reserved words** are never table or column names (`references`,
   `order`, `user`, …); hence `umbrella_references`, not `references`.
-- **Hashes** are `CHAR(64)` hex SHA-256.
+- **Hashes** are `VARCHAR(64) NOT NULL` lowercase hex SHA-256 (not
+  `CHAR`, which would space-pad); the application guarantees the length.
+  Where this document writes `char(64)` for a hash column, read
+  `VARCHAR(64)`.
 - **Foreign keys** are always indexed (Law 4). Composite uniqueness is
   a named `UNIQUE` constraint: `uq_<table>_<cols>`.
 - **Code citation**: documents refer to code as
@@ -226,7 +229,9 @@ frozen thereafter.
 ### 3.11 `data_exports`
 
 `id`, `user_id` FK, `requested_at`, `completed_at` NULL, `file_path`
-text NULL, `expires_at`. Export JSON contains three things: the user's
+text NULL, `expires_at` (= `completed_at` + `EXPORT_FILE_HOURS`,
+configuration, Demo 1: 48 — the window a person has to collect their
+own data). Export JSON contains three things: the user's
 Foundation rows (user, display settings, terms acceptances); their jury
 service; and every Iteration row they authored or voted on, including
 their own ballot votes.
