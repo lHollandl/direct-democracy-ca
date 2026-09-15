@@ -2864,3 +2864,41 @@ da8c18f FIX-13: GET /umbrellas paginates
 d646c26 FIX-08: deep replies never freeze a display name into content_hash
 b5ed801 Post-audit-2 document updates; fix brief demo-01-fix-2
 ```
+
+## 2026-09-15 — Session 6 (Claude Code audit — demo-01, run 3)
+
+Full audit of `demo/01` after fix run 2, written to `audits/demo-01-audit-3.md`.
+**CRITICAL 0 · HIGH 1 · MEDIUM 3 · LOW 2 · NOTE 0; verdict FIX REQUIRED.** Both
+always-`CRITICAL` traps are clean, confirmed by running the platform. FIX-08,
+FIX-09, and FIX-10 — the CRITICAL, the HIGH, and one MEDIUM from audit run 2 —
+are all genuinely fixed, each reproduced independently in my own six-account
+walkthrough from an empty database (the deep-reply display name never
+touched stored text or its hash across three identity states; a mid-review
+jury redraw left both draws fully inspectable; a minority hold-back
+published under "Juror concerns" while a majority one removed its item and
+published under "Held back," in the same cycle). The hash round-trip
+verified two independent ways, three hand-derived `threshold()` cases
+matched the imported function, `reconcile.py` and `verify_schema.py` reported
+no drift, the full suite passed (211 + 2 live), and anonymization erased
+exactly DATABASE §3.1's columns on an account I had just used to test FIX-08.
+The new HIGH is that seven list endpoints — a different set than the five
+audit run 2 already got fixed — have no pagination support at all
+(`umbrellas/{id}/solutions`, `/comments`, `/references`; `settings/history`;
+`communities/{level}/{id}/cycles`; `solutions/{id}/amendments`;
+`summaries/hashes`), against ARCHITECTURE §6's "no other exemptions." Two
+MEDIUMs are new (`recommend_references` runs synchronously in the admin
+request path rather than as the background job ARCHITECTURE §7's table
+implies, currently unreachable since no search provider is configured;
+`confirm_label`/`correct_label` check for a signed-in user rather than a
+verified one, with no exploit path found). The third MEDIUM is audit run 2's
+own "one service function" finding, still only half-fixed: `FIX-11` marked
+done but two of audit run 2's five originally-named offenders
+(`geo.py::community`, `amendments.py::propose_amendment`) were never
+touched, and `test_layering.py`'s new AST check can't see the gap because it
+counts service modules, not function calls. Everything else from both prior
+audits that I set out to re-verify checked out resolved. One document
+ambiguity is recorded for the director (`DATABASE §4.17`'s
+`replaced`/`replaced_by_id` pairing is never produced by any code path).
+Nothing outside `audits/` and this entry was modified; the source tree was
+writable in this sandbox, as in both prior runs — `git diff main...HEAD
+--stat` after this commit is the proof.
