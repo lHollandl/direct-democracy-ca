@@ -102,7 +102,12 @@ type Page = {
   problem_discussion: Comment[];
   solutions: Solution[];
   dominant_solutions: Dominant[];
-  references: { active: Reference[]; rejected: Reference[]; note: string };
+  references: {
+    active: Reference[];
+    rejected: Reference[];
+    note: string;
+    recommending: boolean;
+  };
   ordering: { version: string; explanation: string };
 };
 
@@ -376,6 +381,9 @@ export default function UmbrellaPage() {
         </Section>
 
         <Section title="References" description={data.references.note}>
+          {data.references.recommending ? (
+            <Notice>AI is looking for references…</Notice>
+          ) : null}
           {canAct ? <AddReference umbrellaId={data.problem.id} onAdded={() => load()} /> : null}
           {data.references.active.length === 0 && data.references.rejected.length === 0 ? (
             <Empty>Nobody has added anything to read yet.</Empty>

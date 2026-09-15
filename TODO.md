@@ -297,7 +297,13 @@ Session 2 entry (2026-09-15).
   job (`backend/jobs/references.py`), scheduled via `spawn_after_commit`
   after a fast synchronous eligibility check; the endpoint returns 202
   `{"status": "pending"}`; the umbrella references listing reports
-  `"recommending"` until the `ai_actions` row exists
+  `"recommending"` until the `ai_actions` row exists.
+  **Correction (audit demo-01 run 4):** this was marked `[x]` with the
+  backend half done but the umbrella page never rendering the "AI is
+  looking for references…" indicator the brief and the service
+  docstring promised — the narrowing this brief itself forbids. The UI
+  half was missing until fix run 4's FIX-30 rendered the `recommending`
+  flag on `frontend/src/app/umbrellas/[id]/PageClient.tsx`.
 - [x] **FIX-23** (MEDIUM) `posts.py::confirm_label` and `::correct_label`
   now require `VerifiedUser`, not merely a signed-in user
 - [x] **FIX-24** (MEDIUM) `geo.py::community` and
