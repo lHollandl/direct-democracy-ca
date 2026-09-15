@@ -88,9 +88,14 @@ def render(document: dict, summary_hash: str, url: str) -> bytes:
             story.append(
                 Paragraph(
                     f"Version {item['solution_version']} · fingerprint "
-                    f"{item['solution_version_hash']} · proposed by "
-                    f"{_esc(item['author_display_at_snapshot'])} · "
+                    f"{item['solution_version_hash']} · "
                     f"{_esc(item['ai_influence_label'])}",
+                    small,
+                )
+            )
+            story.append(
+                Paragraph(
+                    f"{_esc(item['workshop_note'])} — {_esc(item['solution_url'])}",
                     small,
                 )
             )

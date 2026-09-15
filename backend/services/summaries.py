@@ -27,7 +27,6 @@ from backend.services import community as community_service
 from backend.services import hashing
 from backend.services import pdf as pdf_service
 from backend.services import rules
-from backend.services.display import author_displays
 
 log = logging.getLogger(__name__)
 
@@ -77,8 +76,6 @@ async def build_data(session: AsyncSession, *, cycle: Cycle) -> dict:
     values = cycle.settings_snapshot
     items = await cycles_repo.items(session, cycle.id)
     umbrellas = await umbrellas_repo.by_ids(session, [i.umbrella_id for i in items])
-    solutions = await solutions_repo.by_ids(session, [i.solution_id for i in items])
-    displays = await author_displays(session, [s.author_id for s in solutions.values()])
     jury = await cycles_repo.jury_for_cycle(session, cycle.id)
     jurors = await cycles_repo.jurors(session, jury.id) if jury else []
     seated = [j for j in jurors if j.status == "accepted"]
@@ -125,16 +122,19 @@ async def build_data(session: AsyncSession, *, cycle: Cycle) -> dict:
         version = await solutions_repo.version_at(
             session, item.solution_id, item.solution_version
         )
-        solution = solutions.get(item.solution_id)
         entry = {
             "position": item.position,
             "umbrella": umbrellas[item.umbrella_id].name if item.umbrella_id in umbrellas else "",
             "solution_text": version.text_body if version else "",
             "solution_version": item.solution_version,
             "solution_version_hash": version.content_hash if version else None,
-            "author_display_at_snapshot": displays.get(
-                solution.author_id if solution else None, "Former Community Member"
-            ),
+            # DEMOCRACY.md §11.1/§11.2 item 2 — no author, name, or user id of
+            # any kind. Solutions are attributed to the community; authorship
+            # lives on the solution page, resolved at read time so account
+            # deletion reaches it without ever touching this hashed document
+            # (CLAUDE.md §6; audit demo-01 run 4 CRITICAL).
+            "workshop_note": f"Proposed and refined in the {community.name} workshop",
+            "solution_url": get_env_settings().absolute_url(f"/solutions/{item.solution_id}"),
             "ai_influence_percentage": version.ai_contribution_percentage if version else 0,
             "ai_influence_label": ai_log.influence(
                 version.ai_contribution_percentage if version else 0

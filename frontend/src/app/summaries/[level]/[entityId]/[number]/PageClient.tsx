@@ -13,7 +13,8 @@ type ResultRow = {
   solution_text: string;
   solution_version: number;
   solution_version_hash: string;
-  author_display_at_snapshot: string;
+  workshop_note: string;
+  solution_url: string;
   ai_influence_label: string;
   yes: number;
   no: number;
@@ -105,8 +106,12 @@ export default function SummaryPage() {
                   </p>
                   <p className="mt-1 break-all text-xs text-[var(--muted)]">
                     Version {row.solution_version} · fingerprint {row.solution_version_hash}
+                    · {row.ai_influence_label}
                     <br />
-                    Proposed by {row.author_display_at_snapshot} · {row.ai_influence_label}
+                    {row.workshop_note} —{" "}
+                    <a className="underline" href={row.solution_url}>
+                      {row.solution_url}
+                    </a>
                   </p>
                 </li>
               ))}

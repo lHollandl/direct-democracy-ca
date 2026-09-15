@@ -336,3 +336,143 @@ async def test_an_amendment_reopens_the_road_back_to_the_ballot(client):
     )
     assert len(third.json()["items"]) == 1, "a new version is the way back onto the ballot"
     assert third.json()["items"][0]["version"] == 2
+
+
+async def test_a_deleted_authors_real_name_never_survives_in_a_published_summary(client):
+    """FIX-28 (CRITICAL, audit demo-01 run 4): a published summary must never
+    freeze a name, display name, or user id into its hashed JSON. Account
+    deletion must reach the linked solution page without touching the hash."""
+    await set_setting("ballot_min_dominant_days", "0")
+
+    umbrella = await make_umbrella(
+        name="Pedestrian Safety Near Schools",
+        statement="Crossings near schools lack crosswalks.",
+    )
+    ollama_client.get_ollama().responses["labeler.md"] = labeler_answer(
+        main_category="Public Safety", umbrella_id=umbrella, level="city", entity_id=1
+    )
+
+    director = await make_user(
+        client, email="director2@example.com", display_name="Director", admin=True
+    )
+    patricia = await make_user(
+        client, email="patricia@example.com", display_name="Patricia Quintero-Alvarez"
+    )
+    ben = await make_user(client, email="ben2@example.com", display_name="Ben")
+    cara = await make_user(client, email="cara2@example.com", display_name="Cara")
+
+    displayed = await client.patch(
+        "/me/display", headers=patricia["headers"], json={"public_name_mode": "real_name"}
+    )
+    assert displayed.status_code == 200
+    real_name = displayed.json()["shown_as"]
+    assert real_name == "Real Patricia Quintero-Alvarez"
+
+    created = await client.post(
+        "/posts",
+        headers=patricia["headers"],
+        json={
+            "problem_text": (
+                "Children cross four lanes of traffic to reach the school every morning."
+            ),
+            "solutions": ["Paint a crosswalk and install a pedestrian refuge island."],
+            "communities": [{"level": "city", "entity_id": 1}],
+            "category_choice": "ai",
+        },
+    )
+    assert created.status_code == 201
+    await settle_jobs()
+
+    solution_id = (await client.get(f"/umbrellas/{umbrella}")).json()["solutions"][0]["id"]
+    for voter in (ben, cara):
+        vote = await client.put(
+            "/votes",
+            headers=voter["headers"],
+            json={"target_type": "solution", "target_id": solution_id, "direction": 1},
+        )
+        assert vote.json()["is_dominant"] is True
+
+    prepared = await client.post(
+        "/admin/cycles/prepare", headers=director["headers"], json={"level": "city", "entity_id": 1}
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    await client.post(f"/admin/cycles/{cycle_id}/open", headers=director["headers"])
+    item = (await client.get(f"/cycles/{cycle_id}/ballot")).json()["items"][0]
+    for voter in (director, ben, cara):
+        await client.put(
+            f"/cycles/{cycle_id}/ballot/{item['ballot_item_id']}/vote",
+            headers=voter["headers"],
+            json={"choice": "yes"},
+        )
+    await client.post(f"/admin/cycles/{cycle_id}/close", headers=director["headers"])
+    published = await client.post(
+        f"/admin/cycles/{cycle_id}/publish", headers=director["headers"]
+    )
+    assert published.status_code == 200
+    stored_hash = published.json()["summary_hash"]
+    document = published.json()["document"]
+
+    result_entry = document["results"][0]
+    assert not any("author" in key for key in result_entry), (
+        "no author field of any kind belongs in the canonical JSON"
+    )
+    assert result_entry["workshop_note"] == "Proposed and refined in the San Jose workshop"
+    assert result_entry["solution_url"].endswith(f"/solutions/{solution_id}")
+
+    number = document["header"]["cycle_number"]
+    downloaded_json = await client.get(f"/summaries/city/1/{number}/json")
+    assert downloaded_json.status_code == 200
+    pdf = await client.get(f"/summaries/city/1/{number}/pdf")
+    assert pdf.status_code == 200
+
+    forbidden = (real_name, "Patricia Quintero-Alvarez")
+    haystacks = {
+        "page payload": json.dumps(published.json()),
+        "downloadable json": downloaded_json.text,
+        "pdf text": _pdf_text(pdf.content),
+    }
+    for where, text_blob in haystacks.items():
+        for needle in forbidden:
+            assert needle not in text_blob, f"{needle!r} leaked into {where}"
+
+    deleted = await client.request(
+        "DELETE",
+        "/me",
+        headers=patricia["headers"],
+        json={"password": patricia["password"], "understand_this_cannot_be_undone": True},
+    )
+    assert deleted.status_code == 200
+
+    verified = await client.get(f"/summaries/city/1/{number}/verify")
+    assert verified.status_code == 200
+    assert verified.json()["match"] is True
+    assert verified.json()["stored_hash"] == stored_hash
+
+    solution_page = (await client.get(f"/solutions/{solution_id}")).json()
+    assert solution_page["author"] == "Former Community Member"
+
+
+def _pdf_text(data: bytes) -> str:
+    """Decode the PDF's ASCII85+Flate content stream(s) back to the literal
+    text `reportlab` drew, good enough to search for a leaked name without a
+    PDF parser dependency."""
+    import base64
+    import re
+    import zlib
+
+    out = []
+    for raw in re.findall(rb"stream\r?\n(.*?)endstream", data, re.DOTALL):
+        content = raw.rstrip(b"\r\n")
+        if content.endswith(b"~>"):
+            content = content[:-2]
+        try:
+            out.append(zlib.decompress(base64.a85decode(content, adobe=False)))
+        except (zlib.error, ValueError):
+            continue
+    combined = b" ".join(out).decode("latin-1", "ignore")
+    # Literal text is drawn as `(...) Tj`; unescape reportlab's `\(`, `\)`, `\\`.
+    return "\n".join(
+        m.replace("\\(", "(").replace("\\)", ")").replace("\\\\", "\\")
+        for m in re.findall(r"\((?:[^()\\]|\\.)*\)\s*Tj", combined)
+    )
