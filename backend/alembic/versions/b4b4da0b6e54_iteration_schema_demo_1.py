@@ -136,6 +136,7 @@ def upgrade() -> None:
     sa.Column('target_type', postgresql.ENUM('umbrella', 'solution', name='comments_target_type_enum', create_type=False), nullable=False),
     sa.Column('target_id', sa.Integer(), nullable=False),
     sa.Column('parent_id', sa.Integer(), nullable=True),
+    sa.Column('reply_to_comment_id', sa.Integer(), nullable=True),
     sa.Column('depth', sa.SmallInteger(), nullable=False),
     sa.Column('author_id', sa.Integer(), nullable=False),
     sa.Column('text', sa.Text(), nullable=False),
@@ -147,10 +148,12 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['author_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['parent_id'], ['comments.id'], ),
+    sa.ForeignKeyConstraint(['reply_to_comment_id'], ['comments.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_comments_author_id', 'comments', ['author_id'], unique=False)
     op.create_index('ix_comments_parent_id', 'comments', ['parent_id'], unique=False)
+    op.create_index('ix_comments_reply_to_comment_id', 'comments', ['reply_to_comment_id'], unique=False)
     op.create_index('ix_comments_target', 'comments', ['target_type', 'target_id', 'parent_id'], unique=False)
     op.create_table('jurors',
     sa.Column('id', sa.Integer(), sa.Identity(always=True), nullable=False),
@@ -507,6 +510,7 @@ def downgrade() -> None:
     op.drop_index('ix_jurors_jury_id', table_name='jurors')
     op.drop_table('jurors')
     op.drop_index('ix_comments_target', table_name='comments')
+    op.drop_index('ix_comments_reply_to_comment_id', table_name='comments')
     op.drop_index('ix_comments_parent_id', table_name='comments')
     op.drop_index('ix_comments_author_id', table_name='comments')
     op.drop_table('comments')

@@ -55,7 +55,7 @@ async def create(
 
     max_depth = int(await settings_service.get(session, "comment_max_depth"))
     depth = 0
-    replying_to: str | None = None
+    reply_to_comment_id: int | None = None
     if parent_id is not None:
         parent = await comments_repo.get(session, parent_id)
         if parent is None:
@@ -64,10 +64,13 @@ async def create(
             raise ValidationFailed(
                 "That reply belongs to a different discussion.", code="comment_wrong_target"
             )
-        # Deeper replies attach to the depth-cap comment with "replying to @name".
+        # Deeper replies re-attach to the depth-cap comment. `reply_to_comment_id`
+        # records which comment was actually answered so the page can render
+        # "replying to @display" at read time (DEMOCRACY.md §6) — the stored
+        # `text` is never a name, since it is hashed and permanent (Law 6;
+        # audit demo-01 run 2).
         if parent.depth >= max_depth:
-            displays = await author_displays(session, [parent.author_id])
-            replying_to = displays.get(parent.author_id)
+            reply_to_comment_id = parent.id
             while parent.parent_id is not None and parent.depth > max_depth:
                 grandparent = await comments_repo.get(session, parent.parent_id)
                 if grandparent is None:
@@ -79,24 +82,25 @@ async def create(
             depth = parent.depth + 1
             parent_id = parent.id
 
-    body = f"replying to @{replying_to}: {clean}" if replying_to else clean
     now = datetime.now(timezone.utc)
     comment = await comments_repo.add(
         session,
         target_type=target_type,
         target_id=target_id,
         parent_id=parent_id,
+        reply_to_comment_id=reply_to_comment_id,
         depth=depth,
         author_id=author.id,
-        text_body=body,
+        text_body=clean,
         net_score=0,
         ai_contribution_percentage=0,
         content_hash=hashing.comment_content_hash(
             target_type=target_type,
             target_id=target_id,
             parent_id=parent_id,
+            reply_to_comment_id=reply_to_comment_id,
             author_id=author.id,
-            text=body,
+            text=clean,
             created_at=now,
         ),
         created_at=now,
@@ -176,6 +180,7 @@ async def thread(
     descending, ties oldest first (DEMOCRACY.md §6)."""
     rows = await comments_repo.for_target(session, target_type, target_id)
     displays = await author_displays(session, [row.author_id for row in rows])
+    by_id = {row.id: row for row in rows}
     my_votes = (
         await votes_repo.user_votes_on(session, viewer_id, "comment", [r.id for r in rows])
         if viewer_id
@@ -187,6 +192,16 @@ async def thread(
     for children in by_parent.values():
         children.sort(key=lambda c: (-c.net_score, c.created_at, c.id))
 
+    def rendered_text(row: Comment) -> str:
+        """DEMOCRACY.md §6 — "replying to @display" is rendered here, at read
+        time, through the author-display rule. It is never stored in `text`,
+        which is only what the person typed (Law 6; audit demo-01 run 2)."""
+        replied_to = by_id.get(row.reply_to_comment_id) if row.reply_to_comment_id else None
+        if replied_to is None:
+            return row.text_body
+        display = displays.get(replied_to.author_id, "Former Community Member")
+        return f"replying to @{display}: {row.text_body}"
+
     def build(parent_id: int | None) -> list[dict]:
         out = []
         for row in by_parent.get(parent_id, []):
@@ -194,7 +209,7 @@ async def thread(
                 {
                     "id": row.id,
                     "author": displays.get(row.author_id, "Former Community Member"),
-                    "text": row.text_body,
+                    "text": rendered_text(row),
                     "depth": row.depth,
                     "net_score": row.net_score,
                     "my_vote": my_votes.get(row.id),

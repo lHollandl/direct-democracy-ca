@@ -249,6 +249,7 @@ async def _check_hashes(session: AsyncSession, report: dict) -> None:
             target_type=row.target_type,
             target_id=row.target_id,
             parent_id=row.parent_id,
+            reply_to_comment_id=row.reply_to_comment_id,
             author_id=row.author_id,
             text=row.text_body,
             created_at=row.created_at,

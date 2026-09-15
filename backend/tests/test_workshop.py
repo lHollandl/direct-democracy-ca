@@ -467,6 +467,116 @@ async def test_comments_nest_to_the_depth_cap(client, world):
     assert deep is not None
 
 
+async def test_a_deep_reply_never_freezes_a_name_into_the_stored_text(client, world):
+    """CRITICAL, audit demo-01 run 2: a reply re-attached at the depth cap used
+    to have the parent author's *resolved display name* prepended to `text`
+    before it was hashed — a snapshot that outlived the author's own later
+    choices. `reply_to_comment_id` now records which comment was answered, and
+    "replying to @display" is rendered at read time (DEMOCRACY.md §6)."""
+    solution_id = await _dominant_solution(client, world)
+    await set_setting("comment_max_depth", "0")
+
+    root = await client.post(
+        "/comments",
+        headers=world["ben"]["headers"],
+        json={"target_type": "solution", "target_id": solution_id, "text": "The timing here is too fast."},
+    )
+    assert root.status_code == 201, root.text
+    root_id = root.json()["id"]
+
+    # Ben sets his public display to his real name before the reply arrives.
+    display = await client.patch(
+        "/me/display", headers=world["ben"]["headers"], json={"public_name_mode": "real_name"}
+    )
+    assert display.status_code == 200
+    real_name_shown_as = display.json()["shown_as"]
+    assert real_name_shown_as == "Real Ben"
+
+    reply = await client.post(
+        "/comments",
+        headers=world["cara"]["headers"],
+        json={
+            "target_type": "solution",
+            "target_id": solution_id,
+            "parent_id": root_id,
+            "text": "Thank you for confirming that.",
+        },
+    )
+    assert reply.status_code == 201, reply.text
+    reply_id = reply.json()["id"]
+    assert reply.json()["depth"] == 0, "re-attached at the depth cap, same depth as the parent"
+
+    async with session_scope() as session:
+        from backend.models import Comment
+        from backend.services import hashing
+
+        row = await session.get(Comment, reply_id)
+        assert row.reply_to_comment_id == root_id
+        assert row.text_body == "Thank you for confirming that."
+        assert "Ben" not in row.text_body
+        assert row.content_hash == hashing.comment_content_hash(
+            target_type=row.target_type,
+            target_id=row.target_id,
+            parent_id=row.parent_id,
+            reply_to_comment_id=row.reply_to_comment_id,
+            author_id=row.author_id,
+            text=row.text_body,
+            created_at=row.created_at,
+        )
+
+    def _reply_text(thread: list[dict]) -> str:
+        for node in thread:
+            if node["id"] == reply_id:
+                return node["text"]
+            found = _reply_text(node["replies"])
+            if found:
+                return found
+        return None
+
+    page = (await client.get(f"/solutions/{solution_id}")).json()
+    assert _reply_text(page["discussion"]) == "replying to @Real Ben: Thank you for confirming that."
+
+    # Ben goes anonymous — the rendered reply follows, without touching `text`.
+    await client.patch(
+        "/me/display", headers=world["ben"]["headers"], json={"public_name_mode": "anonymous"}
+    )
+    page = (await client.get(f"/solutions/{solution_id}")).json()
+    assert (
+        _reply_text(page["discussion"])
+        == "replying to @Anonymous Community Member: Thank you for confirming that."
+    )
+
+    # Ben deletes his account — the erasure promise holds for the reply too.
+    deleted = await client.request(
+        "DELETE",
+        "/me",
+        headers=world["ben"]["headers"],
+        json={"password": "Crosswalk1", "understand_this_cannot_be_undone": True},
+    )
+    assert deleted.status_code == 200, deleted.text
+    page = (await client.get(f"/solutions/{solution_id}")).json()
+    assert (
+        _reply_text(page["discussion"])
+        == "replying to @Former Community Member: Thank you for confirming that."
+    )
+
+    async with session_scope() as session:
+        from backend.models import Comment
+        from backend.services import hashing
+
+        row = await session.get(Comment, reply_id)
+        assert row.text_body == "Thank you for confirming that."
+        assert row.content_hash == hashing.comment_content_hash(
+            target_type=row.target_type,
+            target_id=row.target_id,
+            parent_id=row.parent_id,
+            reply_to_comment_id=row.reply_to_comment_id,
+            author_id=row.author_id,
+            text=row.text_body,
+            created_at=row.created_at,
+        ), "the hash still recomputes — nothing about the stored row changed"
+
+
 async def test_a_comment_can_be_edited_briefly_and_removed_softly(client, world):
     solution_id = await _dominant_solution(client, world)
     comment = await client.post(

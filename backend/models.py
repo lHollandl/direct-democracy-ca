@@ -849,6 +849,9 @@ class Comment(Base):
     parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("comments.id"), nullable=True
     )
+    reply_to_comment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("comments.id"), nullable=True
+    )
     depth: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     text_body: Mapped[str] = mapped_column("text", Text, nullable=False)
@@ -865,6 +868,7 @@ class Comment(Base):
         Index("ix_comments_target", "target_type", "target_id", "parent_id"),
         Index("ix_comments_author_id", "author_id"),
         Index("ix_comments_parent_id", "parent_id"),
+        Index("ix_comments_reply_to_comment_id", "reply_to_comment_id"),
     )
 
 
