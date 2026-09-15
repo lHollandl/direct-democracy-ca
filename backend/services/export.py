@@ -18,7 +18,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.config.settings_env import repo_root
+from backend.config.settings_env import get_env_settings, repo_root
 from backend.errors import Forbidden, NotFound
 from backend.models import DataExport, User
 from backend.repositories import data_exports as data_exports_repo
@@ -32,7 +32,6 @@ Contributor = Callable[[AsyncSession, int], Awaitable[dict]]
 _contributors: dict[str, Contributor] = {}
 
 EXPORT_DIR = repo_root() / "var" / "exports"
-EXPORT_LIFETIME_HOURS = 48
 
 
 def register_contributor(name: str, contribute: Contributor) -> None:
@@ -54,7 +53,8 @@ async def request_export(session: AsyncSession, user: User) -> DataExport:
     row = await data_exports_repo.add(
         session,
         user_id=user.id,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=EXPORT_LIFETIME_HOURS),
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(hours=get_env_settings().EXPORT_FILE_HOURS),
     )
     export_id = row.id
     _schedule_build(session, export_id)

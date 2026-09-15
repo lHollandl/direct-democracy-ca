@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_DAYS: int = 14
     EMAIL_VERIFY_HOURS: int = 24
     PASSWORD_RESET_MINUTES: int = 30
+    # How long a person has to collect the data export they asked for
+    # (DATABASE.md §3.11) — a user-rights window (CLAUDE.md §6), not a
+    # democratic rule, so it is configuration rather than a settings-table
+    # value (director decision, HISTORY.md; audit demo-01 run 4, MEDIUM: this
+    # was a bare module constant, undocumented and unrecorded). No default:
+    # startup refuses to run without it.
+    EXPORT_FILE_HOURS: int
 
     # --- Email -----------------------------------------------------------
     EMAIL_BACKEND: Literal["console", "smtp"] = "console"
