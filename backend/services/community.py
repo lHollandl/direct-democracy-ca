@@ -125,3 +125,30 @@ async def active_user_definition(session: AsyncSession) -> str:
 
 async def officials_for(session: AsyncSession, level: str, entity_id: int) -> list[Official]:
     return await officials_repo.for_community(session, level, entity_id)
+
+
+def _official_dict(o: Official) -> dict:
+    return {"id": o.id, "office": o.office, "holder_name": o.holder_name, "email": o.email, "source": o.source}
+
+
+async def detail_view(session: AsyncSession, level: str, entity_id: int) -> dict:
+    """`GET /communities/{level}/{id}` — the whole response (ARCHITECTURE.md
+    §2/§10: one service call per router endpoint beyond a `require_*`
+    resolver; audit demo-01 run 3, MEDIUM: this used to assemble four
+    service calls in the router)."""
+    community = await resolve(session, level, entity_id)
+    officials = await officials_for(session, level, entity_id)
+    return {
+        **community.as_dict(),
+        "active_users": await active_user_count(session, level, entity_id),
+        "active_user_definition": await active_user_definition(session),
+        "officials": [_official_dict(o) for o in officials],
+    }
+
+
+async def officials_list(session: AsyncSession, level: str, entity_id: int) -> list[dict]:
+    """`GET /communities/{level}/{id}/officials` — one service call (audit
+    demo-01 run 3, MEDIUM: this used to call `resolve` and `officials_for`
+    separately from the router)."""
+    await resolve(session, level, entity_id)
+    return [_official_dict(o) for o in await officials_for(session, level, entity_id)]

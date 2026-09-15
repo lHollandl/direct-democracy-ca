@@ -99,6 +99,28 @@ async def propose(
     return amendment
 
 
+async def propose_as_member(
+    session: AsyncSession, *, solution: Solution, author: User, text: str, rationale: str
+) -> dict:
+    """`POST /solutions/{id}/amendments` — the whole response (ARCHITECTURE.md
+    §2/§10: one service call per router endpoint beyond a `require_*`
+    resolver; audit demo-01 run 3, MEDIUM: this used to call three
+    `amendments_service` functions from the router)."""
+    from backend.deps import require_member
+
+    level, entity_id = await community_of_solution(session, solution)
+    await require_member(session, author, level, entity_id)
+    amendment = await propose(session, solution=solution, author=author, text=text, rationale=rationale)
+    return {
+        "id": amendment.id,
+        "message": (
+            "Proposed. It becomes the solution's text once enough of the people "
+            "who support that solution back your change."
+        ),
+        "absorption_threshold": await absorption_threshold_for(session, solution.id),
+    }
+
+
 def _schedule_similarity_check(session: AsyncSession, amendment_id: int) -> None:
     """The service that owns the transaction schedules the job (ARCHITECTURE.md
     §7; resolves audit demo-01 run 1's ambiguity 1)."""
@@ -272,11 +294,15 @@ async def community_of_solution(session: AsyncSession, solution: Solution) -> tu
     return umbrella.community_level, umbrella.community_entity_id
 
 
-async def list_for_solution(session: AsyncSession, solution: Solution) -> dict:
+async def list_for_solution(
+    session: AsyncSession, solution: Solution, *, cursor: int | None, limit: int
+) -> dict:
     """`GET /solutions/{id}/amendments` — the whole response (ARCHITECTURE.md
     §2/§10: one service call per router endpoint beyond a `require_*`
-    resolver)."""
-    rows = await solutions_repo.amendments_for(session, solution.id)
+    resolver; §6: paginates like every other list endpoint, audit demo-01
+    run 3 HIGH). The solution's own detail page keeps embedding every
+    amendment unpaginated — this is the dedicated list."""
+    rows = await solutions_repo.amendments_for_page(session, solution.id, cursor=cursor, limit=limit)
     current = await solutions_repo.current_version(session, solution.id)
     text = current.text_body if current else ""
     displays = await author_displays(session, [a.author_id for a in rows])
@@ -302,4 +328,5 @@ async def list_for_solution(session: AsyncSession, solution: Solution) -> dict:
             for a in rows
         ],
         "similar_pairs": await similarity_service.pairs_for_solution(session, solution.id),
+        "next_cursor": rows[-1].id if len(rows) == limit else None,
     }

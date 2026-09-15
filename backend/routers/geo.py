@@ -61,30 +61,11 @@ class CommunityOut(BaseModel):
 
 @router.get("/communities/{level}/{entity_id}", response_model=CommunityOut)
 async def community(level: str, entity_id: int, session: SessionDep) -> CommunityOut:
-    resolved = await community_service.resolve(session, level, entity_id)
-    return CommunityOut(
-        **resolved.as_dict(),
-        active_users=await community_service.active_user_count(session, level, entity_id),
-        active_user_definition=await community_service.active_user_definition(session),
-        officials=[
-            OfficialOut(
-                id=o.id,
-                office=o.office,
-                holder_name=o.holder_name,
-                email=o.email,
-                source=o.source,
-            )
-            for o in await community_service.officials_for(session, level, entity_id)
-        ],
-    )
+    return CommunityOut(**await community_service.detail_view(session, level, entity_id))
 
 
 @router.get("/communities/{level}/{entity_id}/officials", response_model=list[OfficialOut])
 async def officials(level: str, entity_id: int, session: SessionDep) -> list[OfficialOut]:
-    await community_service.resolve(session, level, entity_id)
     return [
-        OfficialOut(
-            id=o.id, office=o.office, holder_name=o.holder_name, email=o.email, source=o.source
-        )
-        for o in await community_service.officials_for(session, level, entity_id)
+        OfficialOut(**o) for o in await community_service.officials_list(session, level, entity_id)
     ]

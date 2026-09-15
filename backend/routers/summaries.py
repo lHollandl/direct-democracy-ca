@@ -7,20 +7,26 @@ import urllib.parse
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
+from backend.config.settings_env import get_env_settings
 from backend.deps import SessionDep, VerifiedUser
+from backend.routers.common import CursorParam, DEFAULT_LIMIT, LimitParam
 from backend.services import summaries as summaries_service
 
 router = APIRouter(tags=["summaries"])
 
 
 @router.get("/summaries/hashes")
-async def hash_list(session: SessionDep) -> dict:
+async def hash_list(
+    session: SessionDep, cursor: CursorParam = None, limit: LimitParam = DEFAULT_LIMIT
+) -> dict:
+    page = await summaries_service.hash_list(session, cursor=cursor, limit=limit)
     return {
         "explanation": (
             "Every document this platform has published, with its fingerprint. "
             "Download any document's JSON, run SHA-256 over it, and compare."
         ),
-        "summaries": await summaries_service.hash_list(session),
+        "summaries": page["items"],
+        "next_cursor": page["next_cursor"],
     }
 
 
@@ -46,7 +52,7 @@ async def summary_json(
     level: str, entity_id: int, number: int, session: SessionDep
 ) -> PlainTextResponse:
     """Exactly the bytes the fingerprint was computed over."""
-    cycle = await summaries_service.cycle_for(
+    cycle = await summaries_service.require_cycle_by_number(
         session, level=level, entity_id=entity_id, number=number
     )
     text = await summaries_service.canonical_json(session, cycle=cycle)
@@ -65,7 +71,7 @@ async def summary_json(
 async def summary_verify(
     level: str, entity_id: int, number: int, session: SessionDep
 ) -> dict:
-    cycle = await summaries_service.cycle_for(
+    cycle = await summaries_service.require_cycle_by_number(
         session, level=level, entity_id=entity_id, number=number
     )
     return await summaries_service.verify(session, cycle=cycle)
@@ -75,10 +81,10 @@ async def summary_verify(
 async def summary_pdf(
     level: str, entity_id: int, number: int, session: SessionDep
 ) -> Response:
-    cycle = await summaries_service.cycle_for(
+    cycle = await summaries_service.require_cycle_by_number(
         session, level=level, entity_id=entity_id, number=number
     )
-    url = f"/summaries/{level}/{entity_id}/{number}"
+    url = get_env_settings().absolute_url(f"/summaries/{level}/{entity_id}/{number}")
     payload = await summaries_service.pdf_bytes(session, cycle=cycle, url=url)
     return Response(
         payload,
@@ -93,9 +99,12 @@ async def summary_pdf(
 
 def _mailto(send: dict, level: str, entity_id: int, number: int, digest: str) -> str:
     """DEMOCRACY.md §11.5 — the user's own mail client, from their own address.
-    The platform sends nothing and records nothing about the send."""
+    The platform sends nothing and records nothing about the send. The body's
+    URL is absolute (`PUBLIC_BASE_URL`) so it still resolves once forwarded
+    outside a browser session with the platform open (audit demo-01 run 3,
+    LOW)."""
     recipients = ",".join(r["email"] for r in send["recipients"])
-    url = f"/summaries/{level}/{entity_id}/{number}"
+    url = get_env_settings().absolute_url(f"/summaries/{level}/{entity_id}/{number}")
     body = (
         "I am a resident of this community. These are the results of our ballot "
         "this cycle, voted on by residents and published in full:\n\n"

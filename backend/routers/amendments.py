@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
-from backend.deps import SessionDep, VerifiedUser, require_member
-from backend.routers.common import Message
+from backend.deps import SessionDep, VerifiedUser
+from backend.routers.common import CursorParam, DEFAULT_LIMIT, LimitParam, Message
 from backend.services import amendments as amendments_service
 from backend.services import similarity as similarity_service
 from backend.services import solutions as solutions_service
@@ -27,31 +27,20 @@ async def propose_amendment(
     session: SessionDep,
 ) -> dict:
     solution = await solutions_service.require_solution(session, solution_id)
-    level, entity_id = await amendments_service.community_of_solution(session, solution)
-    await require_member(session, user, level, entity_id)
-    amendment = await amendments_service.propose(
-        session,
-        solution=solution,
-        author=user,
-        text=body.proposed_text,
-        rationale=body.rationale,
+    return await amendments_service.propose_as_member(
+        session, solution=solution, author=user, text=body.proposed_text, rationale=body.rationale
     )
-    return {
-        "id": amendment.id,
-        "message": (
-            "Proposed. It becomes the solution's text once enough of the people "
-            "who support that solution back your change."
-        ),
-        "absorption_threshold": await amendments_service.absorption_threshold_for(
-            session, solution.id
-        ),
-    }
 
 
 @router.get("/solutions/{solution_id}/amendments")
-async def list_amendments(solution_id: int, session: SessionDep) -> dict:
+async def list_amendments(
+    solution_id: int,
+    session: SessionDep,
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
+) -> dict:
     solution = await solutions_service.require_solution(session, solution_id)
-    return await amendments_service.list_for_solution(session, solution)
+    return await amendments_service.list_for_solution(session, solution, cursor=cursor, limit=limit)
 
 
 @router.post("/amendments/{amendment_id}/withdraw", response_model=Message)

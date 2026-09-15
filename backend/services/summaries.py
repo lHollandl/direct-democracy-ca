@@ -64,7 +64,7 @@ def _shape(data: dict, digest: str, published_at) -> dict:
             "hash": digest,
             "algorithm": "SHA-256 of the canonical JSON (keys sorted, UTF-8, no whitespace)",
             "explanation": VERIFY_EXPLANATION,
-            "hash_list_url": "/summaries/hashes",
+            "hash_list_url": get_env_settings().absolute_url("/summaries/hashes"),
         },
     }
 
@@ -362,19 +362,25 @@ async def pdf_bytes(session: AsyncSession, *, cycle: Cycle, url: str) -> bytes:
     return pdf_service.render(summary.data, summary.summary_hash, url)
 
 
-async def cycle_for(
+async def require_cycle_by_number(
     session: AsyncSession, *, level: str, entity_id: int, number: int
 ) -> Cycle:
+    """A `require_*` resolver (ARCHITECTURE.md §2/§10) — audit demo-01 run 3,
+    MEDIUM: named `cycle_for` before, so the layering test's `require_*`
+    exemption didn't recognize it and every caller looked like two service
+    calls."""
     cycle = await cycles_repo.by_number(session, level, entity_id, number)
     if cycle is None:
         raise NotFound("There is no such cycle.", code="cycle_not_found")
     return cycle
 
 
-async def hash_list(session: AsyncSession) -> list[dict]:
-    """The public hash list (DEMOCRACY.md §11.3)."""
+async def hash_list(session: AsyncSession, *, cursor: int | None, limit: int) -> dict:
+    """`GET /summaries/hashes` (DEMOCRACY.md §11.3; ARCHITECTURE.md §6 —
+    paginates like every other list endpoint, audit demo-01 run 3 HIGH)."""
+    rows = await cycles_repo.published_summaries_page(session, cursor=cursor, limit=limit)
     out = []
-    for summary, cycle in await cycles_repo.published_summaries(session):
+    for summary, cycle in rows:
         community = await community_service.resolve(
             session, cycle.community_level, cycle.community_entity_id
         )
@@ -390,7 +396,10 @@ async def hash_list(session: AsyncSession) -> list[dict]:
                 ),
             }
         )
-    return out
+    return {
+        "items": out,
+        "next_cursor": rows[-1][0].id if len(rows) == limit else None,
+    }
 
 
 async def for_user(session: AsyncSession, *, user) -> dict:

@@ -167,11 +167,18 @@ def _endpoint_functions(tree: ast.Module):
 
 
 def _router_endpoint_violations(path: Path) -> list[str]:
+    """Audit demo-01 run 3, MEDIUM: counting distinct service **modules**
+    (fix run 2's own version of this check) let an endpoint call several
+    distinct functions on one module and still pass — `geo.py::community`
+    called four `community_service` functions and assembled the response
+    itself, invisible to a module-count check. This counts distinct
+    `(module, function)` pairs instead, so calling more than one function on
+    the same module is caught too."""
     tree = _parse(path)
     aliases = _imported_service_modules(tree)
     violations: list[str] = []
     for func in _endpoint_functions(tree):
-        modules_used: set[str] = set()
+        calls_used: set[tuple[str, str]] = set()
         for node in ast.walk(func):
             if not isinstance(node, ast.Call):
                 continue
@@ -189,26 +196,29 @@ def _router_endpoint_violations(path: Path) -> list[str]:
                         "(ARCHITECTURE.md §2, §10)"
                     )
                     continue
-                modules_used.add(module)
+                calls_used.add((module, attr))
             elif isinstance(node.func, ast.Name):
                 module = aliases.get(node.func.id)
                 if module is not None and not node.func.id.startswith("require_"):
-                    modules_used.add(module)
-        if len(modules_used) > 1:
+                    calls_used.add((module, node.func.id))
+        if len(calls_used) > 1:
+            offenders = sorted(f"{module}.{attr}" for module, attr in calls_used)
             violations.append(
-                f"{path.name} {func.name}() calls service modules {sorted(modules_used)} — "
-                "an endpoint calls at most one service module beyond a `require_*` "
-                "resolver; move the assembly into that one service function "
-                "(ARCHITECTURE.md §2, §10)"
+                f"{path.name} {func.name}() calls {offenders} — an endpoint calls at "
+                "most one service function beyond a `require_*` resolver; move the "
+                "assembly into that one service function (ARCHITECTURE.md §2, §10)"
             )
     return violations
 
 
-def test_no_endpoint_calls_more_than_one_service_module_or_does_threshold_arithmetic():
+def test_no_endpoint_calls_more_than_one_service_function_or_does_threshold_arithmetic():
     """Audit demo-01 run 2, MEDIUM: `get_solution` assembled its response from
     ten service calls across five modules and computed thresholds inline
-    instead of calling `solutions_service.detail_view`. Fixed by FIX-11; this
-    guards against it regressing."""
+    instead of calling `solutions_service.detail_view`. Fixed by FIX-11.
+    Audit demo-01 run 3, MEDIUM: two of that same finding's five originally
+    named offenders (`geo.py::community`, `amendments.py::propose_amendment`)
+    were untouched, because the check only counted distinct modules and both
+    called several functions from a single module. This counts functions."""
     violations: list[str] = []
     for path in sorted(ROUTERS_DIR.glob("*.py")):
         if path.name in ("__init__.py", "common.py"):
