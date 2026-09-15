@@ -72,11 +72,14 @@ export default function BallotPage() {
   if (loading) return <Loading what="your ballots" />;
   if (!me) {
     return (
-      <div className="mx-auto max-w-md px-4 py-8">
-        <Notice>
-          <Link href="/login">Sign in</Link> to see your community&apos;s ballot.
-        </Notice>
-      </div>
+      <>
+        <PageHeader title="The ballot" />
+        <div className="mx-auto max-w-md px-4 py-8">
+          <Notice>
+            <Link href="/login">Sign in</Link> to see your community&apos;s ballot.
+          </Notice>
+        </div>
+      </>
     );
   }
   if (!ballots) return <Loading what="your ballots" />;

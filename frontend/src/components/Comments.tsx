@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { ApiError, post } from "@/lib/api";
+import { useRef, useState } from "react";
+import { post } from "@/lib/api";
 import VoteButtons from "@/components/VoteButtons";
 import { Empty, Notice } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 
 export type Comment = {
   id: number;
@@ -141,13 +142,14 @@ function CommentForm({
   onPosted: () => void;
 }) {
   const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
   const [busy, setBusy] = useState(false);
   const fieldId = `comment-${targetType}-${targetId}-${parentId ?? "root"}`;
+  const formRef = useRef<HTMLFormElement>(null);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    clear();
     setBusy(true);
     try {
       await post("/comments", {
@@ -159,27 +161,36 @@ function CommentForm({
       setText("");
       onPosted();
     } catch (problem) {
-      setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+      fail(problem, formRef.current);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="mt-3">
+    <form ref={formRef} onSubmit={submit} className="mt-3" noValidate>
       <label htmlFor={fieldId} className="block text-sm font-medium">
         {parentId ? "Your reply" : "Add to the discussion"}
       </label>
       <textarea
         id={fieldId}
+        name="text"
         className="field mt-1"
         rows={3}
         maxLength={2000}
         required
         value={text}
         onChange={(e) => setText(e.target.value)}
+        {...fieldProps("text")}
       />
-      {error ? <div className="mt-1"><Notice kind="bad">{error}</Notice></div> : null}
+      <FieldError name="text" fieldErrors={fieldErrors} />
+      {error ? (
+        <div className="mt-1">
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        </div>
+      ) : null}
       <button type="submit" className="btn mt-2" disabled={busy}>
         {busy ? "Posting…" : "Post"}
       </button>

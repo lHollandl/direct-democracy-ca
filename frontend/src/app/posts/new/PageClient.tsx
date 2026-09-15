@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ApiError, get, post } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
 type Umbrella = { id: number; name: string; statement: string; main_category: string | null };
@@ -20,8 +21,9 @@ export default function NewPostPage() {
   const [mode, setMode] = useState<"ai" | "author_selected">("ai");
   const [umbrellas, setUmbrellas] = useState<Record<string, Umbrella[]>>({});
   const [picked, setPicked] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
   const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!me) return;
@@ -41,17 +43,20 @@ export default function NewPostPage() {
   if (loading) return <Loading what="the form" />;
   if (!me) {
     return (
-      <div className="mx-auto max-w-md px-4 py-8">
-        <Notice>
-          <Link href="/login">Sign in</Link> to write down a problem.
-        </Notice>
-      </div>
+      <>
+        <PageHeader title="Write down a problem" />
+        <div className="mx-auto max-w-md px-4 py-8">
+          <Notice>
+            <Link href="/login">Sign in</Link> to write down a problem.
+          </Notice>
+        </div>
+      </>
     );
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    clear();
     setBusy(true);
     try {
       const body = await post<{ id: number; message: string }>("/posts", {
@@ -71,11 +76,7 @@ export default function NewPostPage() {
       });
       router.push(`/posts/${body.id}`);
     } catch (problemRaised) {
-      setError(
-        problemRaised instanceof ApiError
-          ? problemRaised.message
-          : "Something went wrong.",
-      );
+      fail(problemRaised, formRef.current);
       setBusy(false);
     }
   }
@@ -87,12 +88,17 @@ export default function NewPostPage() {
         lead="And say what you think should be done about it. Nothing can be posted here without at least one proposed solution."
       />
       <div className="mx-auto max-w-2xl px-4 py-8">
-        {error ? <Notice kind="bad">{error}</Notice> : null}
-        <form onSubmit={submit}>
+        {error ? (
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        ) : null}
+        <form ref={formRef} onSubmit={submit} noValidate>
           <Section title="1. The problem" description="What is wrong, where, and who it affects. Between 20 and 5,000 characters.">
             <label htmlFor="problem" className="sr-only">The problem</label>
             <textarea
               id="problem"
+              name="problem_text"
               required
               minLength={20}
               maxLength={5000}
@@ -100,8 +106,10 @@ export default function NewPostPage() {
               className="field"
               value={problem}
               onChange={(e) => setProblem(e.target.value)}
+              {...fieldProps("problem_text", "problem-hint")}
             />
-            <p className="mt-1 text-sm text-[var(--muted)]">
+            <FieldError name="problem_text" fieldErrors={fieldErrors} />
+            <p id="problem-hint" className="mt-1 text-sm text-[var(--muted)]">
               {problem.trim().length} characters. This cannot be edited once posted —
               it is fingerprinted when it is created.
             </p>

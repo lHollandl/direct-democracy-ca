@@ -1,24 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { post } from "@/lib/api";
 import { Notice, PageHeader } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
 export default function ForgotPasswordPage() {
   useDocumentTitle("Reset your password");
   const [message, setMessage] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
   const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    clear();
     setBusy(true);
     const form = new FormData(event.currentTarget);
-    const body = await post<{ message: string }>("/auth/forgot-password", {
-      email: form.get("email"),
-    });
-    setMessage(body.message);
-    setBusy(false);
+    try {
+      const body = await post<{ message: string }>("/auth/forgot-password", {
+        email: form.get("email"),
+      });
+      setMessage(body.message);
+    } catch (problem) {
+      fail(problem, formRef.current);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -26,10 +35,23 @@ export default function ForgotPasswordPage() {
       <PageHeader title="Reset your password" />
       <div className="mx-auto max-w-md px-4 py-8">
         {message ? <Notice kind="good">{message}</Notice> : null}
-        <form onSubmit={onSubmit} className="mt-4 space-y-4">
+        {error ? (
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        ) : null}
+        <form ref={formRef} onSubmit={onSubmit} className="mt-4 space-y-4" noValidate>
           <div>
             <label htmlFor="email" className="block font-medium">Email address</label>
-            <input id="email" name="email" type="email" required className="field mt-1" />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              className="field mt-1"
+              {...fieldProps("email")}
+            />
+            <FieldError name="email" fieldErrors={fieldErrors} />
           </div>
           <button type="submit" className="btn btn-primary w-full" disabled={busy}>
             {busy ? "Sending…" : "Send me a reset link"}

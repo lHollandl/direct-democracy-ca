@@ -38,11 +38,14 @@ export default function ResultsPage() {
   if (loading) return <Loading what="your results" />;
   if (!me) {
     return (
-      <div className="mx-auto max-w-md px-4 py-8">
-        <Notice>
-          <Link href="/login">Sign in</Link> to see your communities&apos; results.
-        </Notice>
-      </div>
+      <>
+        <PageHeader title="Results" />
+        <div className="mx-auto max-w-md px-4 py-8">
+          <Notice>
+            <Link href="/login">Sign in</Link> to see your communities&apos; results.
+          </Notice>
+        </div>
+      </>
     );
   }
   if (!data) return <Loading what="your results" />;

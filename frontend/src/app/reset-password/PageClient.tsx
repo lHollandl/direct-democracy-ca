@@ -2,20 +2,22 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
-import { ApiError, post } from "@/lib/api";
+import { Suspense, useRef, useState } from "react";
+import { post } from "@/lib/api";
 import { Loading, Notice, PageHeader } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
 function ResetForm() {
   const token = useSearchParams().get("token") ?? "";
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
   const [busy, setBusy] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    clear();
     setBusy(true);
     const form = new FormData(event.currentTarget);
     try {
@@ -25,7 +27,7 @@ function ResetForm() {
       });
       setMessage(body.message);
     } catch (problem) {
-      setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+      fail(problem, formRef.current);
     } finally {
       setBusy(false);
     }
@@ -42,12 +44,25 @@ function ResetForm() {
 
   return (
     <>
-      {error ? <Notice kind="bad">{error}</Notice> : null}
-      <form onSubmit={onSubmit} className="mt-4 space-y-4">
+      {error ? (
+        <Notice kind="bad" alertRef={alertRef}>
+          {error}
+        </Notice>
+      ) : null}
+      <form ref={formRef} onSubmit={onSubmit} className="mt-4 space-y-4" noValidate>
         <div>
           <label htmlFor="new_password" className="block font-medium">New password</label>
-          <input id="new_password" name="new_password" type="password" required autoComplete="new-password" className="field mt-1" />
-          <p className="mt-1 text-sm text-[var(--muted)]">
+          <input
+            id="new_password"
+            name="new_password"
+            type="password"
+            required
+            autoComplete="new-password"
+            className="field mt-1"
+            {...fieldProps("new_password", "new_password-hint")}
+          />
+          <FieldError name="new_password" fieldErrors={fieldErrors} />
+          <p id="new_password-hint" className="mt-1 text-sm text-[var(--muted)]">
             At least 8 characters, with a capital letter and a number.
           </p>
         </div>

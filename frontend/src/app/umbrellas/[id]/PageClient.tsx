@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
-import { ApiError, post, put, get } from "@/lib/api";
+import { useRef, useState } from "react";
+import { post, put, get } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
 import Comments, { Comment } from "@/components/Comments";
@@ -18,6 +18,7 @@ import {
   PageHeader,
   Section,
 } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
 type Solution = {
@@ -109,7 +110,7 @@ export default function UmbrellaPage() {
   useDocumentTitle("The workshop");
   const { id } = useParams<{ id: string }>();
   const { me } = useSession();
-  const [error, setError] = useState<string | null>(null);
+  const { error, alertRef, clear, fail } = useFormError();
   const { data, reload } = useLoader<Page>(() => get<Page>(`/umbrellas/${id}`), [id]);
   const load = reload;
 
@@ -138,7 +139,11 @@ export default function UmbrellaPage() {
       </PageHeader>
 
       <div className="mx-auto max-w-3xl px-4 py-8">
-        {error ? <Notice kind="bad">{error}</Notice> : null}
+        {error ? (
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        ) : null}
         {!isMember ? (
           <Notice>
             You can read everything here. Posting, commenting and voting happen
@@ -262,7 +267,6 @@ export default function UmbrellaPage() {
                     <ProposeAmendment
                       solutionId={dominant.solution_id}
                       onProposed={() => load()}
-                      onError={setError}
                     />
                   ) : null}
                   {dominant.amendments.length === 0 ? (
@@ -336,15 +340,12 @@ export default function UmbrellaPage() {
                                     type="button"
                                     className="btn px-3 py-1 text-sm"
                                     onClick={async () => {
+                                      clear();
                                       try {
                                         await post(`/similarity/${pair.id}/decide`, { choice });
                                         load();
                                       } catch (problem) {
-                                        setError(
-                                          problem instanceof ApiError
-                                            ? problem.message
-                                            : "Something went wrong.",
-                                        );
+                                        fail(problem);
                                       }
                                     }}
                                   >
@@ -431,8 +432,9 @@ export default function UmbrellaPage() {
 
 function AddSolution({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: () => void }) {
   const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
   const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   if (!open) {
     return (
@@ -443,17 +445,19 @@ function AddSolution({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: () 
   }
   return (
     <form
+      ref={formRef}
       className="card p-3"
+      noValidate
       onSubmit={async (event) => {
         event.preventDefault();
-        setError(null);
+        clear();
         try {
           await post(`/umbrellas/${umbrellaId}/solutions`, { text });
           setText("");
           setOpen(false);
           onAdded();
         } catch (problem) {
-          setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+          fail(problem, formRef.current);
         }
       }}
     >
@@ -462,6 +466,7 @@ function AddSolution({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: () 
       </label>
       <textarea
         id="new-solution"
+        name="text"
         className="field mt-1"
         rows={4}
         required
@@ -469,12 +474,20 @@ function AddSolution({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: () 
         maxLength={5000}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        {...fieldProps("text", "new-solution-hint")}
       />
-      <p className="mt-1 text-sm text-[var(--muted)]">
+      <FieldError name="text" fieldErrors={fieldErrors} />
+      <p id="new-solution-hint" className="mt-1 text-sm text-[var(--muted)]">
         Once posted this belongs to the community: when it becomes dominant,
         anyone here can propose a change to it.
       </p>
-      {error ? <div className="mt-1"><Notice kind="bad">{error}</Notice></div> : null}
+      {error ? (
+        <div className="mt-1">
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        </div>
+      ) : null}
       <div className="mt-2 flex gap-2">
         <button type="submit" className="btn btn-primary">Post it</button>
         <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
@@ -486,15 +499,15 @@ function AddSolution({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: () 
 function ProposeAmendment({
   solutionId,
   onProposed,
-  onError,
 }: {
   solutionId: number;
   onProposed: () => void;
-  onError: (message: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [rationale, setRationale] = useState("");
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
 
   if (!open) {
     return (
@@ -505,9 +518,12 @@ function ProposeAmendment({
   }
   return (
     <form
+      ref={formRef}
       className="mt-2 rounded-lg border border-[var(--line)] p-3"
+      noValidate
       onSubmit={async (event) => {
         event.preventDefault();
+        clear();
         try {
           await post(`/solutions/${solutionId}/amendments`, {
             proposed_text: text,
@@ -518,15 +534,21 @@ function ProposeAmendment({
           setOpen(false);
           onProposed();
         } catch (problem) {
-          onError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+          fail(problem, formRef.current);
         }
       }}
     >
+      {error ? (
+        <Notice kind="bad" alertRef={alertRef}>
+          {error}
+        </Notice>
+      ) : null}
       <label htmlFor={`amend-${solutionId}`} className="block font-medium">
         The whole solution, as you would have it read
       </label>
       <textarea
         id={`amend-${solutionId}`}
+        name="proposed_text"
         className="field mt-1"
         rows={4}
         required
@@ -534,19 +556,24 @@ function ProposeAmendment({
         maxLength={5000}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        {...fieldProps("proposed_text")}
       />
+      <FieldError name="proposed_text" fieldErrors={fieldErrors} />
       <label htmlFor={`why-${solutionId}`} className="mt-3 block font-medium">
         Why, in one line
       </label>
       <input
         id={`why-${solutionId}`}
+        name="rationale"
         className="field mt-1"
         required
         minLength={10}
         maxLength={300}
         value={rationale}
         onChange={(e) => setRationale(e.target.value)}
+        {...fieldProps("rationale")}
       />
+      <FieldError name="rationale" fieldErrors={fieldErrors} />
       <div className="mt-2 flex gap-2">
         <button type="submit" className="btn btn-primary">Propose it</button>
         <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
@@ -557,7 +584,8 @@ function ProposeAmendment({
 
 function AddReference({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
 
   if (!open) {
     return (
@@ -568,10 +596,12 @@ function AddReference({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: ()
   }
   return (
     <form
+      ref={formRef}
       className="card p-3"
+      noValidate
       onSubmit={async (event) => {
         event.preventDefault();
-        setError(null);
+        clear();
         const form = new FormData(event.currentTarget);
         try {
           await post(`/umbrellas/${umbrellaId}/references`, {
@@ -582,17 +612,40 @@ function AddReference({ umbrellaId, onAdded }: { umbrellaId: number; onAdded: ()
           setOpen(false);
           onAdded();
         } catch (problem) {
-          setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+          fail(problem, formRef.current);
         }
       }}
     >
       <label htmlFor="ref-url" className="block font-medium">Web address</label>
-      <input id="ref-url" name="url" type="url" required className="field mt-1" />
+      <input
+        id="ref-url"
+        name="url"
+        type="url"
+        required
+        className="field mt-1"
+        {...fieldProps("url")}
+      />
+      <FieldError name="url" fieldErrors={fieldErrors} />
       <label htmlFor="ref-title" className="mt-2 block font-medium">What it is called</label>
-      <input id="ref-title" name="title" className="field mt-1" />
+      <input id="ref-title" name="title" className="field mt-1" {...fieldProps("title")} />
+      <FieldError name="title" fieldErrors={fieldErrors} />
       <label htmlFor="ref-note" className="mt-2 block font-medium">Why it is worth reading</label>
-      <input id="ref-note" name="note" required maxLength={300} className="field mt-1" />
-      {error ? <div className="mt-1"><Notice kind="bad">{error}</Notice></div> : null}
+      <input
+        id="ref-note"
+        name="note"
+        required
+        maxLength={300}
+        className="field mt-1"
+        {...fieldProps("note")}
+      />
+      <FieldError name="note" fieldErrors={fieldErrors} />
+      {error ? (
+        <div className="mt-1">
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        </div>
+      ) : null}
       <div className="mt-2 flex gap-2">
         <button type="submit" className="btn btn-primary">Add it</button>
         <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>

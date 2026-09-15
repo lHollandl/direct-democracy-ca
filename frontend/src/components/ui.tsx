@@ -50,9 +50,14 @@ export function Section({
 export function Notice({
   kind = "info",
   children,
+  alertRef,
 }: {
   kind?: "info" | "good" | "bad";
   children: ReactNode;
+  /** A bad Notice can receive focus (WCAG 2.1 AA — focus moves to the error
+   * on a failed submit, `useFormError`'s `fail()` uses this when no single
+   * field is to blame). `tabIndex={-1}` keeps it out of normal tab order. */
+  alertRef?: React.RefObject<HTMLParagraphElement | null>;
 }) {
   const colour =
     kind === "bad"
@@ -62,6 +67,8 @@ export function Notice({
         : "border-[var(--line)] text-[var(--muted)]";
   return (
     <p
+      ref={kind === "bad" ? alertRef : undefined}
+      tabIndex={kind === "bad" ? -1 : undefined}
       role={kind === "bad" ? "alert" : "status"}
       className={`rounded-lg border-l-4 bg-[var(--surface)] px-3 py-2 text-sm ${colour}`}
     >

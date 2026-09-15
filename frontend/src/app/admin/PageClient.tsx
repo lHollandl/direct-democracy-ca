@@ -7,11 +7,12 @@
  */
 
 import Link from "next/link";
-import { useState } from "react";
-import { ApiError, get, post } from "@/lib/api";
+import { useRef, useState } from "react";
+import { get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
 import { Badge, Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
 type Setting = { key: string; value: unknown; meaning: string };
@@ -31,7 +32,9 @@ export default function AdminPage() {
   useDocumentTitle("Administrator controls");
   const { me, loading } = useSession();
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
+  const settingFormRef = useRef<HTMLFormElement>(null);
+  const relabelFormRef = useRef<HTMLFormElement>(null);
   const { data, reload } = useLoader<{
     settings: Setting[];
     cycles: Record<string, Cycle[]>;
@@ -65,24 +68,32 @@ export default function AdminPage() {
   if (loading) return <Loading what="the administrator page" />;
   if (!me?.is_admin) {
     return (
-      <div className="mx-auto max-w-md px-4 py-8">
-        <Notice>
-          This page is for administrators. Everything they do is published in the{" "}
-          <Link href="/admin/log">administrator log</Link>, which anybody can read.
-        </Notice>
-      </div>
+      <>
+        <PageHeader title="Administrator controls" />
+        <div className="mx-auto max-w-md px-4 py-8">
+          <Notice>
+            This page is for administrators. Everything they do is published in the{" "}
+            <Link href="/admin/log">administrator log</Link>, which anybody can read.
+          </Notice>
+        </div>
+      </>
     );
   }
 
-  async function run(path: string, body?: unknown, description?: string) {
-    setError(null);
+  async function run(
+    path: string,
+    body?: unknown,
+    description?: string,
+    form?: HTMLFormElement | null,
+  ) {
+    clear();
     setMessage(null);
     try {
       await post(path, body);
       setMessage(description ?? "Done. It is in the public administrator log.");
       reload();
     } catch (problem) {
-      setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+      fail(problem, form);
     }
   }
 
@@ -94,14 +105,20 @@ export default function AdminPage() {
       />
       <div className="mx-auto max-w-3xl px-4 py-8">
         {message ? <Notice kind="good">{message}</Notice> : null}
-        {error ? <Notice kind="bad">{error}</Notice> : null}
+        {error ? (
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        ) : null}
 
         <Section
           title="Change a rule"
           description="Every number that decides an outcome lives here, not in the code. A change takes effect immediately and is public."
         >
           <form
+            ref={settingFormRef}
             className="card space-y-3 p-3"
+            noValidate
             onSubmit={async (event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
@@ -113,27 +130,44 @@ export default function AdminPage() {
                   reason: form.get("reason"),
                 },
                 "Changed. It is on the settings page and in the administrator log.",
+                settingFormRef.current,
               );
             }}
           >
             <div>
               <label htmlFor="key" className="block font-medium">Rule</label>
-              <select id="key" name="key" required className="field mt-1">
+              <select id="key" name="key" required className="field mt-1" {...fieldProps("key")}>
                 {settings.map((setting) => (
                   <option key={setting.key} value={setting.key}>
                     {setting.key} (now {String(setting.value)})
                   </option>
                 ))}
               </select>
+              <FieldError name="key" fieldErrors={fieldErrors} />
             </div>
             <div>
               <label htmlFor="value" className="block font-medium">New value</label>
-              <input id="value" name="value" required className="field mt-1" />
+              <input
+                id="value"
+                name="value"
+                required
+                className="field mt-1"
+                {...fieldProps("value")}
+              />
+              <FieldError name="value" fieldErrors={fieldErrors} />
             </div>
             <div>
               <label htmlFor="reason" className="block font-medium">Why</label>
-              <input id="reason" name="reason" required minLength={3} className="field mt-1" />
-              <p className="mt-1 text-sm text-[var(--muted)]">
+              <input
+                id="reason"
+                name="reason"
+                required
+                minLength={3}
+                className="field mt-1"
+                {...fieldProps("reason", "reason-hint")}
+              />
+              <FieldError name="reason" fieldErrors={fieldErrors} />
+              <p id="reason-hint" className="mt-1 text-sm text-[var(--muted)]">
                 Published with the change. Write it for the community, not for yourself.
               </p>
             </div>
@@ -234,16 +268,31 @@ export default function AdminPage() {
 
         <Section title="File a post again" description="For a post whose filing failed.">
           <form
+            ref={relabelFormRef}
             className="flex items-end gap-2"
+            noValidate
             onSubmit={async (event) => {
               event.preventDefault();
               const form = new FormData(event.currentTarget);
-              await run(`/admin/posts/${form.get("post_id")}/relabel`);
+              await run(
+                `/admin/posts/${form.get("post_id")}/relabel`,
+                undefined,
+                undefined,
+                relabelFormRef.current,
+              );
             }}
           >
             <div>
               <label htmlFor="post_id" className="block font-medium">Post number</label>
-              <input id="post_id" name="post_id" type="number" required className="field mt-1" />
+              <input
+                id="post_id"
+                name="post_id"
+                type="number"
+                required
+                className="field mt-1"
+                {...fieldProps("post_id")}
+              />
+              <FieldError name="post_id" fieldErrors={fieldErrors} />
             </div>
             <button type="submit" className="btn">Try filing it again</button>
           </form>

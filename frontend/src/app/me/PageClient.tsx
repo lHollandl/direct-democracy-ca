@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ApiError, apiBase, del, patch, post } from "@/lib/api";
+import { useRef, useState } from "react";
+import { apiBase, del, patch, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
 const MODES = [
@@ -19,21 +20,25 @@ export default function MePage() {
   const router = useRouter();
   const { me, loading, reload, signOut } = useSession();
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
   const [exportId, setExportId] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const deleteFormRef = useRef<HTMLFormElement>(null);
 
   if (loading) return <Loading what="your account" />;
   if (!me) {
     return (
-      <div className="mx-auto max-w-md px-4 py-8">
-        <Notice>You need to <Link href="/login">sign in</Link> to see this page.</Notice>
-      </div>
+      <>
+        <PageHeader title="Your account" />
+        <div className="mx-auto max-w-md px-4 py-8">
+          <Notice>You need to <Link href="/login">sign in</Link> to see this page.</Notice>
+        </div>
+      </>
     );
   }
 
   async function changeMode(mode: string) {
-    setError(null);
+    clear();
     try {
       const body = await patch<{ shown_as: string }>("/me/display", {
         public_name_mode: mode,
@@ -41,12 +46,12 @@ export default function MePage() {
       setMessage(`Everything you write now shows as “${body.shown_as}”.`);
       await reload();
     } catch (problem) {
-      setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+      fail(problem);
     }
   }
 
   async function requestExport() {
-    setError(null);
+    clear();
     const body = await post<{ id: number; message: string }>("/me/export");
     setExportId(body.id);
     setMessage(body.message);
@@ -54,7 +59,7 @@ export default function MePage() {
 
   async function deleteAccount(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    clear();
     const form = new FormData(event.currentTarget);
     try {
       await del("/me", {
@@ -64,7 +69,7 @@ export default function MePage() {
       await signOut();
       router.push("/");
     } catch (problem) {
-      setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+      fail(problem, deleteFormRef.current);
     }
   }
 
@@ -73,7 +78,11 @@ export default function MePage() {
       <PageHeader title="Your account" lead={me.display_name} />
       <div className="mx-auto max-w-2xl px-4 py-8">
         {message ? <Notice kind="good">{message}</Notice> : null}
-        {error ? <Notice kind="bad">{error}</Notice> : null}
+        {error ? (
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        ) : null}
 
         <Section title="Your communities" description="You can read anywhere. You post and vote in these three.">
           <ul className="flex flex-wrap gap-2">
@@ -141,12 +150,25 @@ export default function MePage() {
             never deleted — they are public proofs, not personal data.
           </p>
           {confirming ? (
-            <form onSubmit={deleteAccount} className="mt-3 space-y-3">
+            <form
+              ref={deleteFormRef}
+              onSubmit={deleteAccount}
+              className="mt-3 space-y-3"
+              noValidate
+            >
               <div>
                 <label htmlFor="password" className="block font-medium">
                   Confirm with your password
                 </label>
-                <input id="password" name="password" type="password" required className="field mt-1" />
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  className="field mt-1"
+                  {...fieldProps("password")}
+                />
+                <FieldError name="password" fieldErrors={fieldErrors} />
               </div>
               <div className="flex gap-2">
                 <button type="submit" className="btn" style={{ borderColor: "var(--bad)", color: "var(--bad)" }}>

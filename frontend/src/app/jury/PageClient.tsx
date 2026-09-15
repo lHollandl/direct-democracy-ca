@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ApiError, get, post } from "@/lib/api";
+import { useRef, useState } from "react";
+import { get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
 import { Badge, Empty, Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
 type Item = {
@@ -45,7 +46,7 @@ export default function JuryPage() {
   useDocumentTitle("Jury duty");
   const { me, loading } = useSession();
   const [note, setNote] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { error, alertRef, clear, fail } = useFormError();
   const { data: duties, reload } = useLoader<Duty[]>(async () => {
     if (!me) return [];
     try {
@@ -58,17 +59,20 @@ export default function JuryPage() {
   if (loading) return <Loading what="your jury duty" />;
   if (!me) {
     return (
-      <div className="mx-auto max-w-md px-4 py-8">
-        <Notice>
-          <Link href="/login">Sign in</Link> to see whether you have been drawn.
-        </Notice>
-      </div>
+      <>
+        <PageHeader title="Jury duty" />
+        <div className="mx-auto max-w-md px-4 py-8">
+          <Notice>
+            <Link href="/login">Sign in</Link> to see whether you have been drawn.
+          </Notice>
+        </div>
+      </>
     );
   }
   if (duties === null) return <Loading what="your jury duty" />;
 
   async function answer(jurorId: number, choice: "accept" | "decline") {
-    setError(null);
+    clear();
     try {
       const body = await post<{ message?: string; note?: string }>(
         `/jurors/${jurorId}/${choice}`,
@@ -76,7 +80,7 @@ export default function JuryPage() {
       setNote(body.message ?? body.note ?? null);
       reload();
     } catch (problem) {
-      setError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+      fail(problem);
     }
   }
 
@@ -88,7 +92,11 @@ export default function JuryPage() {
       />
       <div className="mx-auto max-w-3xl px-4 py-8">
         {note ? <Notice kind="good">{note}</Notice> : null}
-        {error ? <Notice kind="bad">{error}</Notice> : null}
+        {error ? (
+          <Notice kind="bad" alertRef={alertRef}>
+            {error}
+          </Notice>
+        ) : null}
         {duties.length === 0 ? (
           <Empty>You have not been drawn for a jury.</Empty>
         ) : (
@@ -162,7 +170,6 @@ export default function JuryPage() {
                       jurorId={duty.juror_id}
                       categories={item.reason_categories}
                       onDone={reload}
-                      onError={setError}
                     />
                   ) : null}
                 </article>
@@ -180,15 +187,15 @@ function HoldbackForm({
   jurorId,
   categories,
   onDone,
-  onError,
 }: {
   itemId: number;
   jurorId: number;
   categories: string[];
   onDone: () => void;
-  onError: (message: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
   if (!open) {
     return (
       <button type="button" className="btn mt-3" onClick={() => setOpen(true)}>
@@ -198,43 +205,60 @@ function HoldbackForm({
   }
   return (
     <form
+      ref={formRef}
       className="mt-3 rounded-lg border border-[var(--line)] p-3"
+      noValidate
       onSubmit={async (event) => {
         event.preventDefault();
+        clear();
         const form = new FormData(event.currentTarget);
         try {
           await post(`/ballot-items/${itemId}/holdback`, {
             juror_id: jurorId,
-            reason_category: form.get("category"),
-            reason_text: form.get("reason"),
+            reason_category: form.get("reason_category"),
+            reason_text: form.get("reason_text"),
           });
           setOpen(false);
           onDone();
         } catch (problem) {
-          onError(problem instanceof ApiError ? problem.message : "Something went wrong.");
+          fail(problem, formRef.current);
         }
       }}
     >
+      {error ? (
+        <Notice kind="bad" alertRef={alertRef}>
+          {error}
+        </Notice>
+      ) : null}
       <label htmlFor={`cat-${itemId}`} className="block font-medium">Why</label>
-      <select id={`cat-${itemId}`} name="category" required className="field mt-1">
+      <select
+        id={`cat-${itemId}`}
+        name="reason_category"
+        required
+        className="field mt-1"
+        {...fieldProps("reason_category")}
+      >
         {categories.map((category) => (
           <option key={category} value={category}>
             {CATEGORY_WORDS[category] ?? category}
           </option>
         ))}
       </select>
+      <FieldError name="reason_category" fieldErrors={fieldErrors} />
       <label htmlFor={`reason-${itemId}`} className="mt-3 block font-medium">
         In your own words
       </label>
       <textarea
         id={`reason-${itemId}`}
-        name="reason"
+        name="reason_text"
         required
         minLength={20}
         maxLength={1000}
         rows={4}
         className="field mt-1"
+        {...fieldProps("reason_text")}
       />
+      <FieldError name="reason_text" fieldErrors={fieldErrors} />
       <p className="mt-1 text-sm text-[var(--muted)]">
         This is published with the results, attributed to &ldquo;Juror n of
         m&rdquo;. Your name is not shown.
