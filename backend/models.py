@@ -1062,21 +1062,34 @@ class BallotVote(Base):
 
 
 class Jury(Base):
-    """DATABASE.md §4.17. The draw is logged so it can be inspected afterwards."""
+    """DATABASE.md §4.17. One row per draw — never deleted; a redraw sets
+    `superseded_at` on the old row and inserts a new one, so every draw stays
+    inspectable (DEMOCRACY.md §8.1; audit demo-01 run 2)."""
 
     __tablename__ = "juries"
 
     id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
     cycle_id: Mapped[int] = mapped_column(
-        ForeignKey("cycles.id", ondelete="CASCADE"), nullable=False, unique=True
+        ForeignKey("cycles.id", ondelete="CASCADE"), nullable=False
     )
     size_requested: Mapped[int] = mapped_column(Integer, nullable=False)
     eligible_pool: Mapped[list] = mapped_column(JSONB, nullable=False)
     random_bytes: Mapped[str] = mapped_column(String(64), nullable=False)
     drawn_at: Mapped[datetime] = _ts(nullable=False, server_default=func.now())
+    superseded_at: Mapped[datetime | None] = _ts(nullable=True)
     redrawn_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     seated_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = _ts(nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            "uq_juries_current_per_cycle",
+            "cycle_id",
+            unique=True,
+            postgresql_where=text("superseded_at IS NULL"),
+        ),
+        Index("ix_juries_cycle_id", "cycle_id"),
+    )
 
 
 class Juror(Base):

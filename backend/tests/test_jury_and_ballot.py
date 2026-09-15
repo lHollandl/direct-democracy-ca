@@ -249,6 +249,74 @@ async def test_a_redraw_is_logged_with_its_reason(client, town):
     assert "same household" in log["items"][0]["reason"]
 
 
+async def test_a_redraw_keeps_the_previous_draw_inspectable(client, town):
+    """HIGH, audit demo-01 run 2: `redraw` used to mark the outgoing jurors
+    `replaced` and then delete the whole jury row, destroying the first
+    draw's pool, drawn ids, timestamp and random bytes before anyone could
+    read the `replaced` status DEMOCRACY.md §8.1 and §13 promise stays
+    inspectable. No draw is ever deleted now."""
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    async with session_scope() as session:
+        first_jury = await cycles_repo.jury_for_cycle(session, cycle_id)
+        first_jury_id = first_jury.id
+        first_pool = list(first_jury.eligible_pool)
+        first_random_bytes = first_jury.random_bytes
+        first_jurors_before = {j.user_id: j.status for j in await cycles_repo.jurors(session, first_jury_id)}
+        assert set(first_jurors_before.values()) == {"drawn"}
+
+    redrawn = await client.post(
+        f"/admin/cycles/{cycle_id}/redraw-jury",
+        headers=town["director"]["headers"],
+        json={"reason": "The first draw picked three people from the same household."},
+    )
+    assert redrawn.status_code == 200
+    second_jury_id = redrawn.json()["jury_id"]
+    assert second_jury_id != first_jury_id
+
+    async with session_scope() as session:
+        # The first draw's row still exists, superseded rather than deleted.
+        first_jury_after = await cycles_repo.get_jury(session, first_jury_id)
+        assert first_jury_after is not None, "the previous draw is kept, never deleted"
+        assert first_jury_after.superseded_at is not None
+        assert first_jury_after.eligible_pool == first_pool, "the first draw's pool is unchanged"
+        assert first_jury_after.random_bytes == first_random_bytes
+        assert (
+            first_jury_after.redrawn_reason
+            == "The first draw picked three people from the same household."
+        )
+        first_jurors_after = await cycles_repo.jurors(session, first_jury_id)
+        assert {j.status for j in first_jurors_after} == {"replaced"}, (
+            "replaced is now an observable, permanent status on the superseded row"
+        )
+
+        second_jury = await cycles_repo.get_jury(session, second_jury_id)
+        assert second_jury.superseded_at is None, "the new draw is the current one"
+        assert second_jury.eligible_pool, "the second draw has its own pool and random bytes"
+        assert second_jury.random_bytes != first_random_bytes
+
+        # jury_for_cycle resolves to the current draw only.
+        current = await cycles_repo.jury_for_cycle(session, cycle_id)
+        assert current.id == second_jury_id
+
+    view = (await client.get(f"/cycles/{cycle_id}")).json()
+    by_id = {j["jury_id"]: j for j in view["juries"]}
+    assert set(by_id) == {first_jury_id, second_jury_id}, "every draw is shown, not only the current one"
+    assert by_id[first_jury_id]["status"] == "superseded"
+    assert by_id[first_jury_id]["redrawn_reason"] == (
+        "The first draw picked three people from the same household."
+    )
+    assert {j["status"] for j in by_id[first_jury_id]["jurors"]} == {"replaced"}
+    assert by_id[second_jury_id]["status"] == "current"
+
+
 async def test_a_ballot_vote_needs_membership_and_an_open_ballot(client, town):
     author = town["people"][0]
     await _dominant_solution(client, author, town["people"][1:], town["umbrella"])

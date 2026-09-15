@@ -372,6 +372,7 @@ async def view(session: AsyncSession, cycle: Cycle) -> dict:
     )
     jury = await cycles_repo.jury_for_cycle(session, cycle.id)
     jurors = await cycles_repo.jurors(session, jury.id) if jury else []
+    all_juries = await cycles_repo.juries_for_cycle(session, cycle.id)
     return {
         "id": cycle.id,
         "number": cycle.number,
@@ -395,6 +396,28 @@ async def view(session: AsyncSession, cycle: Cycle) -> dict:
             }
             if jury
             else None
+        ),
+        "juries": [
+            {
+                "jury_id": j.id,
+                "status": "superseded" if j.superseded_at is not None else "current",
+                "drawn_at": j.drawn_at,
+                "superseded_at": j.superseded_at,
+                "redrawn_reason": j.redrawn_reason,
+                "size_requested": j.size_requested,
+                "eligible_pool_size": len(j.eligible_pool),
+                "drawn": len(await cycles_repo.jurors(session, j.id)),
+                "seated": j.seated_count,
+                "jurors": [
+                    {"seat": juror.seat, "status": juror.status}
+                    for juror in await cycles_repo.jurors(session, j.id)
+                ],
+            }
+            for j in all_juries
+        ],
+        "juries_note": (
+            "Every jury ever drawn for this cycle, so a redraw can be inspected "
+            "after the fact — no draw is ever deleted (DEMOCRACY.md §8.1)."
         ),
         "would_close_on": (
             cycle.opened_at + timedelta(days=int(cycle.settings_snapshot["ballot_window_days"]))

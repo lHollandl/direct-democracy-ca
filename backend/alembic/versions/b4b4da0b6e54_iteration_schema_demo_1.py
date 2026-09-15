@@ -94,12 +94,17 @@ def upgrade() -> None:
     sa.Column('eligible_pool', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('random_bytes', sa.String(length=64), nullable=False),
     sa.Column('drawn_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('superseded_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('redrawn_reason', sa.Text(), nullable=True),
     sa.Column('seated_count', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['cycle_id'], ['cycles.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('cycle_id')
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_juries_cycle_id', 'juries', ['cycle_id'], unique=False)
+    op.create_index(
+        'uq_juries_current_per_cycle', 'juries', ['cycle_id'], unique=True,
+        postgresql_where=sa.text('superseded_at IS NULL'),
     )
     op.create_table('summaries',
     sa.Column('id', sa.Integer(), sa.Identity(always=True), nullable=False),
@@ -519,6 +524,11 @@ def downgrade() -> None:
     op.drop_table('umbrellas')
     op.drop_index('ix_summaries_published_at', table_name='summaries')
     op.drop_table('summaries')
+    op.drop_index(
+        'uq_juries_current_per_cycle', table_name='juries',
+        postgresql_where=sa.text('superseded_at IS NULL'),
+    )
+    op.drop_index('ix_juries_cycle_id', table_name='juries')
     op.drop_table('juries')
     op.drop_table('main_categories')
     op.drop_index('uq_cycles_one_open_per_community', table_name='cycles', postgresql_where=sa.text("state <> 'published'"))

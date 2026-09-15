@@ -129,7 +129,10 @@ async def redraw(session: AsyncSession, *, cycle: Cycle, reason: str) -> Jury:
             if juror.status in ("drawn", "accepted"):
                 juror.status = "replaced"
         await session.flush()
-        await cycles_repo.delete_jury(session, existing.id)
+        # The superseded draw is kept, not deleted — its pool, drawn ids,
+        # random bytes and jurors' statuses stay inspectable (DEMOCRACY.md
+        # §8.1, §13; audit demo-01 run 2).
+        await cycles_repo.supersede_jury(session, existing, reason=reason)
     items = await cycles_repo.items(session, cycle.id)
     return await draw(
         session, cycle=cycle, solution_ids=[i.solution_id for i in items], reason=reason

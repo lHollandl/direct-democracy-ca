@@ -266,19 +266,42 @@ async def add_jury(session: AsyncSession, **fields) -> Jury:
 
 
 async def jury_for_cycle(session: AsyncSession, cycle_id: int) -> Jury | None:
+    """The **current** draw — the one with `superseded_at IS NULL`. A redraw
+    never deletes the previous draw (DEMOCRACY.md §8.1; audit demo-01 run 2)."""
     return (
-        await session.execute(select(Jury).where(Jury.cycle_id == cycle_id))
+        await session.execute(
+            select(Jury).where(Jury.cycle_id == cycle_id, Jury.superseded_at.is_(None))
+        )
     ).scalar_one_or_none()
+
+
+async def juries_for_cycle(session: AsyncSession, cycle_id: int) -> list[Jury]:
+    """Every draw for this cycle, oldest first, so a reader can inspect any of
+    them — not only the current one (DEMOCRACY.md §8.1)."""
+    return list(
+        (
+            await session.execute(
+                select(Jury).where(Jury.cycle_id == cycle_id).order_by(Jury.drawn_at, Jury.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
 
 async def get_jury(session: AsyncSession, jury_id: int) -> Jury | None:
     return await session.get(Jury, jury_id)
 
 
-async def delete_jury(session: AsyncSession, jury_id: int) -> None:
-    from sqlalchemy import delete
+async def supersede_jury(session: AsyncSession, jury: Jury, *, reason: str) -> None:
+    """A redraw marks the old draw superseded; it is never deleted (DEMOCRACY.md
+    §8.1, §13; audit demo-01 run 2 — the previous code deleted the row, which
+    cascaded and destroyed the jurors' `replaced` status along with the pool,
+    drawn ids and random bytes before anyone could inspect them)."""
+    from datetime import datetime, timezone
 
-    await session.execute(delete(Jury).where(Jury.id == jury_id))
+    jury.superseded_at = datetime.now(timezone.utc)
+    jury.redrawn_reason = reason
     await session.flush()
 
 
