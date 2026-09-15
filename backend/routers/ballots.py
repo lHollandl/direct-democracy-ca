@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from backend.deps import OptionalUser, SessionDep, VerifiedUser
+from backend.routers.common import CursorParam, DEFAULT_LIMIT, LimitParam
 from backend.services import ballots as ballots_service
 from backend.services import cycles as cycles_service
 
@@ -13,8 +14,14 @@ router = APIRouter(tags=["ballot"])
 
 
 @router.get("/communities/{level}/{entity_id}/cycles")
-async def community_cycles(level: str, entity_id: int, session: SessionDep) -> dict:
-    return await cycles_service.for_community(session, level, entity_id)
+async def community_cycles(
+    level: str,
+    entity_id: int,
+    session: SessionDep,
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
+) -> dict:
+    return await cycles_service.for_community(session, level, entity_id, cursor=cursor, limit=limit)
 
 
 @router.get("/cycles/{cycle_id}")

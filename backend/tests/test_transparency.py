@@ -32,7 +32,7 @@ async def test_changing_a_setting_appends_a_row_and_is_logged(client):
     assert changed.status_code == 200
     assert changed.json()["old_value"] == 3 and changed.json()["new_value"] == 5
 
-    history = (await client.get("/settings/history?key=jury_size")).json()
+    history = (await client.get("/settings/history?key=jury_size")).json()["items"]
     assert len(history) == 2, "a change is a new row, never an update"
     assert history[0]["value"] == "5" and history[1]["value"] == "3"
     assert history[0]["reason"] == "Bigger community, bigger jury."

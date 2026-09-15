@@ -225,6 +225,29 @@ async def thread(
     return build(None)
 
 
+async def thread_page(
+    session: AsyncSession,
+    *,
+    target_type: str,
+    target_id: int,
+    viewer_id: int | None,
+    cursor: int | None,
+    limit: int,
+) -> dict:
+    """`GET /umbrellas/{id}/comments` (ARCHITECTURE.md §6, audit demo-01 run
+    3 HIGH). Paginates the top-level threads only — each thread's own
+    replies stay attached underneath it, since a reply chain belongs to the
+    thread it is part of, not to a page of unrelated top-level comments."""
+    top_level = await thread(
+        session, target_type=target_type, target_id=target_id, viewer_id=viewer_id
+    )
+    start = 0
+    if cursor is not None:
+        start = next((i + 1 for i, row in enumerate(top_level) if row["id"] == cursor), len(top_level))
+    page = top_level[start : start + limit]
+    return {"comments": page, "next_cursor": page[-1]["id"] if len(page) == limit else None}
+
+
 async def require_comment(session: AsyncSession, comment_id: int) -> Comment:
     comment = await comments_repo.get(session, comment_id)
     if comment is None:

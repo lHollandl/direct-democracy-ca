@@ -61,6 +61,23 @@ async def for_community(session: AsyncSession, level: str, entity_id: int) -> li
     )
 
 
+async def for_community_page(
+    session: AsyncSession, level: str, entity_id: int, *, cursor: int | None, limit: int
+) -> list[Cycle]:
+    """`GET /communities/{level}/{id}/cycles` (ARCHITECTURE.md §6, audit
+    demo-01 run 3 HIGH). A community's cycle numbers are assigned in
+    creation order, so `id` and `number` are monotonic together within one
+    community — ordering and filtering on `id` keeps `for_community()`'s
+    order."""
+    stmt = select(Cycle).where(
+        Cycle.community_level == level, Cycle.community_entity_id == entity_id
+    )
+    if cursor is not None:
+        stmt = stmt.where(Cycle.id < cursor)
+    stmt = stmt.order_by(Cycle.id.desc()).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
 async def by_number(
     session: AsyncSession, level: str, entity_id: int, number: int
 ) -> Cycle | None:
@@ -480,6 +497,20 @@ async def published_summaries(session: AsyncSession) -> list[tuple[Summary, Cycl
             .order_by(Summary.published_at.desc())
         )
     ).all()
+    return [(s, c) for s, c in rows]
+
+
+async def published_summaries_page(
+    session: AsyncSession, *, cursor: int | None, limit: int
+) -> list[tuple[Summary, Cycle]]:
+    """`GET /summaries/hashes` (ARCHITECTURE.md §6, audit demo-01 run 3
+    HIGH). Summaries publish in `id` order, so `id` and `published_at` are
+    monotonic together."""
+    stmt = select(Summary, Cycle).join(Cycle, Cycle.id == Summary.cycle_id)
+    if cursor is not None:
+        stmt = stmt.where(Summary.id < cursor)
+    stmt = stmt.order_by(Summary.id.desc()).limit(limit)
+    rows = (await session.execute(stmt)).all()
     return [(s, c) for s, c in rows]
 
 

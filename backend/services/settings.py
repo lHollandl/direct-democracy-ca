@@ -239,14 +239,22 @@ async def invalidate_cache() -> None:
     await redis_client.cache_delete_prefix(CACHE_KEY)
 
 
-async def history(session: AsyncSession, key: str | None = None) -> list[dict[str, Any]]:
-    """`GET /settings/history` — every past value, with the display name of
-    whoever changed it (ARCHITECTURE.md §2/§10: resolved here, not by the
-    router, per the author-display rule, DATABASE.md §3.2)."""
+async def history_page(
+    session: AsyncSession, key: str | None, *, cursor: int | None, limit: int
+) -> dict[str, Any]:
+    """`GET /settings/history` (ARCHITECTURE.md §6 — paginates like every
+    other list endpoint; audit demo-01 run 3, HIGH)."""
     from backend.services.display import author_displays
 
-    rows = await settings_repo.history(session, key)
+    rows = await settings_repo.history_page(session, key, cursor=cursor, limit=limit)
     displays = await author_displays(session, [r.changed_by for r in rows if r.changed_by])
+    return {
+        "items": _shape_history(rows, displays),
+        "next_cursor": rows[-1].id if len(rows) == limit else None,
+    }
+
+
+def _shape_history(rows: list, displays: dict[int, str]) -> list[dict[str, Any]]:
     return [
         {
             "key": r.key,

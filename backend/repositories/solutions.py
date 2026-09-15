@@ -246,6 +246,20 @@ async def amendments_for(
     return list((await session.execute(stmt.order_by(Amendment.id))).scalars().all())
 
 
+async def amendments_for_page(
+    session: AsyncSession, solution_id: int, *, cursor: int | None, limit: int
+) -> list[Amendment]:
+    """`GET /solutions/{id}/amendments` (ARCHITECTURE.md §6, audit demo-01
+    run 3 HIGH). The solution's own detail page keeps embedding the whole,
+    unpaginated set via `amendments_for()` — this is only the dedicated,
+    ever-growing list."""
+    stmt = select(Amendment).where(Amendment.solution_id == solution_id)
+    if cursor is not None:
+        stmt = stmt.where(Amendment.id > cursor)
+    stmt = stmt.order_by(Amendment.id).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
 async def amendments_by_author(session: AsyncSession, author_id: int) -> list[Amendment]:
     return list(
         (

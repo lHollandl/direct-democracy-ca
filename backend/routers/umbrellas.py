@@ -40,43 +40,60 @@ async def umbrella_page(
 
 @router.get("/{umbrella_id}/solutions")
 async def umbrella_solutions(
-    umbrella_id: int, session: SessionDep, viewer: OptionalUser
+    umbrella_id: int,
+    session: SessionDep,
+    viewer: OptionalUser,
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
 ) -> dict:
     umbrella = await solutions_service.require_umbrella(session, umbrella_id)
+    page = await umbrellas_service.solutions_list_page(
+        session, umbrella, viewer.id if viewer else None, cursor=cursor, limit=limit
+    )
     return {
         "ordering": {
             "version": rules.SOLUTION_ORDER_VERSION,
             "explanation": rules.SOLUTION_ORDER_EXPLANATION,
         },
-        "solutions": await umbrellas_service.solution_list(
-            session, umbrella, viewer.id if viewer else None
-        ),
+        **page,
     }
 
 
 @router.get("/{umbrella_id}/comments")
 async def umbrella_comments(
-    umbrella_id: int, session: SessionDep, viewer: OptionalUser
+    umbrella_id: int,
+    session: SessionDep,
+    viewer: OptionalUser,
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
 ) -> dict:
     await solutions_service.require_umbrella(session, umbrella_id)
+    page = await comments_service.thread_page(
+        session,
+        target_type="umbrella",
+        target_id=umbrella_id,
+        viewer_id=viewer.id if viewer else None,
+        cursor=cursor,
+        limit=limit,
+    )
     return {
         "ordering": {
             "version": rules.COMMENT_ORDER_VERSION,
             "explanation": rules.COMMENT_ORDER_EXPLANATION,
         },
-        "comments": await comments_service.thread(
-            session,
-            target_type="umbrella",
-            target_id=umbrella_id,
-            viewer_id=viewer.id if viewer else None,
-        ),
+        **page,
     }
 
 
 @router.get("/{umbrella_id}/references")
-async def umbrella_references(umbrella_id: int, session: SessionDep) -> dict:
+async def umbrella_references(
+    umbrella_id: int,
+    session: SessionDep,
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
+) -> dict:
     await solutions_service.require_umbrella(session, umbrella_id)
-    return await references_service.listing(session, umbrella_id)
+    return await references_service.listing_page(session, umbrella_id, cursor=cursor, limit=limit)
 
 
 class SolutionIn(BaseModel):

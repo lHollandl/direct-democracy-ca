@@ -23,10 +23,19 @@ async def current_rows(session: AsyncSession) -> list[Setting]:
     return list(seen.values())
 
 
-async def history(session: AsyncSession, key: str | None = None) -> list[Setting]:
+async def history_page(
+    session: AsyncSession, key: str | None, *, cursor: int | None, limit: int
+) -> list[Setting]:
+    """`GET /settings/history` (ARCHITECTURE.md §6). Rows are inserted in
+    `effective_from` order, so `id` and `effective_from` are monotonic
+    together — filtering on `id` alone keeps the same order as `history()`
+    without a compound cursor."""
     stmt = select(Setting).order_by(Setting.effective_from.desc(), Setting.id.desc())
     if key:
         stmt = stmt.where(Setting.key == key)
+    if cursor is not None:
+        stmt = stmt.where(Setting.id < cursor)
+    stmt = stmt.limit(limit)
     return list((await session.execute(stmt)).scalars().all())
 
 

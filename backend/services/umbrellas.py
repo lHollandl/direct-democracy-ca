@@ -198,6 +198,28 @@ async def solution_list(
     return out
 
 
+async def solutions_list_page(
+    session: AsyncSession, umbrella: Umbrella, viewer_id: int | None, *, cursor: int | None, limit: int
+) -> dict:
+    """`GET /umbrellas/{id}/solutions` (ARCHITECTURE.md §6, audit demo-01 run
+    3 HIGH). The page's own solutions section (`page()`) stays whole — this
+    is the dedicated, ever-growing list."""
+    rows = await solution_list(session, umbrella, viewer_id)
+    return _paginate_by_id(rows, cursor=cursor, limit=limit, key="solutions")
+
+
+def _paginate_by_id(rows: list[dict], *, cursor: int | None, limit: int, key: str) -> dict:
+    """Slices an already-ordered list of dicts by a cursor naming the last
+    `id` seen. Works regardless of the ordering rule (net-score ranked lists
+    included) because the cursor only has to locate a position in a sequence
+    that is already in the right order, never express the sort key itself."""
+    start = 0
+    if cursor is not None:
+        start = next((i + 1 for i, row in enumerate(rows) if row["id"] == cursor), len(rows))
+    page = rows[start : start + limit]
+    return {key: page, "next_cursor": page[-1]["id"] if len(page) == limit else None}
+
+
 def _badge(solution) -> str | None:
     if solution.last_ballot_result == "held_back":
         return "held back"

@@ -62,11 +62,23 @@ class SettingHistoryOut(BaseModel):
     reason: str | None
 
 
-@router.get("/settings/history", response_model=list[SettingHistoryOut])
+class SettingHistoryPageOut(BaseModel):
+    items: list[SettingHistoryOut]
+    next_cursor: int | None
+
+
+@router.get("/settings/history", response_model=SettingHistoryPageOut)
 async def settings_history(
-    session: SessionDep, key: str | None = Query(default=None)
-) -> list[SettingHistoryOut]:
-    return [SettingHistoryOut(**row) for row in await settings_service.history(session, key)]
+    session: SessionDep,
+    key: str | None = Query(default=None),
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
+) -> SettingHistoryPageOut:
+    page = await settings_service.history_page(session, key, cursor=cursor, limit=limit)
+    return SettingHistoryPageOut(
+        items=[SettingHistoryOut(**row) for row in page["items"]],
+        next_cursor=page["next_cursor"],
+    )
 
 
 class AiActionOut(BaseModel):

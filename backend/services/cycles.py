@@ -393,9 +393,13 @@ async def _transition(
     await session.flush()
 
 
-async def for_community(session: AsyncSession, level: str, entity_id: int) -> dict:
+async def for_community(
+    session: AsyncSession, level: str, entity_id: int, *, cursor: int | None, limit: int
+) -> dict:
+    """`GET /communities/{level}/{id}/cycles` (ARCHITECTURE.md §6, audit
+    demo-01 run 3 HIGH)."""
     community = await community_service.resolve(session, level, entity_id)
-    rows = await cycles_repo.for_community(session, level, entity_id)
+    rows = await cycles_repo.for_community_page(session, level, entity_id, cursor=cursor, limit=limit)
     return {
         "community": community.as_dict(),
         "cycles": [
@@ -410,6 +414,7 @@ async def for_community(session: AsyncSession, level: str, entity_id: int) -> di
             }
             for c in rows
         ],
+        "next_cursor": rows[-1].id if len(rows) == limit else None,
     }
 
 
