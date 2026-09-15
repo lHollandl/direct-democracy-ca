@@ -9,6 +9,7 @@ complete.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -78,14 +79,20 @@ async def build_export(session: AsyncSession, export_id: int) -> Path:
     if row is None:
         raise NotFound("That export request no longer exists.", code="export_not_found")
     payload = await gather(session, row.user_id)
-    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     path = EXPORT_DIR / f"export-{row.user_id}-{row.id}.json"
-    path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    # No blocking calls inside async def (Law 11; audit demo-01 run 4, MEDIUM
+    # — the same class of finding fix run 2 fixed in seed.py only).
+    await asyncio.to_thread(_write_export_file, path, payload)
     row.file_path = str(path)
     row.completed_at = datetime.now(timezone.utc)
     await session.flush()
     log.info("export_built", extra={"export_id": row.id, "user_id": row.user_id})
     return path
+
+
+def _write_export_file(path: Path, payload: dict) -> None:
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
 
 async def gather(session: AsyncSession, user_id: int) -> dict:
@@ -162,6 +169,13 @@ async def get_export(session: AsyncSession, user: User, export_id: int) -> DataE
     return row
 
 
+def _remove_if_exists(path: Path) -> bool:
+    if path.exists():
+        path.unlink()
+        return True
+    return False
+
+
 async def expire_exports(session: AsyncSession) -> int:
     """Delete export files past `expires_at`. Files only; rows stay
     (ARCHITECTURE.md §7)."""
@@ -170,8 +184,8 @@ async def expire_exports(session: AsyncSession) -> int:
     removed = 0
     for row in rows:
         path = Path(row.file_path)
-        if path.exists():
-            path.unlink()
+        # No blocking calls inside async def (Law 11).
+        if await asyncio.to_thread(_remove_if_exists, path):
             removed += 1
         row.file_path = None
     await session.flush()

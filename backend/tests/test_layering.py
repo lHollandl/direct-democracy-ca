@@ -18,6 +18,7 @@ from backend.config.settings_env import repo_root
 
 ROUTERS_DIR = repo_root() / "backend" / "routers"
 SERVICES_DIR = repo_root() / "backend" / "services"
+JOBS_DIR = repo_root() / "backend" / "jobs"
 
 #: Routers may call services only — never a repository, a client module, or a
 #: job (job scheduling is the responsibility of the service that owns the
@@ -209,6 +210,100 @@ def _router_endpoint_violations(path: Path) -> list[str]:
                 "assembly into that one service function (ARCHITECTURE.md §2, §10)"
             )
     return violations
+
+
+#: Pathlib methods that hit the filesystem and block the event loop. `open(`
+#: and `os.*` are checked separately. Deliberately excludes generic names
+#: shared with non-filesystem types (`.replace(` on a string or a datetime,
+#: `.write(` on something that isn't a file) so the check stays precise.
+_BLOCKING_PATH_METHODS = {
+    "mkdir",
+    "rmdir",
+    "unlink",
+    "touch",
+    "chmod",
+    "exists",
+    "stat",
+    "write_text",
+    "write_bytes",
+    "read_text",
+    "read_bytes",
+    "iterdir",
+    "glob",
+    "rglob",
+}
+
+
+def _os_module_aliases(tree: ast.Module) -> set[str]:
+    """Names bound to the `os` module itself (`import os`, `import os as o`)
+    — not `from os import path`, a different object with its own methods."""
+    return {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.name == "os"
+    }
+
+
+def _own_body(node: ast.AST):
+    """Like `ast.walk`, but does not descend into a nested function, async
+    function, lambda, or class — those run in their own scope and, called
+    through `asyncio.to_thread`, are allowed to block (CLAUDE.md Law 11)."""
+    stack = list(ast.iter_child_nodes(node))
+    while stack:
+        child = stack.pop()
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            continue
+        yield child
+        stack.extend(ast.iter_child_nodes(child))
+
+
+def _blocking_io_violations(path: Path) -> list[str]:
+    """CLAUDE.md Law 11 — no blocking call inside `async def`. Audit demo-01
+    run 2 reported this as a LOW against `seed.py::_seed_cities`; fix run 2
+    wrapped that one call, and the same pattern recurred untouched in
+    `export.py` (audit demo-01 run 4, MEDIUM). `open(...)`, any `os.*` call,
+    and pathlib's blocking IO methods all belong behind `asyncio.to_thread`
+    (or `aiofiles`), exactly as `seed.py` and `email.py` already do."""
+    tree = _parse(path)
+    os_names = _os_module_aliases(tree)
+    violations: list[str] = []
+    for func in ast.walk(tree):
+        if not isinstance(func, ast.AsyncFunctionDef):
+            continue
+        for node in _own_body(func):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Name) and node.func.id == "open":
+                violations.append(
+                    f"{path.name}:{node.lineno} {func.name}() calls open(...) directly — "
+                    "wrap blocking file IO in asyncio.to_thread (CLAUDE.md Law 11)"
+                )
+            elif isinstance(node.func, ast.Attribute):
+                if isinstance(node.func.value, ast.Name) and node.func.value.id in os_names:
+                    violations.append(
+                        f"{path.name}:{node.lineno} {func.name}() calls "
+                        f"os.{node.func.attr}(...) directly — wrap blocking file IO in "
+                        "asyncio.to_thread (CLAUDE.md Law 11)"
+                    )
+                elif node.func.attr in _BLOCKING_PATH_METHODS:
+                    violations.append(
+                        f"{path.name}:{node.lineno} {func.name}() calls "
+                        f".{node.func.attr}(...) directly — that is a blocking pathlib IO "
+                        "call; wrap it in asyncio.to_thread (CLAUDE.md Law 11)"
+                    )
+    return violations
+
+
+def test_no_blocking_file_io_inside_async_def():
+    violations: list[str] = []
+    for directory in (SERVICES_DIR, JOBS_DIR):
+        for path in sorted(directory.glob("*.py")):
+            if path.name == "__init__.py":
+                continue
+            violations.extend(_blocking_io_violations(path))
+    assert not violations, "Blocking file IO inside async def:\n" + "\n".join(violations)
 
 
 def test_no_endpoint_calls_more_than_one_service_function_or_does_threshold_arithmetic():
