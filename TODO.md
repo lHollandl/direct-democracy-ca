@@ -20,23 +20,28 @@ in `briefs/evidence/demo-01/`. Audit run 1 returned FIX REQUIRED (one HIGH,
 three LOW); fix run 1 (FIX-01 through FIX-07) is complete. Audit run 2
 returned FIX REQUIRED (CRITICAL 1 · HIGH 1 · MEDIUM 6 · LOW 7 · NOTE 3); fix
 run 2 (FIX-08 through FIX-20) is complete. Audit run 3 returned FIX REQUIRED
-(HIGH 1 · MEDIUM 3 · LOW 2); fix run 3 (FIX-21 through FIX-27) is complete —
-all seven previously-unpaginated list endpoints now paginate, reference
-recommendation runs as a background job with a "recommending" indicator on
-the umbrella page, label confirm/correct require a verified user,
-`geo.py::community`/`::officials` and `amendments.py::propose_amendment` are
-down to one service call each (plus four further offenders the stricter
-layering test found: `references.py::reference_feedback` and three
-`summaries.py` endpoints paired with a resolver that wasn't named
-`require_*`), the mailto/PDF footer/verify-section URLs are absolute via the
-new `PUBLIC_BASE_URL`, and `ARCHITECTURE.md §7`'s `build_export` row was
-confirmed to already match the code (no change needed). Full evidence in
-HISTORY.md's Session 7 entry. Nothing has been merged to `main`; the next
-audit run comes next — likely a re-audit under AUDIT.md §2 given how small
-this run was. Phase 0 remains complete except the optional search provider.
-This run also found the sandbox could pull Docker Hub blob-CDN images for
-the first time (`docker compose up` succeeded cleanly), unlike every prior
-run — see Technical Debt.*
+(HIGH 1 · MEDIUM 3 · LOW 2); fix run 3 (FIX-21 through FIX-27) is complete.
+Audit run 4 returned FIX REQUIRED (CRITICAL 1 · MEDIUM 6 · LOW 3 · NOTE 3);
+fix run 4 (FIX-28 through FIX-37) is complete — a published summary no
+longer freezes an author's name into its hashed JSON (it carries a fixed
+workshop-attribution line and an absolute solution link instead, so account
+deletion reaches every summary it's in without touching the hash); over-cap
+comment replies attach under the depth-cap comment's own parent instead of
+nesting without bound; the umbrella page renders the "AI is looking for
+references…" indicator the backend has exposed since fix run 3;
+`export.py`'s blocking file IO now runs through `asyncio.to_thread`, with an
+AST check added so the pattern can't recur a third time; the export file
+lifetime is `EXPORT_FILE_HOURS` (48), required configuration rather than a
+bare module constant; the password-length message says bytes, not
+characters; the landing page reads `jury_size` from `GET /settings`; the two
+export jobs log start/end/job id like every other job; and
+`test_authorization.py` now walks the live route table the way
+`test_pagination.py` does, so a future write endpoint can't ship with no
+401/403 coverage unnoticed. Full evidence in HISTORY.md's latest build
+entry. Nothing has been merged to `main`; the next step is audit run 5 —
+likely a short re-audit under AUDIT.md §2, since this run's diff stayed
+inside the files its ten findings named. Phase 0 remains complete except the
+optional search provider.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -324,6 +329,76 @@ Session 2 entry (2026-09-15).
 
 ---
 
+## Phase 2d — demo-01 fix run 4
+
+Fixes for `audits/demo-01-audit-4.md` (CRITICAL 1 · MEDIUM 6 · LOW 3 ·
+NOTE 3; verdict FIX REQUIRED), from `briefs/demo-01-fix-4.md`. Each id is
+one commit on `demo/01`; full evidence in HISTORY.md's latest build entry.
+
+- [x] **FIX-28** (CRITICAL) `summaries_service.build_data` no longer writes
+  `author_display_at_snapshot` (or any user id or name) into the canonical
+  JSON; each result and held-back entry instead carries a fixed
+  `workshop_note` ("Proposed and refined in the [community] workshop") and
+  an absolute `solution_url`, per DEMOCRACY §11.1/§11.2 item 2; `pdf.py` and
+  the summary page render the new fields. Test publishes a summary whose
+  author displays their real name, asserts the page payload, the
+  downloadable JSON, and the PDF text (its ASCII85+Flate stream, decoded)
+  contain neither the real name nor the display name, deletes the account,
+  and asserts the summary still verifies with an unchanged hash while the
+  linked solution page reads "Former Community Member"
+- [x] **FIX-29** (MEDIUM) `comments_service.create`: at the depth cap,
+  `parent_id` is now `parent.parent_id` (was `parent.id`), keeping
+  `reply_to_comment_id = parent.id` — DEMOCRACY §6, "under the same
+  parent". Test: five sequential replies render depths `[0, 1, 2, 3, 3]`,
+  the fifth a sibling of the fourth under the third, "replying to @…"
+  intact
+- [x] **FIX-30** (MEDIUM) The umbrella page renders the `recommending` flag
+  the API has exposed since fix run 3's FIX-22
+  (`frontend/src/app/umbrellas/[id]/PageClient.tsx`); FIX-22's note above
+  corrected to say the UI half was missing until this run. Evidence:
+  a real `GET /umbrellas/{id}` payload with `recommending: true`, mounted
+  through the actual `PageClient` component in a scratch jsdom harness —
+  rendered HTML contains `AI is looking for references…`
+- [x] **FIX-31** (MEDIUM) `export.py`'s blocking file IO
+  (`EXPORT_DIR.mkdir`, `path.write_text`, `path.exists`, `path.unlink`) now
+  runs through `asyncio.to_thread`. `test_layering.py` gained an AST check,
+  `test_no_blocking_file_io_inside_async_def`, walking every `async def` in
+  `backend/services` and `backend/jobs` for a direct `open(`, `os.*`, or
+  blocking pathlib IO call — confirmed failing against the pre-fix
+  `export.py` (named all four offending calls) and passing after
+- [x] **FIX-32** (MEDIUM) `EXPORT_FILE_HOURS` added to `settings_env.py`
+  (required — no default, startup refuses without it, confirmed) and
+  `.env.example` (48); `request_export`'s `expires_at` reads it instead of
+  the old bare module constant `EXPORT_LIFETIME_HOURS`. Director decision
+  recorded below: configuration, not a settings-table value
+- [x] **FIX-33** (LOW) `security.py::validate_password`'s message now says
+  "no longer than 72 bytes", not "characters"; the signup and
+  reset-password form hints explain what that means in plain language.
+  Test: a 41-character, 81-byte password is refused with "72 bytes" in the
+  message
+- [x] **FIX-34** (LOW) `frontend/src/app/page.tsx` is now an async Server
+  Component that reads `jury_size` from `GET /settings` (falling back to
+  wording with no number on a fetch failure) instead of the literal "Three
+  neighbours"; verified against the real backend and `next start` that the
+  rendered number follows a live setting change
+- [x] **FIX-35** (LOW) `backend/jobs/exports.py`'s `build_export_task` and
+  `expire_exports_task` now log `job_start`/`job_end` with a `job_id`, the
+  same shape `labeling.py`, `references.py`, and `similarity.py` use
+- [x] **FIX-36** `test_authorization.py` gains
+  `test_every_write_endpoint_is_sorted_into_exactly_one_named_set`, walking
+  the live route table (like `test_pagination.py`) into `PUBLIC_WRITE_PATHS`,
+  `SIGNED_IN_WRITE_PATHS` (including the three own-account exceptions), and
+  `ADMIN_WRITE_PATHS` — confirmed it actually catches a gap by removing one
+  entry and watching it fail naming that exact route
+- [x] **FIX-37** Full evidence set re-run (migrations, `verify_schema.py`,
+  seed dry-run, full suite — 222 + 2 live — every required grep, `npm
+  audit`, frontend `tsc`/`lint`/`build`, `git status`/`git log`); all clean.
+  This run's diff stayed inside the ten findings' named files plus tests,
+  the FIX-30 frontend page, `.env.example`, and `settings_env.py`
+  (`git diff 013ec19..HEAD --stat`: 19 files)
+
+---
+
 ## Phase 3 — Demo 2 candidates
 
 Not scheduled. Pulled forward by the director after Demo 1 is used.
@@ -478,4 +553,4 @@ What makes it bite, not only what it is.
 
 ---
 
-*Last updated: 2026-09-15 — demo-01 fix run 3 completed on `demo/01` by an unattended Claude Code run.*
+*Last updated: 2026-09-15 — demo-01 fix run 4 completed on `demo/01` by an unattended Claude Code run.*
