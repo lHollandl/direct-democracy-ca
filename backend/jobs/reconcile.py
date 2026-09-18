@@ -23,6 +23,7 @@ from backend.db import session_scope
 from backend.models import (
     Amendment,
     Comment,
+    CommentRevision,
     Cycle,
     Official,
     Post,
@@ -244,14 +245,35 @@ async def _check_hashes(session: AsyncSession, report: dict) -> None:
         )
         _compare(report, "amendments", row.id, row.content_hash, computed)
 
-    for row in (await session.execute(select(Comment))).scalars().all():
+    # A comment's `content_hash` is revision 1's hash and never moves, even
+    # once later revisions exist (CLAUDE.md Law 6; DATABASE.md §4.11) — so it
+    # is checked against revision 1's *original* text, not the comment's
+    # current (cached) text.
+    comments_by_id = {
+        row.id: row for row in (await session.execute(select(Comment))).scalars().all()
+    }
+    first_revision_text: dict[int, str] = {}
+    for revision_row in (await session.execute(select(CommentRevision))).scalars().all():
+        comment = comments_by_id.get(revision_row.comment_id)
+        computed = hashing.comment_revision_content_hash(
+            comment_id=revision_row.comment_id,
+            revision=revision_row.revision,
+            text=revision_row.text_body,
+            author_id=comment.author_id if comment else None,
+            created_at=revision_row.created_at,
+        )
+        _compare(report, "comment_revisions", revision_row.id, revision_row.content_hash, computed)
+        if revision_row.revision == 1:
+            first_revision_text[revision_row.comment_id] = revision_row.text_body
+
+    for row in comments_by_id.values():
         computed = hashing.comment_content_hash(
             target_type=row.target_type,
             target_id=row.target_id,
             parent_id=row.parent_id,
             reply_to_comment_id=row.reply_to_comment_id,
             author_id=row.author_id,
-            text=row.text_body,
+            text=first_revision_text.get(row.id, row.text_body),
             created_at=row.created_at,
         )
         _compare(report, "comments", row.id, row.content_hash, computed)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Comment
+from backend.models import Comment, CommentRevision
 
 
 async def get(session: AsyncSession, comment_id: int) -> Comment | None:
@@ -17,6 +17,33 @@ async def add(session: AsyncSession, **fields) -> Comment:
     session.add(row)
     await session.flush()
     return row
+
+
+async def add_revision(session: AsyncSession, **fields) -> CommentRevision:
+    row = CommentRevision(**fields)
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def revisions_for_comments(
+    session: AsyncSession, comment_ids: list[int]
+) -> list[CommentRevision]:
+    """Every revision of every comment in `comment_ids`, one query — used to
+    build a comment thread's history without an N+1 (DEMOCRACY.md §6)."""
+    if not comment_ids:
+        return []
+    return list(
+        (
+            await session.execute(
+                select(CommentRevision)
+                .where(CommentRevision.comment_id.in_(comment_ids))
+                .order_by(CommentRevision.comment_id, CommentRevision.revision)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
 
 async def for_target(session: AsyncSession, target_type: str, target_id: int) -> list[Comment]:

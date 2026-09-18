@@ -667,6 +667,82 @@ async def test_a_comment_can_be_edited_briefly_and_removed_softly(client, world)
     assert thread[0]["text"] == "[removed by author]"
 
 
+async def test_editing_a_comment_creates_a_new_revision_every_time(client, world):
+    """FIX-39 (audit demo-01 run 5, HIGH): a comment edit must never leave
+    `content_hash` stale (CLAUDE.md Law 6; DATABASE.md §4.11). Each edit is a
+    new `comment_revisions` row; `comments.content_hash` stays revision 1's
+    hash, so `reconcile.py` never raises on ordinary use of the edit window."""
+    from backend.jobs import reconcile as reconcile_job
+    from backend.models import Comment
+    from backend.services import hashing
+
+    solution_id = await _dominant_solution(client, world)
+    posted = await client.post(
+        "/comments",
+        headers=world["ben"]["headers"],
+        json={"target_type": "solution", "target_id": solution_id, "text": "First thought."},
+    )
+    comment_id = posted.json()["id"]
+
+    edit1 = await client.patch(
+        f"/comments/{comment_id}",
+        headers=world["ben"]["headers"],
+        json={"text": "Second thought, within the edit window."},
+    )
+    assert edit1.status_code == 200
+
+    edit2 = await client.patch(
+        f"/comments/{comment_id}",
+        headers=world["ben"]["headers"],
+        json={"text": "Third thought, still within the window."},
+    )
+    assert edit2.status_code == 200
+
+    async with session_scope() as session:
+        from backend.repositories import comments as comments_repo
+
+        comment = await session.get(Comment, comment_id)
+        assert comment.current_revision == 3
+        assert comment.text_body == "Third thought, still within the window."
+
+        rows = await comments_repo.revisions_for_comments(session, [comment_id])
+        assert [r.revision for r in rows] == [1, 2, 3]
+        assert rows[0].text_body == "First thought."
+        assert len({r.content_hash for r in rows}) == 3, "every revision keeps its own hash"
+
+        # comments.content_hash stays revision 1's hash — never rewritten.
+        assert comment.content_hash == hashing.comment_content_hash(
+            target_type=comment.target_type,
+            target_id=comment.target_id,
+            parent_id=comment.parent_id,
+            reply_to_comment_id=comment.reply_to_comment_id,
+            author_id=comment.author_id,
+            text=rows[0].text_body,
+            created_at=comment.created_at,
+        )
+        for row in rows:
+            assert row.content_hash == hashing.comment_revision_content_hash(
+                comment_id=comment_id,
+                revision=row.revision,
+                text=row.text_body,
+                author_id=comment.author_id,
+                created_at=row.created_at,
+            )
+
+    async with session_scope() as session:
+        report = await reconcile_job.run(session, correct=False)
+    assert report["hash_mismatches"] == []
+
+    thread = (await client.get(f"/solutions/{solution_id}")).json()["discussion"]
+    edited_comment = next(c for c in thread if c["id"] == comment_id)
+    assert edited_comment["current_revision"] == 3
+    assert [r["text"] for r in edited_comment["revision_history"]] == [
+        "First thought.",
+        "Second thought, within the edit window.",
+        "Third thought, still within the window.",
+    ]
+
+
 async def test_a_solution_is_editable_only_while_untouched(client, world):
     ollama_client.get_ollama().responses["labeler.md"] = labeler_answer(
         main_category="Public Safety", umbrella_id=world["safety"], level="city", entity_id=1

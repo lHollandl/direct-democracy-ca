@@ -145,6 +145,7 @@ def upgrade() -> None:
     sa.Column('depth', sa.SmallInteger(), nullable=False),
     sa.Column('author_id', sa.Integer(), nullable=False),
     sa.Column('text', sa.Text(), nullable=False),
+    sa.Column('current_revision', sa.SmallInteger(), server_default=sa.text('1'), nullable=False),
     sa.Column('edited_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('removed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('net_score', sa.Integer(), server_default=sa.text('0'), nullable=False),
@@ -160,6 +161,19 @@ def upgrade() -> None:
     op.create_index('ix_comments_parent_id', 'comments', ['parent_id'], unique=False)
     op.create_index('ix_comments_reply_to_comment_id', 'comments', ['reply_to_comment_id'], unique=False)
     op.create_index('ix_comments_target', 'comments', ['target_type', 'target_id', 'parent_id'], unique=False)
+    op.create_table('comment_revisions',
+    sa.Column('id', sa.Integer(), sa.Identity(always=True), nullable=False),
+    sa.Column('comment_id', sa.Integer(), nullable=False),
+    sa.Column('revision', sa.SmallInteger(), nullable=False),
+    sa.Column('text', sa.Text(), nullable=False),
+    sa.Column('ai_contribution_percentage', sa.SmallInteger(), server_default=sa.text('0'), nullable=False),
+    sa.Column('content_hash', sa.String(length=64), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['comment_id'], ['comments.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('comment_id', 'revision', name='uq_comment_revisions_comment_revision')
+    )
+    op.create_index('ix_comment_revisions_comment_id', 'comment_revisions', ['comment_id'], unique=False)
     op.create_table('jurors',
     sa.Column('id', sa.Integer(), sa.Identity(always=True), nullable=False),
     sa.Column('jury_id', sa.Integer(), nullable=False),
@@ -514,6 +528,8 @@ def downgrade() -> None:
     op.drop_index('ix_jurors_replaced_by_id', table_name='jurors')
     op.drop_index('ix_jurors_jury_id', table_name='jurors')
     op.drop_table('jurors')
+    op.drop_index('ix_comment_revisions_comment_id', table_name='comment_revisions')
+    op.drop_table('comment_revisions')
     op.drop_index('ix_comments_target', table_name='comments')
     op.drop_index('ix_comments_reply_to_comment_id', table_name='comments')
     op.drop_index('ix_comments_parent_id', table_name='comments')

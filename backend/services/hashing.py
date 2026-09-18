@@ -147,6 +147,21 @@ def comment_content_hash(
     )
 
 
+def comment_revision_content_hash(
+    *, comment_id: int, revision: int, text: str, author_id: int, created_at: datetime
+) -> str:
+    """DATABASE.md §4.11's `comment_revisions` canonical field list."""
+    return hash_payload(
+        {
+            "author_id": author_id,
+            "comment_id": comment_id,
+            "created_at": iso(created_at),
+            "revision": revision,
+            "text": text,
+        }
+    )
+
+
 def summary_hash(data: dict) -> str:
     """DEMOCRACY.md §11.3 — SHA-256 of the canonical JSON of the document data."""
     return hash_payload(data)

@@ -92,6 +92,7 @@ async def create(
         depth=depth,
         author_id=author.id,
         text_body=clean,
+        current_revision=1,
         net_score=0,
         ai_contribution_percentage=0,
         content_hash=hashing.comment_content_hash(
@@ -101,6 +102,24 @@ async def create(
             reply_to_comment_id=reply_to_comment_id,
             author_id=author.id,
             text=clean,
+            created_at=now,
+        ),
+        created_at=now,
+    )
+    # Revision 1 is written with the comment, in the same transaction
+    # (DATABASE.md §4.11) — the comment's `content_hash` is this revision's
+    # hash and never moves, even once later revisions exist (Law 6).
+    await comments_repo.add_revision(
+        session,
+        comment_id=comment.id,
+        revision=1,
+        text_body=clean,
+        ai_contribution_percentage=0,
+        content_hash=hashing.comment_revision_content_hash(
+            comment_id=comment.id,
+            revision=1,
+            text=clean,
+            author_id=author.id,
             created_at=now,
         ),
         created_at=now,
@@ -139,6 +158,10 @@ async def target_community(
 
 
 async def edit(session: AsyncSession, *, comment: Comment, user: User, text: str) -> Comment:
+    """Each edit is a new revision row with its own hash (DATABASE.md §4.11);
+    `comment.content_hash` stays revision 1's hash — an edit is never a
+    rewrite (CLAUDE.md Law 6). The earlier text stays readable in the
+    comment's history."""
     if comment.author_id != user.id:
         raise Forbidden("You can only edit your own comment.", code="not_the_author")
     if comment.removed_at is not None:
@@ -156,8 +179,26 @@ async def edit(session: AsyncSession, *, comment: Comment, user: User, text: str
         raise ValidationFailed(
             f"A comment can be up to {MAX_TEXT:,} characters.", code="bad_comment_text"
         )
+    now = datetime.now(timezone.utc)
+    revision = comment.current_revision + 1
+    await comments_repo.add_revision(
+        session,
+        comment_id=comment.id,
+        revision=revision,
+        text_body=clean,
+        ai_contribution_percentage=comment.ai_contribution_percentage,
+        content_hash=hashing.comment_revision_content_hash(
+            comment_id=comment.id,
+            revision=revision,
+            text=clean,
+            author_id=comment.author_id,
+            created_at=now,
+        ),
+        created_at=now,
+    )
     comment.text_body = clean
-    comment.edited_at = datetime.now(timezone.utc)
+    comment.current_revision = revision
+    comment.edited_at = now
     await session.flush()
     return comment
 
@@ -186,6 +227,17 @@ async def thread(
         if viewer_id
         else {}
     )
+    history_by_comment: dict[int, list] = {}
+    for revision_row in await comments_repo.revisions_for_comments(
+        session, [row.id for row in rows]
+    ):
+        history_by_comment.setdefault(revision_row.comment_id, []).append(
+            {
+                "revision": revision_row.revision,
+                "text": revision_row.text_body,
+                "created_at": revision_row.created_at,
+            }
+        )
     by_parent: dict[int | None, list] = {}
     for row in rows:
         by_parent.setdefault(row.parent_id, []).append(row)
@@ -215,6 +267,8 @@ async def thread(
                     "my_vote": my_votes.get(row.id),
                     "created_at": row.created_at,
                     "edited": row.edited_at is not None,
+                    "current_revision": row.current_revision,
+                    "revision_history": history_by_comment.get(row.id, []),
                     "removed": row.removed_at is not None,
                     "ai_influence": ai_log.influence(row.ai_contribution_percentage),
                     "replies": build(row.id),

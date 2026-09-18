@@ -855,6 +855,9 @@ class Comment(Base):
     depth: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     text_body: Mapped[str] = mapped_column("text", Text, nullable=False)
+    current_revision: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, server_default=text("1")
+    )
     edited_at: Mapped[datetime | None] = _ts(nullable=True)
     removed_at: Mapped[datetime | None] = _ts(nullable=True)
     net_score: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
@@ -869,6 +872,33 @@ class Comment(Base):
         Index("ix_comments_author_id", "author_id"),
         Index("ix_comments_parent_id", "parent_id"),
         Index("ix_comments_reply_to_comment_id", "reply_to_comment_id"),
+    )
+
+
+class CommentRevision(Base):
+    """DATABASE.md §4.11. Every edit is a new revision row with its own hash
+    (CLAUDE.md Law 6); `comments.content_hash` never moves off revision 1's
+    hash. Revision 1 is written with the comment in the same transaction."""
+
+    __tablename__ = "comment_revisions"
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    comment_id: Mapped[int] = mapped_column(
+        ForeignKey("comments.id", ondelete="CASCADE"), nullable=False
+    )
+    revision: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    text_body: Mapped[str] = mapped_column("text", Text, nullable=False)
+    ai_contribution_percentage: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, server_default=text("0")
+    )
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = _ts(nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "comment_id", "revision", name="uq_comment_revisions_comment_revision"
+        ),
+        Index("ix_comment_revisions_comment_id", "comment_id"),
     )
 
 
@@ -1212,6 +1242,7 @@ ITERATION_TABLES = (
     "amendment_similarity",
     "amendment_similarity_votes",
     "comments",
+    "comment_revisions",
     "votes",
     "umbrella_references",
     "reference_feedback",
