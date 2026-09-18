@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -318,10 +318,23 @@ async def duties_for(session: AsyncSession, user: User) -> list[dict]:
                     "published. You cannot change anything, and you cannot add "
                     "anything. Doing nothing is a valid answer."
                 ),
+                # The timer exists as a setting and is displayed as "would close
+                # on ..." but does not fire in Demo 1 (DEMOCRACY.md §10.1).
+                "would_close_on": jury_review_would_close_on(cycle),
                 "items": items,
             }
         )
     return out
+
+
+def jury_review_would_close_on(cycle: Cycle) -> datetime | None:
+    """`jury_review_started_at + jury_review_days`, from the settings snapshot
+    recorded on the cycle at prepare (DEMOCRACY.md §10.1, §8.2)."""
+    if cycle.jury_review_started_at is None:
+        return None
+    return cycle.jury_review_started_at + timedelta(
+        days=int(cycle.settings_snapshot["jury_review_days"])
+    )
 
 
 async def review_items(session: AsyncSession, *, cycle: Cycle, juror: Juror) -> list[dict]:

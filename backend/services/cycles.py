@@ -478,6 +478,9 @@ async def view(session: AsyncSession, cycle: Cycle) -> dict:
             "Every jury ever drawn for this cycle, so a redraw can be inspected "
             "after the fact — no draw is ever deleted (DEMOCRACY.md §8.1)."
         ),
+        # Both timers exist as settings and are displayed as "would close on
+        # ..." but do not fire in Demo 1 (DEMOCRACY.md §10.1).
+        "jury_review_would_close_on": juries_service.jury_review_would_close_on(cycle),
         "would_close_on": (
             cycle.opened_at + timedelta(days=int(cycle.settings_snapshot["ballot_window_days"]))
             if cycle.opened_at

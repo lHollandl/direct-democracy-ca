@@ -91,6 +91,56 @@ async def test_declining_draws_a_replacement_immediately(client, town):
         assert any(j.status == "drawn" for j in jurors)
 
 
+async def test_jury_review_days_is_consulted_for_would_close_on(client, town):
+    """FIX-42 (MEDIUM, audit demo-01 run 5): `jury_review_days` is seeded and
+    readable but was consulted by nothing (DEMOCRACY §10.1, §8.2). Both
+    `GET /juries/mine` and `GET /cycles/{id}` now show "would close on
+    <jury_review_started_at + jury_review_days>", the same shape the ballot
+    window already used for `would_close_on`."""
+    author = town["people"][0]
+    await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    cycle_id = prepared.json()["cycle_id"]
+
+    async with session_scope() as session:
+        cycle = await cycles_repo.get(session, cycle_id)
+        started_at = cycle.jury_review_started_at
+        review_days = int(cycle.settings_snapshot["jury_review_days"])
+    assert started_at is not None
+
+    duty = None
+    for person in town["people"]:
+        found = (await client.get("/juries/mine", headers=person["headers"])).json()["duties"]
+        if found:
+            duty = found[0]
+            break
+    assert duty is not None
+    assert duty["would_close_on"] is not None
+    from datetime import datetime, timedelta
+
+    close_on = datetime.fromisoformat(duty["would_close_on"])
+    expected = started_at + timedelta(days=review_days)
+    assert close_on == expected
+
+    cycle_view = (
+        await client.get(f"/cycles/{cycle_id}", headers=town["director"]["headers"])
+    ).json()
+    assert cycle_view["jury_review_would_close_on"] is not None
+    assert datetime.fromisoformat(cycle_view["jury_review_would_close_on"]) == expected
+
+    opened = await client.post(f"/admin/cycles/{cycle_id}/open", headers=town["director"]["headers"])
+    assert opened.status_code == 200
+    assert opened.json()["would_close_on"] is not None
+    reopened_view = (
+        await client.get(f"/cycles/{cycle_id}", headers=town["director"]["headers"])
+    ).json()
+    assert reopened_view["would_close_on"] is not None
+
+
 async def test_the_published_header_counts_drawn_replaced_and_seated(client, town):
     """DEMOCRACY §11.2 item 1 — "4 drawn, 1 replaced, 2 seated": every person
     ever drawn for the current jury, including the one a decline replaced."""

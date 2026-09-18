@@ -31,6 +31,7 @@ type Duty = {
   cycle_state: string;
   community: { label: string };
   what_you_can_do: string;
+  would_close_on: string | null;
   items: Item[];
 };
 
@@ -102,6 +103,13 @@ export default function JuryPage() {
                 You are juror {duty.seat}. Your answer so far:{" "}
                 <Badge>{duty.status.replace("_", " ")}</Badge>
               </p>
+              {duty.would_close_on ? (
+                <p className="text-xs text-[var(--muted)]">
+                  Would close on {new Date(duty.would_close_on).toLocaleDateString()} — the
+                  director closes review by hand in this demo; the timer does not fire on
+                  its own.
+                </p>
+              ) : null}
               {duty.status === "drawn" ? (
                 <div className="mt-3 flex gap-2">
                   <button type="button" className="btn btn-primary" onClick={() => void answer(duty.juror_id, "accept")}>

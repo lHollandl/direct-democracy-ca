@@ -16,6 +16,7 @@ type Cycle = {
   settings_in_force: Record<string, unknown>;
   item_count: number;
   jury: { drawn: number; seated: number | null; size_requested: number; eligible_pool_size: number } | null;
+  jury_review_would_close_on: string | null;
   would_close_on: string | null;
   transitions: { state: string; at: string; by: number | string }[];
 };
@@ -55,6 +56,13 @@ export default function CyclePage() {
             ) : (
               <li>No jury was drawn.</li>
             )}
+            {data.jury_review_would_close_on ? (
+              <li>
+                Jury review would close on{" "}
+                {new Date(data.jury_review_would_close_on).toLocaleString()}. In this build
+                the director closes it by hand.
+              </li>
+            ) : null}
             {data.would_close_on ? (
               <li>
                 The ballot window says it would close on{" "}
