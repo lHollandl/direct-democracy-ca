@@ -245,6 +245,35 @@ async def test_a_display_name_cannot_be_taken_twice(client):
     assert response.json()["error"] == "display_name_taken"
 
 
+async def test_ip_hash_is_salted_and_the_secret_is_required(client):
+    """FIX-47 (LOW, audit demo-01 run 5): an unsalted SHA-256 of an IPv4
+    address is reversible by enumeration in seconds. `hash_ip` now salts
+    with IP_HASH_SECRET (DATABASE.md §3.5), and startup refuses to run
+    without it, the same way it already refuses without JWT_SECRET."""
+    import hashlib
+
+    from pydantic import ValidationError
+
+    from backend.config.settings_env import Settings, get_env_settings
+    from backend.services import security
+
+    ip = "203.0.113.7"
+    salted = security.hash_ip(ip)
+    unsalted = hashlib.sha256(ip.encode("utf-8")).hexdigest()
+    assert salted != unsalted, "the hash must not be a bare, reversible SHA-256 of the address"
+    assert salted == hashlib.sha256(
+        (get_env_settings().IP_HASH_SECRET + ip).encode("utf-8")
+    ).hexdigest()
+
+    kwargs = {
+        k: v
+        for k, v in get_env_settings().model_dump().items()
+        if k != "IP_HASH_SECRET"
+    }
+    with pytest.raises(ValidationError, match="IP_HASH_SECRET"):
+        Settings(_env_file=None, **kwargs)
+
+
 async def test_a_city_must_be_in_the_county_the_person_chose(client):
     response = await client.post(
         "/auth/signup",

@@ -67,8 +67,13 @@ def token_fingerprint(token: str) -> str:
 
 
 def hash_ip(ip: str) -> str:
-    """Terms acceptances record a hashed IP, not an IP (DATABASE.md §3.5)."""
-    return hashlib.sha256(ip.encode("utf-8")).hexdigest()
+    """Terms acceptances record a hashed IP, not an IP (DATABASE.md §3.5).
+
+    Salted with IP_HASH_SECRET so the hash cannot be reversed by enumerating
+    the IPv4 space, which an unsalted SHA-256 could be in seconds (audit
+    demo-01 run 5, LOW)."""
+    secret = get_env_settings().IP_HASH_SECRET
+    return hashlib.sha256((secret + ip).encode("utf-8")).hexdigest()
 
 
 def create_access_token(user_id: int) -> tuple[str, str, datetime]:

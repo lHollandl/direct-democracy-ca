@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     OFFICIALS_TEST_EMAIL: str
     BUILD_LABEL: str
     CORS_ORIGINS: str = "http://localhost:3000"
+    # Salts terms_acceptances.ip_hash (DATABASE.md §3.5) so a stored hash
+    # cannot be reversed by enumerating the IPv4 space (audit demo-01 run 5,
+    # LOW: an unsalted SHA-256 of the address was reversible in seconds).
+    # No default: startup refuses to run without it.
+    IP_HASH_SECRET: str
     # The address the frontend is reached at (ARCHITECTURE.md §3) — used
     # wherever a link must work outside the site: the `mailto:` body, the PDF
     # footer, the summary's verify text (DEMOCRACY.md §11.5; audit demo-01
@@ -97,12 +102,12 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     REDIS_PORT: int = 6379
 
-    @field_validator("JWT_SECRET")
+    @field_validator("JWT_SECRET", "IP_HASH_SECRET")
     @classmethod
-    def _secret_is_real(cls, v: str) -> str:
+    def _secret_is_real(cls, v: str, info) -> str:
         if len(v) < 32 or v.startswith("CHANGE_ME"):
             raise ValueError(
-                "JWT_SECRET must be at least 32 characters and not the "
+                f"{info.field_name} must be at least 32 characters and not the "
                 ".env.example placeholder"
             )
         return v
