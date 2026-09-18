@@ -476,6 +476,61 @@ async def test_similar_amendments_are_flagged_and_people_decide(client, world):
     assert decided.json()["merged_amendment_id"] == second.json()["id"]
 
 
+async def test_the_author_shortcut_settles_same_but_not_different(client, world):
+    """FIX-46 (LOW, audit demo-01 run 5): DEMOCRACY §5.4 grants the author
+    shortcut for "Same" only — an author must not be able to single-handedly
+    dismiss a flag that other members might want to merge. "Different" needs
+    `similarity_confirm_min` distinct users, author or not."""
+    solution_id = await _dominant_solution(client, world)
+    outsider = await make_user(client, email="d@example.com", display_name="Dev")
+    ollama = ollama_client.get_ollama()
+    text_one = "Paint a crosswalk, install a refuge island, and add a flashing beacon."
+    text_two = "Paint a crosswalk, add a refuge island, and install a flashing beacon."
+    ollama.embeddings[text_one] = [1.0, 0.0, 0.0]
+    ollama.embeddings[text_two] = [0.99, 0.14, 0.0]
+
+    first = await client.post(
+        f"/solutions/{solution_id}/amendments",
+        headers=world["ben"]["headers"],
+        json={"proposed_text": text_one, "rationale": "A beacon slows the turning traffic down."},
+    )
+    await client.post(
+        f"/solutions/{solution_id}/amendments",
+        headers=world["cara"]["headers"],
+        json={"proposed_text": text_two, "rationale": "The same change, said a little differently."},
+    )
+    await settle_jobs()
+    pair = (await client.get(f"/solutions/{solution_id}/amendments")).json()["similar_pairs"][0]
+
+    # One author (of either amendment) presses Different: not enough on its
+    # own — the shortcut does not cut both ways.
+    one_author = await client.post(
+        f"/similarity/{pair['id']}/decide",
+        headers=world["ben"]["headers"],
+        json={"choice": "different"},
+    )
+    assert one_author.status_code == 200
+    assert one_author.json()["decision"] == "pending", (
+        "the author shortcut applies to Same only; one author pressing "
+        "Different must not dismiss a flag other members might want to merge"
+    )
+
+    # A second, non-author, distinct user presses Different too — now
+    # similarity_confirm_min (2) is met and the flag is dismissed.
+    second_presser = await client.post(
+        f"/similarity/{pair['id']}/decide",
+        headers=outsider["headers"],
+        json={"choice": "different"},
+    )
+    assert second_presser.status_code == 200
+    assert second_presser.json()["decision"] == "different"
+    assert second_presser.json()["merged_amendment_id"] is None
+
+    amendments = (await client.get(f"/solutions/{solution_id}/amendments")).json()["amendments"]
+    statuses = {a["id"]: a["status"] for a in amendments}
+    assert statuses[first.json()["id"]] == "proposed", "dismissing the flag merges nothing"
+
+
 async def test_comments_nest_to_the_depth_cap(client, world):
     """FIX-29 (MEDIUM, audit demo-01 run 4): a reply past the depth cap
     re-attaches under the depth-cap comment's own parent — DEMOCRACY.md §6,

@@ -150,12 +150,15 @@ async def decide(
 
     authors = {newer.author_id, older.author_id}
     author_pressed_same = any(v.user_id in authors for v in same_votes)
-    author_pressed_different = any(v.user_id in authors for v in different_votes)
 
+    # The author shortcut applies to Same only (DEMOCRACY.md §5.4): one
+    # author must not be able to single-handedly dismiss a flag that other
+    # members might want to merge. Different needs similarity_confirm_min
+    # distinct users like any other decision.
     decided = None
     if len(same_votes) >= needed or author_pressed_same:
         decided = "same"
-    elif len(different_votes) >= needed or author_pressed_different:
+    elif len(different_votes) >= needed:
         decided = "different"
 
     result = {
