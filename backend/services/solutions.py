@@ -181,7 +181,12 @@ async def edit_text(
 ) -> None:
     """DEMOCRACY.md §4.3 — the author may edit only while the solution has zero
     votes and zero amendments. After that, changes happen only through
-    amendments."""
+    amendments.
+
+    The edit creates version n+1 with `created_by` the author and no
+    amendment — the same mechanism as absorption (`add_version`), so
+    version 1 and its hash are kept (CLAUDE.md Law 6; DATABASE.md §4.8:
+    no column of an existing version row is ever updated)."""
     if solution.author_id != editor.id:
         raise Forbidden(
             "Solutions belong to the community once posted. Propose an amendment "
@@ -197,20 +202,12 @@ async def edit_text(
             code="solution_locked",
         )
     clean = validate_text(text)
-    version = await solutions_repo.current_version(session, solution.id)
-    if version is None:
+    existing = await solutions_repo.current_version(session, solution.id)
+    if existing is None:
         raise NotFound("That solution has no text.", code="solution_version_missing")
-    now = datetime.now(timezone.utc)
-    version.text_body = clean
-    version.content_hash = hashing.solution_version_content_hash(
-        solution_id=solution.id,
-        version=version.version,
-        text=clean,
-        created_by=version.created_by,
-        created_at=now,
+    await add_version(
+        session, solution=solution, text=clean, created_by=editor.id, amendment_id=None
     )
-    version.created_at = now
-    await session.flush()
 
 
 async def move_if_untouched(

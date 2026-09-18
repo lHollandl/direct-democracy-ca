@@ -696,6 +696,62 @@ async def test_a_solution_is_editable_only_while_untouched(client, world):
     assert locked.json()["error"] == "solution_locked"
 
 
+async def test_editing_a_solution_creates_a_new_version_every_time(client, world):
+    """FIX-38 (audit demo-01 run 5, HIGH): a pre-vote edit must never rewrite
+    an existing `solution_versions` row (CLAUDE.md Law 6; DATABASE.md §4.8).
+    It creates version n+1, exactly like absorption."""
+    from backend.jobs import reconcile as reconcile_job
+    from backend.services import hashing
+
+    ollama_client.get_ollama().responses["labeler.md"] = labeler_answer(
+        main_category="Public Safety", umbrella_id=world["safety"], level="city", entity_id=1
+    )
+    await _post(client, world["ann"])
+    await settle_jobs()
+    solution_id = (await client.get(f"/umbrellas/{world['safety']}")).json()["solutions"][0]["id"]
+
+    first = await client.get(f"/solutions/{solution_id}")
+    assert len(first.json()["versions"]) == 1
+
+    edit1 = await client.patch(
+        f"/solutions/{solution_id}",
+        headers=world["ann"]["headers"],
+        json={"text": "Paint a crosswalk and install a pedestrian refuge island near the school."},
+    )
+    assert edit1.status_code == 200
+
+    edit2 = await client.patch(
+        f"/solutions/{solution_id}",
+        headers=world["ann"]["headers"],
+        json={"text": "Paint a high-visibility crosswalk and a pedestrian refuge island near the school."},
+    )
+    assert edit2.status_code == 200
+
+    after = (await client.get(f"/solutions/{solution_id}")).json()
+    versions = after["versions"]
+    assert len(versions) == 3, "each edit must add a version, never rewrite one"
+    assert [v["version"] for v in versions] == [1, 2, 3]
+    assert after["current_version"] == 3
+    assert len({v["content_hash"] for v in versions}) == 3, "every version keeps its own hash"
+
+    async with session_scope() as session:
+        from backend.repositories import solutions as solutions_repo
+
+        rows = await solutions_repo.versions(session, solution_id)
+        for row in rows:
+            assert row.content_hash == hashing.solution_version_content_hash(
+                solution_id=row.solution_id,
+                version=row.version,
+                text=row.text_body,
+                created_by=row.created_by,
+                created_at=row.created_at,
+            )
+
+    async with session_scope() as session:
+        report = await reconcile_job.run(session, correct=False)
+    assert report["hash_mismatches"] == []
+
+
 async def test_the_feed_states_its_ordering_rule(client, world):
     ollama_client.get_ollama().responses["labeler.md"] = labeler_answer(
         main_category="Public Safety", umbrella_id=world["safety"], level="city", entity_id=1
