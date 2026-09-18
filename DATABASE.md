@@ -36,8 +36,8 @@
   `order`, `user`, …); hence `umbrella_references`, not `references`.
 - **Hashes** are `VARCHAR(64) NOT NULL` lowercase hex SHA-256 (not
   `CHAR`, which would space-pad); the application guarantees the length.
-  Where this document writes `char(64)` for a hash column, read
-  `VARCHAR(64)`.
+  Wherever this document writes `char(n)` — hashes, `abbreviation`,
+  `fips` — read `VARCHAR(n)`; `CHAR` is never used.
 - **Foreign keys** are always indexed (Law 4). Composite uniqueness is
   a named `UNIQUE` constraint: `uq_<table>_<cols>`.
 - **Code citation**: documents refer to code as
@@ -53,7 +53,7 @@
 | Half | Tables | Migration practice |
 |---|---|---|
 | **Foundation** | `users`, `user_display_settings`, `refresh_tokens`, `email_verifications`, `password_resets`, `terms_versions`, `terms_acceptances`, `states`, `counties`, `cities`, `officials`, `settings`, `admin_actions`, `ai_actions`, `data_exports` | Alembic chain `foundation/`. Immutable once applied. |
-| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Regenerated fresh per demo until the keeper. |
+| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `comment_revisions`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Regenerated fresh per demo until the keeper. |
 
 Two Alembic branches in one `alembic/versions/` directory, labeled
 `foundation` and `iteration`, so `alembic upgrade foundation@head` and
@@ -142,7 +142,9 @@ Same shape: `id`, `user_id` FK, `token_hash` UNIQUE, `expires_at`,
 `privacy_policy_md` text, `terms_of_service_md` text, `published_at`.
 
 `terms_acceptances`: `id`, `user_id` FK, `terms_version_id` FK,
-`accepted_at`, `ip_hash` char(64). Never deleted (legal record; contains
+`accepted_at`, `ip_hash` char(64) — SHA-256 of `IP_HASH_SECRET` +
+address (a secret from `.env`, ARCHITECTURE §3), so the hash cannot be
+reversed by enumerating addresses. Never deleted (legal record; contains
 no PII beyond the user link, which anonymization severs by erasing the
 user).
 
@@ -356,11 +358,14 @@ they are left in place (DEMOCRACY §4.1).
 ### 4.8 `solution_versions`
 
 `id`, `solution_id` FK, `version` int, `text` text, `created_by` FK
-`users` (v1: author; later: the amendment's author), `amendment_id` FK
-NULL, `ai_contribution_percentage` smallint DEFAULT 0, `content_hash`
+`users` (v1: author; later: the amendment's author, or the author again
+for a pre-vote edit — DEMOCRACY §4.3), `amendment_id` FK NULL,
+`ai_contribution_percentage` smallint DEFAULT 0, `content_hash`
 char(64) NOT NULL (canonical JSON `{solution_id, version, text,
 created_by, created_at}`), `created_at`. Unique `(solution_id,
-version)`. Immutable.
+version)`. **Immutable: no column of an existing row is ever updated.**
+`PATCH /solutions/{id}` inserts version n+1 and bumps
+`solutions.current_version`; it never touches version n.
 
 ### 4.9 `amendments`
 
@@ -399,12 +404,22 @@ enum (`same`, `different`), `created_at`; PK `(similarity_id, user_id)`.
 NULL (set only when the reply was re-attached at the depth cap; the
 comment it actually answered — DEMOCRACY §6), `depth` smallint NOT NULL
 (0-based), `author_id` FK, `text` text (1–2,000; exactly what the
-author typed, never a rendered name), `edited_at` NULL, `removed_at`
-NULL, `net_score` int DEFAULT 0, `ai_contribution_percentage` smallint
-DEFAULT 0, `content_hash` char(64) (canonical JSON `{target_type,
-target_id, parent_id, reply_to_comment_id, text, author_id,
-created_at}`), `created_at`. Index `(target_type, target_id,
-parent_id)`, `author_id`, `reply_to_comment_id`.
+author typed, never a rendered name — the **current** revision's text,
+a cache of the latest `comment_revisions` row), `current_revision`
+smallint NOT NULL DEFAULT 1, `edited_at` NULL, `removed_at` NULL,
+`net_score` int DEFAULT 0, `ai_contribution_percentage` smallint
+DEFAULT 0, `content_hash` char(64) (the hash of revision 1 — immutable,
+Law 6), `created_at`. Index `(target_type, target_id, parent_id)`,
+`author_id`, `reply_to_comment_id`.
+
+`comment_revisions`: `id`, `comment_id` FK, `revision` smallint, `text`,
+`ai_contribution_percentage` smallint DEFAULT 0, `content_hash` char(64)
+(canonical JSON `{comment_id, revision, text, author_id, created_at}`),
+`created_at`. Unique `(comment_id, revision)`. Immutable. Revision 1 is
+written with the comment in the same transaction; an edit inside
+`comment_edit_minutes` inserts revision n+1 and updates `comments.text`,
+`current_revision`, and `edited_at`. `reconcile.py` recomputes every
+revision's hash and `comments.content_hash` against revision 1.
 
 ### 4.12 `votes`
 

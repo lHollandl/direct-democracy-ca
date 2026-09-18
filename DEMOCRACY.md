@@ -234,8 +234,10 @@ The author is recorded and displayed per their display settings; the
 author has no special rights over amendments.
 
 **Editing.** The author may edit a solution's text only while it has
-zero votes and zero amendments. After that, changes happen only through
-amendments.
+zero votes and zero amendments. Such an edit creates version n+1 with
+`created_by` the author and no amendment — the same mechanism as
+absorption, so version 1 and its hash are kept (Law 6). After that,
+changes happen only through amendments.
 
 ### 4.4 Net score
 
@@ -321,8 +323,10 @@ together.
   amendment's author, press **Same**, the newer amendment is marked
   `merged_into` the older; its upvoters are counted as supporters of the
   older for the absorption threshold (a user who upvoted both counts
-  once). When the same number press **Different**, the flag is
-  dismissed and recorded.
+  once). When `similarity_confirm_min` distinct users press
+  **Different**, the flag is dismissed and recorded. The author shortcut
+  applies to **Same** only: one author may not block a merge that other
+  members want.
 - AI suggests; humans decide. The AI action and the human decision are
   both logged (§9.2).
 
@@ -347,7 +351,9 @@ comments on posts, non-dominant solutions, amendments, or references.
 - Ordering within a thread: net score descending, ties oldest first.
 - Up/down votes; net score; nothing hidden by score.
 - Edit: within `comment_edit_minutes` (Demo 1: 15) of posting, marked
-  "edited". After that, immutable.
+  "edited" with the revision number. Each edit is a new revision row
+  with its own hash (DATABASE §4.11); the earlier text stays readable
+  from the comment's history. After the window, immutable.
 - Delete: soft — the row stays, text replaced by "[removed by author]",
   replies remain.
 
@@ -788,7 +794,8 @@ own mail client (`mailto:`) with: recipients = every officials-directory
 entry for that community; subject = "Ballot results — [community],
 cycle N"; body = a short note, the summary's **absolute** URL (built
 from `PUBLIC_BASE_URL`, so the link works in a representative's inbox),
-and the hash. The user sends it from their own address. The platform sends nothing and records
+and the hash. The body is composed in the summaries service
+(ARCHITECTURE §2), the router only returns it. The user sends it from their own address. The platform sends nothing and records
 nothing about the send — it cannot know whether the user pressed send.
 
 **Demo 1:** every directory entry is the director's test address.

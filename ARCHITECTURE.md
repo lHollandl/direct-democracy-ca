@@ -43,7 +43,7 @@ routers they own (DATABASE.md §2; §6 below).
 | **Services** | `backend/services/` | repositories, clients, other services | routers, raw SQL |
 | **Repositories** | `backend/repositories/` | the database (async session) | services, clients, anything else |
 | **Clients** | `backend/clients/` | external processes over HTTP | the database |
-| **Jobs** | `backend/jobs/` | services | routers, repositories directly |
+| **Jobs** | `backend/jobs/` | services | routers, repositories, the session — `test_layering.py` scans `jobs/` with the same rules as routers |
 | **Config** | `backend/config/` | `.env`, YAML | anything |
 
 Rules:
@@ -104,6 +104,7 @@ Docker Compose with `--env-file`. There is no separate `infra/.env` or
 | `OFFICIALS_TEST_EMAIL` | Demo 1 directory address |
 | `BUILD_LABEL` | `demo-01`; stamped on `ai_actions` |
 | `CORS_ORIGINS` | |
+| `IP_HASH_SECRET` | random 32+ bytes; salts `terms_acceptances.ip_hash` (DATABASE §3.5) |
 | `PUBLIC_BASE_URL` | the address the frontend is reached at (Demo 1: `http://localhost:3000`); used wherever a link must work outside the site — the `mailto:` body, the PDF footer, the summary's verify text |
 | `RATE_LIMIT_WRITE_PER_MINUTE` (30) | |
 | `LOG_LEVEL` | |
@@ -152,8 +153,10 @@ the key name in the error.
 ## 5. Rate Limiting and Errors
 
 - Every `POST`/`PUT`/`PATCH`/`DELETE` passes through a Redis
-  token-bucket keyed by user id (or IP when unauthenticated), limit
-  `RATE_LIMIT_WRITE_PER_MINUTE`. 429 with `Retry-After`.
+  **fixed-window** counter per calendar minute keyed by user id (or IP
+  when unauthenticated), limit `RATE_LIMIT_WRITE_PER_MINUTE`. 429 with
+  `Retry-After` = seconds to the next minute. (A token bucket was named
+  earlier; the fixed window is what was built and is sufficient.)
 - Errors: services raise typed exceptions (`NotFound`, `Forbidden`,
   `Conflict`, `ValidationFailed`, `ExternalServiceDown`); one exception
   handler maps them to status codes and a body `{error: <code>, message:
@@ -171,7 +174,11 @@ refused with 422, never silently capped) **except** five fixed-size
 reference lists, which return whole: `GET /geo/counties`, `GET
 /geo/counties/{id}/cities`, `GET /communities/{level}/{id}/officials`,
 `GET /settings`, and the main-category list inside `GET /feed`'s filter
-metadata. No other exemptions.
+metadata. No other exemptions. A **whole-page endpoint** (`GET
+/umbrellas/{id}`, `GET /results`, `GET /solutions/{id}`) is not a list
+endpoint, but every list it embeds is the **first page** (25) with a
+`next_cursor`; the page fetches the rest from the corresponding list
+endpoint. Nothing embeds an unbounded list.
 
 ### Service and legal (F, public)
 `GET /health` (liveness; no database access), `GET /legal/privacy`,
@@ -343,9 +350,12 @@ the access token in memory and the refresh token in an `httpOnly`
 cookie set by the backend, and silently refreshes on 401.
 
 **Style brief** (director, 2026-09-06): mobile-first; plain language;
-one accent color; California photography in page headers; every page
-works with images disabled; accessible per CLAUDE §8. Iterate on the
-UI freely between demos.
+one accent color; California photography in page headers **when the
+director supplies the images — none yet (2026-09-18), so pages ship
+text-only and that is intended**; every page works with images
+disabled; accessible per CLAUDE §8. Iterate on the UI freely between
+demos. `api.ts` is the only file that calls `fetch`, including on the
+landing page; `test_layering.py`'s frontend check greps for it.
 
 ---
 

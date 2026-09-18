@@ -198,7 +198,10 @@ and no new code writes to it. This protects historical civic data.
 
 **6. `content_hash` is permanent.** Generated at creation for every
 post, solution, and summary document from the content plus its AI
-metadata. Never modified or deleted afterward.
+metadata. Never modified or deleted afterward. Where the process allows
+text to change — an author's pre-vote edit, a comment's edit window —
+the change is a **new hashed row**, never a rewrite: every version and
+revision is kept with its own hash, and the earlier one stays valid.
 
 **7. Every AI action is a row.** Labels, recommendations, groupings,
 summaries — each one is recorded before its result is shown, with
