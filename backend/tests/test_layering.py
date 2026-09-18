@@ -20,6 +20,8 @@ from backend.config.settings_env import repo_root
 ROUTERS_DIR = repo_root() / "backend" / "routers"
 SERVICES_DIR = repo_root() / "backend" / "services"
 JOBS_DIR = repo_root() / "backend" / "jobs"
+CLIENTS_DIR = repo_root() / "backend" / "clients"
+SEED_PY = repo_root() / "backend" / "seed.py"
 FRONTEND_SRC_DIR = repo_root() / "frontend" / "src"
 API_TS_PATH = FRONTEND_SRC_DIR / "lib" / "api.ts"
 
@@ -319,26 +321,68 @@ def _own_body(node: ast.AST):
         stack.extend(ast.iter_child_nodes(child))
 
 
+def _blocking_sync_function_names(tree: ast.Module, os_names: set[str]) -> set[str]:
+    """Plain (non-async) functions whose own body — not a further-nested
+    function — calls `open(...)`, an `os.*` function, or a blocking pathlib
+    method. A sync helper shaped like this still blocks the event loop if an
+    `async def` calls it directly instead of through `asyncio.to_thread`
+    (audit demo-01 run 5, LOW: `ollama.py::load_prompt` and
+    `seed.py::_load_yaml`, reached one frame down from an `async def` and
+    invisible to a check that only inspects an `async def`'s own body)."""
+    names: set[str] = set()
+    for func in ast.walk(tree):
+        if not isinstance(func, ast.FunctionDef):
+            continue
+        for node in _own_body(func):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Name) and node.func.id == "open":
+                names.add(func.name)
+            elif isinstance(node.func, ast.Attribute):
+                if isinstance(node.func.value, ast.Name) and node.func.value.id in os_names:
+                    names.add(func.name)
+                elif node.func.attr in _BLOCKING_PATH_METHODS:
+                    names.add(func.name)
+    return names
+
+
 def _blocking_io_violations(path: Path) -> list[str]:
     """CLAUDE.md Law 11 — no blocking call inside `async def`. Audit demo-01
     run 2 reported this as a LOW against `seed.py::_seed_cities`; fix run 2
     wrapped that one call, and the same pattern recurred untouched in
     `export.py` (audit demo-01 run 4, MEDIUM). `open(...)`, any `os.*` call,
     and pathlib's blocking IO methods all belong behind `asyncio.to_thread`
-    (or `aiofiles`), exactly as `seed.py` and `email.py` already do."""
+    (or `aiofiles`), exactly as `seed.py` and `email.py` already do. Also
+    catches a direct call, from an `async def`'s own body, to a same-file
+    sync helper that itself does blocking IO (audit demo-01 run 5, LOW) —
+    calling that helper through `asyncio.to_thread(helper, ...)` instead is
+    not flagged, since the helper's name then appears as a plain argument,
+    never as a `Call`."""
     tree = _parse(path)
     os_names = _os_module_aliases(tree)
+    blocking_helpers = _blocking_sync_function_names(tree, os_names)
     violations: list[str] = []
     for func in ast.walk(tree):
         if not isinstance(func, ast.AsyncFunctionDef):
             continue
+        # A `Call` directly `await`-ed is a coroutine call (an async client's
+        # own `.exists(...)`/`.get(...)`, say) — never the synchronous
+        # pathlib/`os` method the same attribute name can also spell, which
+        # is never awaited. Excluded by identity, not by re-walking.
+        awaited = {id(node.value) for node in ast.walk(func) if isinstance(node, ast.Await)}
         for node in _own_body(func):
-            if not isinstance(node, ast.Call):
+            if not isinstance(node, ast.Call) or id(node) in awaited:
                 continue
             if isinstance(node.func, ast.Name) and node.func.id == "open":
                 violations.append(
                     f"{path.name}:{node.lineno} {func.name}() calls open(...) directly — "
                     "wrap blocking file IO in asyncio.to_thread (CLAUDE.md Law 11)"
+                )
+            elif isinstance(node.func, ast.Name) and node.func.id in blocking_helpers:
+                violations.append(
+                    f"{path.name}:{node.lineno} {func.name}() calls "
+                    f"{node.func.id}(...) directly — {node.func.id}() does blocking file "
+                    "IO; call it through asyncio.to_thread instead (CLAUDE.md Law 11)"
                 )
             elif isinstance(node.func, ast.Attribute):
                 if isinstance(node.func.value, ast.Name) and node.func.value.id in os_names:
@@ -357,12 +401,17 @@ def _blocking_io_violations(path: Path) -> list[str]:
 
 
 def test_no_blocking_file_io_inside_async_def():
+    """Scoped to backend/services, backend/jobs, backend/clients and
+    backend/seed.py — every module with an `async def` that touches a file
+    (audit demo-01 run 5, LOW: the scan previously missed backend/clients
+    and backend/seed.py entirely)."""
     violations: list[str] = []
-    for directory in (SERVICES_DIR, JOBS_DIR):
+    for directory in (SERVICES_DIR, JOBS_DIR, CLIENTS_DIR):
         for path in sorted(directory.glob("*.py")):
             if path.name == "__init__.py":
                 continue
             violations.extend(_blocking_io_violations(path))
+    violations.extend(_blocking_io_violations(SEED_PY))
     assert not violations, "Blocking file IO inside async def:\n" + "\n".join(violations)
 
 

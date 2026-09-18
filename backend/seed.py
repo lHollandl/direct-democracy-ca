@@ -139,7 +139,7 @@ def _slug(name: str) -> str:
 
 async def seed_settings(session: AsyncSession, apply: bool) -> Report:
     report = Report("settings (DEMOCRACY.md §7.4)")
-    data = _load_yaml(SETTINGS_FILE)
+    data = await asyncio.to_thread(_load_yaml, SETTINGS_FILE)
     values: dict[str, str] = {k: str(v) for k, v in (data.get("settings") or {}).items()}
     if not values:
         raise SeedError(f"{SETTINGS_FILE} has no `settings:` mapping.")
@@ -175,7 +175,7 @@ async def seed_settings(session: AsyncSession, apply: bool) -> Report:
 
 
 async def seed_geography(session: AsyncSession, apply: bool) -> tuple[Report, Report, Report]:
-    data = _load_yaml(GEOGRAPHY_FILE)
+    data = await asyncio.to_thread(_load_yaml, GEOGRAPHY_FILE)
     state_spec = data.get("state") or {}
     counties_spec = data.get("counties") or []
     if not state_spec or not counties_spec:
@@ -217,16 +217,16 @@ async def seed_geography(session: AsyncSession, apply: bool) -> tuple[Report, Re
 
 
 def _read_cities_csv() -> list[dict]:
+    if not CITIES_FILE.exists():
+        raise SeedError(
+            f"{CITIES_FILE} is missing. It is a director-placed seed file (DATABASE.md §5)."
+        )
     with CITIES_FILE.open(encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
 
 
 async def _seed_cities(session: AsyncSession, apply: bool, county_names: set[str]) -> Report:
     report = Report("geography: cities")
-    if not CITIES_FILE.exists():
-        raise SeedError(
-            f"{CITIES_FILE} is missing. It is a director-placed seed file (DATABASE.md §5)."
-        )
     # No blocking calls inside async def (Law 11) — the file is small but the
     # rule makes no CLI-path exception (audit demo-01 run 2).
     rows = await asyncio.to_thread(_read_cities_csv)
@@ -320,7 +320,7 @@ async def seed_categories(session: AsyncSession, apply: bool) -> Report:
 
 async def seed_officials(session: AsyncSession, apply: bool) -> Report:
     report = Report("officials directory")
-    data = _load_yaml(OFFICIALS_FILE)
+    data = await asyncio.to_thread(_load_yaml, OFFICIALS_FILE)
     entries = data.get("officials") or []
     if not entries:
         raise SeedError(f"{OFFICIALS_FILE} has no `officials:` list.")
@@ -365,7 +365,7 @@ async def seed_officials(session: AsyncSession, apply: bool) -> Report:
 
 async def seed_umbrellas(session: AsyncSession, apply: bool) -> Report:
     report = Report("umbrellas (Iteration)")
-    data = _load_yaml(UMBRELLAS_FILE)
+    data = await asyncio.to_thread(_load_yaml, UMBRELLAS_FILE)
     entries = data.get("umbrellas") or []
     if not entries:
         raise SeedError(
@@ -430,13 +430,7 @@ async def seed_terms(session: AsyncSession, apply: bool) -> Report:
     which version the person agreed to (DATABASE.md §3.5).
     """
     report = Report("legal: terms version")
-    version_file = LEGAL_DIR / "version.txt"
-    privacy_file = LEGAL_DIR / "privacy_policy.md"
-    terms_file = LEGAL_DIR / "terms_of_service.md"
-    for path in (version_file, privacy_file, terms_file):
-        if not path.exists():
-            raise SeedError(f"{path} is missing; the legal pages ship with the build.")
-    version = version_file.read_text(encoding="utf-8").strip()
+    version, privacy_md, terms_md = await asyncio.to_thread(_read_legal_files)
     existing = (
         await session.execute(select(TermsVersion).where(TermsVersion.version == version))
     ).scalar_one_or_none()
@@ -446,14 +440,28 @@ async def seed_terms(session: AsyncSession, apply: bool) -> Report:
             session.add(
                 TermsVersion(
                     version=version,
-                    privacy_policy_md=privacy_file.read_text(encoding="utf-8"),
-                    terms_of_service_md=terms_file.read_text(encoding="utf-8"),
+                    privacy_policy_md=privacy_md,
+                    terms_of_service_md=terms_md,
                 )
             )
             await session.flush()
     else:
         report.already_present.append(version)
     return report
+
+
+def _read_legal_files() -> tuple[str, str, str]:
+    version_file = LEGAL_DIR / "version.txt"
+    privacy_file = LEGAL_DIR / "privacy_policy.md"
+    terms_file = LEGAL_DIR / "terms_of_service.md"
+    for path in (version_file, privacy_file, terms_file):
+        if not path.exists():
+            raise SeedError(f"{path} is missing; the legal pages ship with the build.")
+    return (
+        version_file.read_text(encoding="utf-8").strip(),
+        privacy_file.read_text(encoding="utf-8"),
+        terms_file.read_text(encoding="utf-8"),
+    )
 
 
 async def _resolve_community(session: AsyncSession, entry: dict) -> tuple[str, int, str]:

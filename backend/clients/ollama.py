@@ -12,6 +12,7 @@ similarity skips and logs.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -114,7 +115,11 @@ class OllamaClient:
         return f"ollama:{self.embed_model}"
 
     async def generate(self, prompt_file: str, variables: dict[str, Any]) -> tuple[str, PromptFile]:
-        prompt = load_prompt(prompt_file)
+        # No blocking calls inside async def (Law 11) — load_prompt is
+        # lru_cached, so this only ever blocks once per prompt file per
+        # process, but the rule makes no exception for that (audit demo-01
+        # run 5, LOW).
+        prompt = await asyncio.to_thread(load_prompt, prompt_file)
         body = render(prompt, variables)
         payload: dict[str, Any] = {
             "model": self.model,
