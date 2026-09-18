@@ -12,6 +12,7 @@ boundary is crossed.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 from backend.config.settings_env import repo_root
@@ -19,6 +20,8 @@ from backend.config.settings_env import repo_root
 ROUTERS_DIR = repo_root() / "backend" / "routers"
 SERVICES_DIR = repo_root() / "backend" / "services"
 JOBS_DIR = repo_root() / "backend" / "jobs"
+FRONTEND_SRC_DIR = repo_root() / "frontend" / "src"
+API_TS_PATH = FRONTEND_SRC_DIR / "lib" / "api.ts"
 
 #: Routers may call services only — never a repository, a client module, or a
 #: job (job scheduling is the responsibility of the service that owns the
@@ -361,6 +364,31 @@ def test_no_blocking_file_io_inside_async_def():
                 continue
             violations.extend(_blocking_io_violations(path))
     assert not violations, "Blocking file IO inside async def:\n" + "\n".join(violations)
+
+
+#: A call to `fetch(` on its own text, not preceded by an identifier
+#: character — so `apiFetch(` or `.fetch(` on some other object doesn't
+#: false-positive, but a bare `fetch(` or `window.fetch(` does.
+_FETCH_CALL = re.compile(r"(?<![A-Za-z0-9_.])fetch\s*\(")
+
+
+def test_frontend_calls_fetch_only_from_api_ts():
+    """ARCHITECTURE.md §9 — `frontend/src/lib/api.ts` is the only place
+    `fetch` is called. Audit demo-01 run 5, MEDIUM: FIX-34 made the landing
+    page an async Server Component that called `fetch` itself, opening a
+    second place in the frontend that talks to the API."""
+    violations: list[str] = []
+    for path in sorted(FRONTEND_SRC_DIR.rglob("*.ts")) + sorted(FRONTEND_SRC_DIR.rglob("*.tsx")):
+        if path == API_TS_PATH:
+            continue
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if _FETCH_CALL.search(line):
+                violations.append(
+                    f"{path.relative_to(FRONTEND_SRC_DIR)}:{lineno} calls fetch(...) — "
+                    "frontend/src/lib/api.ts is the only place fetch is called "
+                    "(ARCHITECTURE.md §9)"
+                )
+    assert not violations, "Layering violations in frontend/src/:\n" + "\n".join(violations)
 
 
 def test_no_endpoint_calls_more_than_one_service_function_or_does_threshold_arithmetic():

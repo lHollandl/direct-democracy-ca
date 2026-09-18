@@ -1,25 +1,19 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+import { serverGet } from "@/lib/api";
 
 /**
  * `jury_size` decides a democratic status and so must never be a constant in
  * copy (CLAUDE.md Law 8) — it is read from the public settings, the same
- * value every other page uses. `null` on a fetch failure, so the sentence
- * below can fall back to wording that carries no number rather than a stale
- * one (audit demo-01 run 4, LOW).
+ * value every other page uses, through the one module that calls `fetch`
+ * (ARCHITECTURE.md §9). `null` on a fetch failure, so the sentence below can
+ * fall back to wording that carries no number rather than a stale one (audit
+ * demo-01 run 4, LOW).
  */
 async function citizensDrawnForJury(): Promise<number | null> {
-  try {
-    const response = await fetch(`${API_BASE}/settings`, { cache: "no-store" });
-    if (!response.ok) return null;
-    const body: { settings: { key: string; value: unknown }[] } = await response.json();
-    const row = body.settings.find((setting) => setting.key === "jury_size");
-    return typeof row?.value === "number" ? row.value : null;
-  } catch {
-    return null;
-  }
+  const body = await serverGet<{ settings: { key: string; value: unknown }[] }>("/settings");
+  const row = body?.settings.find((setting) => setting.key === "jury_size");
+  return typeof row?.value === "number" ? row.value : null;
 }
 
 export default async function Home() {

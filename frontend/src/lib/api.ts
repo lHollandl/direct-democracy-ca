@@ -160,3 +160,22 @@ export async function restoreSession(): Promise<boolean> {
 export function apiBase(): string {
   return API_BASE;
 }
+
+/**
+ * A server-side, unauthenticated read for a Server Component (ARCHITECTURE.md
+ * §9 — `api.ts` is the only file that calls `fetch`, including on the landing
+ * page). Always `cache: "no-store"`, since anything a server component reads
+ * here can decide what a page shows (CLAUDE.md Law 8) and must never be
+ * baked into a static build. Returns `null` on any failure, so the caller can
+ * fall back to wording that carries no number rather than a stale one (audit
+ * demo-01 run 4, LOW).
+ */
+export async function serverGet<T = unknown>(path: string): Promise<T | null> {
+  try {
+    const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
