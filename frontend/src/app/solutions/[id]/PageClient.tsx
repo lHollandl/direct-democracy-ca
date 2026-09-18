@@ -61,6 +61,11 @@ type Solution = {
   discussion: Comment[];
   discussion_note: string | null;
   ai_influence: { label: string; explanation: string };
+  jury_notes: {
+    cycle_number: number;
+    seated: number;
+    notes: { juror: string; category: string; reason: string }[];
+  } | null;
 };
 
 export default function SolutionPage() {
@@ -147,6 +152,24 @@ export default function SolutionPage() {
             ))}
           </ol>
         </Section>
+
+        {data.jury_notes ? (
+          <Section
+            title="Jury notes"
+            description={`From the jury seated for ballot cycle ${data.jury_notes.cycle_number} (${data.jury_notes.seated} seated). Published whether or not a hold-back reached a majority — DEMOCRACY.md §8.3.`}
+          >
+            <ol className="space-y-3">
+              {data.jury_notes.notes.map((note, index) => (
+                <li key={index} className="card p-3">
+                  <p className="text-sm font-medium">
+                    {note.juror} · <Badge>{note.category.replace(/_/g, " ")}</Badge>
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-sm">{note.reason}</p>
+                </li>
+              ))}
+            </ol>
+          </Section>
+        ) : null}
 
         <Section title="Amendments">
           {data.amendments.length === 0 ? (
