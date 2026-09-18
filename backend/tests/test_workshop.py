@@ -409,6 +409,12 @@ async def test_an_amendment_is_absorbed_and_supersedes_the_others(client, world)
     statuses = {a["id"]: a["status"] for a in solution["amendments"]}
     assert statuses[first.json()["id"]] == "absorbed"
     assert statuses[second.json()["id"]] == "superseded"
+    # FIX-44 (audit demo-01 run 5, MEDIUM): every amendment carries its
+    # AI-influence figure, the same as posts, solutions and comments
+    # (DEMOCRACY §6, §9.5).
+    for amendment in solution["amendments"]:
+        assert amendment["ai_influence"]["ai_contribution_percentage"] == 0
+        assert amendment["ai_influence"]["label"] == "AI assistance on this platform: 0%"
 
 
 async def test_an_amendment_can_be_withdrawn_only_before_it_has_support(client, world):

@@ -339,6 +339,7 @@ async def detail_view(session: AsyncSession, solution: Solution, viewer: User | 
                 "diff": amendments_service.diff(current, a.proposed_text),
                 "content_hash": a.content_hash,
                 "created_at": a.created_at,
+                "ai_influence": ai_log.influence(a.ai_contribution_percentage),
             }
             for a in amendments
         ],

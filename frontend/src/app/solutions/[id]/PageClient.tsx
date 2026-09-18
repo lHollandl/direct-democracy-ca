@@ -57,6 +57,7 @@ type Solution = {
     absorbed_as_version: number | null;
     net_score: number;
     proposed_text: string;
+    ai_influence: { label: string; explanation: string };
   }[];
   discussion: Comment[];
   discussion_note: string | null;
@@ -190,6 +191,7 @@ export default function SolutionPage() {
                   </p>
                   <p className="mt-1 text-sm italic">“{amendment.rationale}”</p>
                   <p className="mt-1 whitespace-pre-line text-sm">{amendment.proposed_text}</p>
+                  <AiInfluence influence={amendment.ai_influence} />
                   <p className="mt-1 text-sm font-bold">Net score {amendment.net_score}</p>
                 </li>
               ))}

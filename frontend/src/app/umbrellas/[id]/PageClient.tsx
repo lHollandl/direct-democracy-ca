@@ -45,6 +45,7 @@ type Amendment = {
   net_score: number;
   my_vote: number | null;
   diff: { kind: string; text: string }[];
+  ai_influence: { label: string; explanation: string };
 };
 
 type Dominant = {
@@ -291,6 +292,7 @@ export default function UmbrellaPage() {
                               : ""}
                           </p>
                           <p className="mt-1 text-sm italic">“{amendment.rationale}”</p>
+                          <AiInfluence influence={amendment.ai_influence} />
                           <p className="mt-2 text-sm">
                             {amendment.diff.map((part, index) => (
                               <span

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { post } from "@/lib/api";
 import VoteButtons from "@/components/VoteButtons";
-import { Empty, Notice } from "@/components/ui";
+import { AiInfluence, Empty, Notice } from "@/components/ui";
 import { FieldError, useFormError } from "@/components/useFormError";
 
 export type Comment = {
@@ -15,7 +15,10 @@ export type Comment = {
   my_vote: number | null;
   created_at: string;
   edited: boolean;
+  current_revision: number;
+  revision_history: { revision: number; text: string; created_at: string }[];
   removed: boolean;
+  ai_influence: { label: string; explanation: string };
   replies: Comment[];
 };
 
@@ -79,8 +82,23 @@ function CommentItem({
       <p className="mt-1 whitespace-pre-line">{comment.text}</p>
       <p className="mt-1 text-xs text-[var(--muted)]">
         {new Date(comment.created_at).toLocaleString()}
-        {comment.edited ? " · edited" : ""}
+        {comment.edited ? ` · edited (revision ${comment.current_revision})` : ""}
       </p>
+      {comment.edited && comment.revision_history.length > 1 ? (
+        <details className="mt-1 text-xs text-[var(--muted)]">
+          <summary className="cursor-pointer">Earlier revisions</summary>
+          <ol className="mt-1 list-decimal space-y-1 pl-5">
+            {comment.revision_history
+              .filter((r) => r.revision !== comment.current_revision)
+              .map((r) => (
+                <li key={r.revision} className="whitespace-pre-line">
+                  {r.text}
+                </li>
+              ))}
+          </ol>
+        </details>
+      ) : null}
+      <AiInfluence influence={comment.ai_influence} />
       <div className="mt-2 flex flex-wrap items-center gap-3">
         {comment.removed ? null : (
           <VoteButtons
