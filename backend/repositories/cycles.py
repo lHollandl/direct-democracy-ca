@@ -34,6 +34,10 @@ async def add(session: AsyncSession, **fields) -> Cycle:
     return row
 
 
+async def all_cycles(session: AsyncSession) -> list[Cycle]:
+    return list((await session.execute(select(Cycle))).scalars().all())
+
+
 async def open_cycle_for(session: AsyncSession, level: str, entity_id: int) -> Cycle | None:
     """The one cycle per community that is not yet published (DATABASE.md §4.14)."""
     return (

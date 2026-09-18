@@ -196,6 +196,12 @@ async def decide(
     return result
 
 
+async def load_amendment_for_job(session: AsyncSession, amendment_id: int) -> Amendment | None:
+    """`backend/jobs/similarity.py` may call services only (ARCHITECTURE.md
+    §2); it never reaches `solutions_repo` itself."""
+    return await solutions_repo.get_amendment(session, amendment_id)
+
+
 async def require_similarity(session: AsyncSession, similarity_id: int) -> AmendmentSimilarity:
     similarity = await solutions_repo.get_similarity(session, similarity_id)
     if similarity is None:

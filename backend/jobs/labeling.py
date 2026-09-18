@@ -12,7 +12,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from backend.db import session_scope
-from backend.repositories import posts as posts_repo
 from backend.services import labeling
 from backend.services import settings as settings_service
 
@@ -24,7 +23,7 @@ async def label_post_task(post_id: int) -> None:
     log.info("job_start", extra={"job": "label_post", "job_id": job_id, "post_id": post_id})
     try:
         async with session_scope() as session:
-            post = await posts_repo.get(session, post_id)
+            post = await labeling.load_post_for_job(session, post_id)
             if post is None:
                 log.warning("label_post_missing", extra={"job_id": job_id, "post_id": post_id})
                 return
@@ -34,7 +33,7 @@ async def label_post_task(post_id: int) -> None:
         log.exception("job_failed", extra={"job": "label_post", "job_id": job_id, "post_id": post_id})
         try:
             async with session_scope() as session:
-                await posts_repo.set_label_status(session, post_id, "unlabeled")
+                await labeling.mark_unlabeled(session, post_id)
         except Exception:
             log.exception("label_status_rollback_failed", extra={"post_id": post_id})
 
@@ -49,14 +48,14 @@ async def label_retry_task() -> dict:
         window = await retry_interval_seconds()
         stale_before = datetime.now(timezone.utc) - timedelta(seconds=window)
         async with session_scope() as session:
-            pending = await posts_repo.posts_awaiting_labels(
+            pending = await labeling.posts_awaiting_labels(
                 session, stale_before=stale_before
             )
             post_ids = [p.id for p in pending]
         for post_id in post_ids:
             retried += 1
             async with session_scope() as session:
-                post = await posts_repo.get(session, post_id)
+                post = await labeling.load_post_for_job(session, post_id)
                 if post is None:
                     continue
                 result = await labeling.label_post(session, post)

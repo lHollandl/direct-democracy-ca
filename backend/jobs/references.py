@@ -13,7 +13,6 @@ import logging
 import uuid
 
 from backend.db import session_scope
-from backend.repositories import umbrellas as umbrellas_repo
 from backend.services import references as references_service
 
 log = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ async def recommend_references_task(umbrella_id: int) -> None:
     )
     try:
         async with session_scope() as session:
-            umbrella = await umbrellas_repo.get(session, umbrella_id)
+            umbrella = await references_service.load_umbrella_for_job(session, umbrella_id)
             if umbrella is None:
                 log.warning(
                     "recommend_references_missing_umbrella",

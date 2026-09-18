@@ -8,6 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models import Official
 
 
+async def all_officials(session: AsyncSession) -> list[Official]:
+    return list((await session.execute(select(Official))).scalars().all())
+
+
 async def for_community(
     session: AsyncSession, level: str, entity_id: int
 ) -> list[Official]:

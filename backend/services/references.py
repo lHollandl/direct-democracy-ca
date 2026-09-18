@@ -34,6 +34,12 @@ SELECT_PROMPT = "reference_select.md"
 MAX_NOTE = 300
 
 
+async def load_umbrella_for_job(session: AsyncSession, umbrella_id: int) -> Umbrella | None:
+    """`backend/jobs/references.py` may call services only (ARCHITECTURE.md
+    §2); it never reaches `umbrellas_repo` itself."""
+    return await umbrellas_repo.get(session, umbrella_id)
+
+
 async def add_user_reference(
     session: AsyncSession, *, umbrella: Umbrella, user: User, url: str, title: str, note: str
 ) -> UmbrellaReference:

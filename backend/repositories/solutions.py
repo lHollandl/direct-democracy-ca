@@ -186,6 +186,10 @@ async def all_solutions(session: AsyncSession) -> list[Solution]:
     )
 
 
+async def all_versions(session: AsyncSession) -> list[SolutionVersion]:
+    return list((await session.execute(select(SolutionVersion))).scalars().all())
+
+
 async def by_ids(session: AsyncSession, ids: list[int]) -> dict[int, Solution]:
     if not ids:
         return {}
@@ -235,6 +239,10 @@ async def add_amendment(session: AsyncSession, **fields) -> Amendment:
 
 async def get_amendment(session: AsyncSession, amendment_id: int) -> Amendment | None:
     return await session.get(Amendment, amendment_id)
+
+
+async def all_amendments(session: AsyncSession) -> list[Amendment]:
+    return list((await session.execute(select(Amendment))).scalars().all())
 
 
 async def amendments_for(

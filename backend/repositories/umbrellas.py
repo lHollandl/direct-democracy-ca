@@ -12,6 +12,10 @@ async def get(session: AsyncSession, umbrella_id: int) -> Umbrella | None:
     return await session.get(Umbrella, umbrella_id)
 
 
+async def all_umbrellas(session: AsyncSession) -> list[Umbrella]:
+    return list((await session.execute(select(Umbrella))).scalars().all())
+
+
 async def for_community(
     session: AsyncSession, level: str, entity_id: int, *, active_only: bool = True
 ) -> list[Umbrella]:

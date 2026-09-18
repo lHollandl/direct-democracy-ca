@@ -26,6 +26,14 @@ JOBS_DIR = repo_root() / "backend" / "jobs"
 #: ambiguity 1).
 FORBIDDEN_ROUTER_IMPORT_PREFIXES = ("backend.repositories", "backend.clients", "backend.jobs")
 
+#: Jobs may call services only — never a repository or a client module
+#: directly, and never a router (ARCHITECTURE.md §2's Jobs row: "May call:
+#: services. Must not: routers, repositories directly." Audit demo-01 run 5,
+#: MEDIUM: `labeling.py`, `similarity.py`, `references.py` reached into a
+#: repository, and `reconcile.py` built its own queries and ran them on the
+#: session directly — one layer further than even a service may go).
+FORBIDDEN_JOB_IMPORT_PREFIXES = ("backend.repositories", "backend.clients", "backend.routers")
+
 #: Neither a router nor a service may touch the session directly with these.
 FORBIDDEN_SESSION_ATTRS = ("execute", "get")
 
@@ -74,6 +82,44 @@ def _router_violations(path: Path) -> list[str]:
     return violations
 
 
+def _job_violations(path: Path) -> list[str]:
+    violations: list[str] = []
+    for node in ast.walk(_parse(path)):
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith(
+            FORBIDDEN_JOB_IMPORT_PREFIXES
+        ):
+            violations.append(
+                f"{path.name}:{node.lineno} imports from {node.module!r} — a job may call "
+                "only a service, never a repository, a client, or a router "
+                "(ARCHITECTURE.md §2)"
+            )
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.startswith(FORBIDDEN_JOB_IMPORT_PREFIXES):
+                    violations.append(
+                        f"{path.name}:{node.lineno} imports {alias.name!r} — a job may call "
+                        "only a service, never a repository, a client, or a router "
+                        "(ARCHITECTURE.md §2)"
+                    )
+        attr = _is_session_call(node, FORBIDDEN_SESSION_ATTRS)
+        if attr:
+            violations.append(
+                f"{path.name}:{node.lineno} calls session.{attr}(...) directly — a job "
+                "must call a service, never the session (ARCHITECTURE.md §2)"
+            )
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "select"
+        ):
+            violations.append(
+                f"{path.name}:{node.lineno} calls select(...) directly — a job must call "
+                "a service function instead of building its own query "
+                "(ARCHITECTURE.md §2)"
+            )
+    return violations
+
+
 def _service_violations(path: Path) -> list[str]:
     violations: list[str] = []
     for node in ast.walk(_parse(path)):
@@ -113,6 +159,17 @@ def test_no_service_touches_the_session_or_builds_its_own_query():
             continue
         violations.extend(_service_violations(path))
     assert not violations, "Layering violations in backend/services/:\n" + "\n".join(violations)
+
+
+def test_no_job_touches_a_repository_client_or_session():
+    """ARCHITECTURE.md §2's Jobs row, scanned with the same AST approach as
+    the router check (audit demo-01 run 5, MEDIUM)."""
+    violations: list[str] = []
+    for path in sorted(JOBS_DIR.glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        violations.extend(_job_violations(path))
+    assert not violations, "Layering violations in backend/jobs/:\n" + "\n".join(violations)
 
 
 #: A router-decorated endpoint may call any number of `require_*` resolvers —

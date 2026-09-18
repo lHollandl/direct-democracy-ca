@@ -12,6 +12,7 @@ then `label_status`. The log entry exists before the result is visible anywhere.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -206,3 +207,19 @@ async def label_post(session: AsyncSession, post: Post) -> dict:
         "ai_action_id": action.id,
         "main_category": main_category_name,
     }
+
+
+async def load_post_for_job(session: AsyncSession, post_id: int) -> Post | None:
+    """`backend/jobs/labeling.py` may call services only (ARCHITECTURE.md
+    §2); it never reaches `posts_repo` itself."""
+    return await posts_repo.get(session, post_id)
+
+
+async def mark_unlabeled(session: AsyncSession, post_id: int) -> None:
+    await posts_repo.set_label_status(session, post_id, "unlabeled")
+
+
+async def posts_awaiting_labels(
+    session: AsyncSession, *, stale_before: datetime
+) -> list[Post]:
+    return await posts_repo.posts_awaiting_labels(session, stale_before=stale_before)

@@ -14,6 +14,18 @@ async def get(session: AsyncSession, post_id: int) -> Post | None:
     return await session.get(Post, post_id)
 
 
+async def all_posts(session: AsyncSession) -> list[Post]:
+    return list((await session.execute(select(Post))).scalars().all())
+
+
+async def all_post_solutions(session: AsyncSession) -> list[PostSolution]:
+    return list((await session.execute(select(PostSolution))).scalars().all())
+
+
+async def all_post_communities(session: AsyncSession) -> list[PostCommunity]:
+    return list((await session.execute(select(PostCommunity))).scalars().all())
+
+
 async def add(session: AsyncSession, **fields) -> Post:
     row = Post(**fields)
     session.add(row)

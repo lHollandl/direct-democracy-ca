@@ -6,7 +6,6 @@ import logging
 import uuid
 
 from backend.db import session_scope
-from backend.repositories import solutions as solutions_repo
 from backend.services import similarity as similarity_service
 
 log = logging.getLogger(__name__)
@@ -20,7 +19,7 @@ async def similarity_check_task(amendment_id: int) -> None:
     )
     try:
         async with session_scope() as session:
-            amendment = await solutions_repo.get_amendment(session, amendment_id)
+            amendment = await similarity_service.load_amendment_for_job(session, amendment_id)
             if amendment is None:
                 log.warning("similarity_amendment_missing", extra={"job_id": job_id})
                 return

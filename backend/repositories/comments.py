@@ -76,3 +76,7 @@ async def by_author(session: AsyncSession, author_id: int) -> list[Comment]:
 
 async def all_comments(session: AsyncSession) -> list[Comment]:
     return list((await session.execute(select(Comment))).scalars().all())
+
+
+async def all_revisions(session: AsyncSession) -> list[CommentRevision]:
+    return list((await session.execute(select(CommentRevision))).scalars().all())
