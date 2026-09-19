@@ -109,6 +109,40 @@ async def test_an_export_is_only_ever_that_person_s(client):
     assert response.json()["error"] == "export_not_yours"
 
 
+async def test_an_expired_export_is_refused_before_the_hourly_sweep_runs(client):
+    """FIX-48 (LOW, audit demo-01 run 5): the window is EXPORT_FILE_HOURS,
+    not that plus up to an hour. get_export refuses the moment expires_at
+    has passed, whether or not expire_exports has run yet — the file on
+    disk is left untouched here to prove the refusal doesn't depend on it."""
+    from datetime import datetime, timedelta, timezone
+
+    from backend.models import DataExport
+
+    user = await make_user(client, email="waiting@example.com", display_name="Waiting")
+    requested = await client.post("/me/export", headers=user["headers"])
+    export_id = requested.json()["id"]
+    from backend.jobs import exports as export_job
+
+    await export_job.build_export_task(export_id)
+
+    still_fresh = await client.get(f"/me/export/{export_id}", headers=user["headers"])
+    assert still_fresh.status_code == 200
+
+    async with session_scope() as session:
+        row = await session.get(DataExport, export_id)
+        assert row.file_path is not None, "the file has not been swept"
+        row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        await session.flush()
+
+    expired = await client.get(f"/me/export/{export_id}", headers=user["headers"])
+    assert expired.status_code == 410
+    assert expired.json()["error"] == "export_expired"
+
+    async with session_scope() as session:
+        row = await session.get(DataExport, export_id)
+        assert row.file_path is not None, "expire_exports has not run; the file is still there"
+
+
 async def test_an_export_without_a_contributor_says_so(client):
     user = await make_user(client, email="lonely@example.com", display_name="Lonely")
     requested = await client.post("/me/export", headers=user["headers"])

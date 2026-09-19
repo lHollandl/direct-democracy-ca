@@ -19,7 +19,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config.settings_env import get_env_settings, repo_root
-from backend.errors import Forbidden, NotFound
+from backend.errors import Forbidden, Gone, NotFound
 from backend.models import DataExport, User
 from backend.repositories import data_exports as data_exports_repo
 from backend.repositories import geography as geo_repo
@@ -166,6 +166,15 @@ async def get_export(session: AsyncSession, user: User, export_id: int) -> DataE
         raise NotFound("That export does not exist.", code="export_not_found")
     if row.user_id != user.id:
         raise Forbidden("That export belongs to someone else.", code="export_not_yours")
+    # Refused the moment expires_at has passed, independently of whether the
+    # hourly sweep (expire_exports) has run yet — the window a person has to
+    # collect their own export is EXPORT_FILE_HOURS, not that plus up to an
+    # hour (audit demo-01 run 5, LOW).
+    if row.expires_at < datetime.now(timezone.utc):
+        raise Gone(
+            "That export's window to download it has closed. Ask for a new one.",
+            code="export_expired",
+        )
     return row
 
 

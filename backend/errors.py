@@ -72,6 +72,14 @@ class ExternalServiceDown(AppError):
     code = "external_service_down"
 
 
+class Gone(AppError):
+    """The thing existed but its window has closed — a data export past its
+    `expires_at`, say (DATABASE.md §3.11)."""
+
+    status_code = 410
+    code = "gone"
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
