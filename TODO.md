@@ -13,7 +13,7 @@
 
 ## Current Status Snapshot
 
-*As of 2026-09-15. Demo 1 is built on `demo/01`: both halves, front to back,
+*As of 2026-09-18. Demo 1 is built on `demo/01`: both halves, front to back,
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
 in `briefs/evidence/demo-01/`. Audit run 1 returned FIX REQUIRED (one HIGH,
@@ -22,26 +22,28 @@ returned FIX REQUIRED (CRITICAL 1 · HIGH 1 · MEDIUM 6 · LOW 7 · NOTE 3); fix
 run 2 (FIX-08 through FIX-20) is complete. Audit run 3 returned FIX REQUIRED
 (HIGH 1 · MEDIUM 3 · LOW 2); fix run 3 (FIX-21 through FIX-27) is complete.
 Audit run 4 returned FIX REQUIRED (CRITICAL 1 · MEDIUM 6 · LOW 3 · NOTE 3);
-fix run 4 (FIX-28 through FIX-37) is complete — a published summary no
-longer freezes an author's name into its hashed JSON (it carries a fixed
-workshop-attribution line and an absolute solution link instead, so account
-deletion reaches every summary it's in without touching the hash); over-cap
-comment replies attach under the depth-cap comment's own parent instead of
-nesting without bound; the umbrella page renders the "AI is looking for
-references…" indicator the backend has exposed since fix run 3;
-`export.py`'s blocking file IO now runs through `asyncio.to_thread`, with an
-AST check added so the pattern can't recur a third time; the export file
-lifetime is `EXPORT_FILE_HOURS` (48), required configuration rather than a
-bare module constant; the password-length message says bytes, not
-characters; the landing page reads `jury_size` from `GET /settings`; the two
-export jobs log start/end/job id like every other job; and
-`test_authorization.py` now walks the live route table the way
-`test_pagination.py` does, so a future write endpoint can't ship with no
-401/403 coverage unnoticed. Full evidence in HISTORY.md's latest build
-entry. Nothing has been merged to `main`; the next step is audit run 5 —
-likely a short re-audit under AUDIT.md §2, since this run's diff stayed
-inside the files its ten findings named. Phase 0 remains complete except the
-optional search provider.*
+fix run 4 (FIX-28 through FIX-37) is complete. Audit run 5 returned FIX
+REQUIRED (CRITICAL 0 · HIGH 2 · MEDIUM 5 · LOW 8 · NOTE 4) — the first audit
+with no CRITICAL; fix run 5 (FIX-38 through FIX-51, FIX-52 evidence) is
+complete — a solution edit and a comment edit are both a new hashed row now
+(version n+1; a `comment_revisions` row), never a rewrite, so
+`reconcile.py` never raises on ordinary use of either edit window; every
+`backend/jobs/*` module calls services only, with `reconcile.py`'s query
+logic moved into `backend/services/reconcile.py`; the landing page and
+`frontend/src/lib/api.ts` are once again the only two files with a `fetch`
+call between them (down to one, `api.ts`, with the landing page routed
+through it); `jury_review_days` is consulted for a "would close on ..." the
+same way the ballot window already was; the solution page renders "Jury
+notes"; comments and amendments carry their AI-influence label; two more
+files had blocking IO the AST check couldn't see (now fixed and covered);
+the similarity "Same" shortcut no longer also settles "Different"; IP hashes
+are salted; an expired export is refused immediately, not after the hourly
+sweep; the `mailto:` body is composed in the service, not the router; and
+`GET /umbrellas/{id}`, `GET /results`, `GET /solutions/{id}` embed only the
+first page of the lists they show, with a `next_cursor`, per ARCHITECTURE
+§6's now-explicit rule. Full evidence in HISTORY.md's latest build entry.
+Nothing has been merged to `main`; the next step is audit run 6. Phase 0
+remains complete except the optional search provider.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -399,6 +401,104 @@ one commit on `demo/01`; full evidence in HISTORY.md's latest build entry.
 
 ---
 
+## Phase 2e — demo-01 fix run 5
+
+Fixes for `audits/demo-01-audit-5.md` (CRITICAL 0 · HIGH 2 · MEDIUM 5 ·
+LOW 8 · NOTE 4; verdict FIX REQUIRED — the first audit with no CRITICAL),
+from `briefs/demo-01-fix-5.md`. Each id is one commit on `demo/01`; full
+evidence in HISTORY.md's latest build entry.
+
+- [x] **FIX-38** (HIGH) `solutions_service.edit_text` now calls `add_version`
+  — the same mechanism absorption uses — instead of mutating the existing
+  `solution_versions` row's text, hash and timestamp in place (CLAUDE.md
+  Law 6; DATABASE.md §4.8). Test: edit a solution twice, assert three
+  version rows with three distinct hashes, `reconcile.py --dry-run` clean.
+- [x] **FIX-39** (HIGH) Iteration migration adds `comment_revisions` and
+  `comments.current_revision` (DATABASE.md §4.11); revision 1 is written
+  with the comment in the same transaction; `comments_service.edit` inserts
+  revision n+1 and updates `text`/`current_revision`/`edited_at`;
+  `comments.content_hash` stays revision 1's hash forever;
+  `reconcile.py` checks every revision's hash and the comment's hash
+  against revision 1. The thread payload carries `current_revision` and
+  `revision_history`. Dev database rebuilt from empty (schema changed).
+- [x] **FIX-40** (MEDIUM) `backend/jobs/labeling.py`, `similarity.py` and
+  `references.py` no longer import a repository directly — each calls a
+  thin service wrapper instead; `reconcile.py`'s whole query logic moves to
+  `backend/services/reconcile.py` (reading through each aggregate's
+  repository, plus a new `repositories/reconcile.py` for the schema-wide
+  table-count snapshot); `backend/jobs/reconcile.py` is now a thin
+  delegator. `test_layering.py` gains
+  `test_no_job_touches_a_repository_client_or_session`, scanning
+  `backend/jobs/*.py` with the router check's AST approach; confirmed
+  failing against the pre-fix files (every offending import/query named)
+  and passing after.
+- [x] **FIX-41** (MEDIUM) `frontend/src/app/page.tsx` reads `jury_size`
+  through a new `api.ts` export, `serverGet` (server-side, unauthenticated,
+  `cache: "no-store"`), instead of calling `fetch` itself.
+  `test_layering.py` gains `test_frontend_calls_fetch_only_from_api_ts`, a
+  grep-style scan over every `frontend/src` `.ts`/`.tsx` file; confirmed
+  failing against the pre-fix `page.tsx` and passing after.
+- [x] **FIX-42** (MEDIUM) `juries_service.jury_review_would_close_on(cycle)`
+  computes `jury_review_started_at + jury_review_days` from the cycle's
+  settings snapshot; `GET /juries/mine` returns it on every duty, and
+  `GET /cycles/{id}` returns it as `jury_review_would_close_on` alongside
+  the existing ballot `would_close_on`. `/jury` and `/cycles/[id]` render
+  both timers.
+- [x] **FIX-43** (MEDIUM) `frontend/src/app/solutions/[id]/PageClient.tsx`
+  renders "Jury notes" from `GET /solutions/{id}`'s already-returned
+  `jury_notes` block (same shape as fix run 4's FIX-30 — backend done, UI
+  half missing). Evidence: rendered HTML from a disposable jsdom harness.
+- [x] **FIX-44** (MEDIUM) `<AiInfluence>` now renders in
+  `frontend/src/components/Comments.tsx` and in both amendment lists
+  (`umbrellas/[id]` and `solutions/[id]` `PageClient.tsx`);
+  `solutions_service.detail_view`'s own amendments block was missing
+  `ai_influence` entirely and now has it, matching `umbrellas_service`'s.
+  Comments.tsx also now shows "edited (revision N)" with an "Earlier
+  revisions" disclosure, completing FIX-39's page half.
+- [x] **FIX-45** (LOW) `ollama.py::generate` and four `seed.py` seeders now
+  call `load_prompt`/`_load_yaml` through `asyncio.to_thread`; `seed_terms`'s
+  three inline file reads move into a new sync helper,
+  `_read_legal_files`; `_seed_cities`'s pre-existing `.exists()` call (same
+  shape, previously uncaught) moves into the sync helper it already thread-
+  wraps. `test_no_blocking_file_io_inside_async_def` now also scans
+  `backend/clients` and `backend/seed.py`, and gained a second detector for
+  a same-file sync helper called directly (not through `asyncio.to_thread`)
+  from an `async def`; confirmed failing against the pre-fix files (every
+  offending call named) and passing after.
+- [x] **FIX-46** (LOW) `similarity_service.decide` no longer lets an
+  amendment's author single-handedly settle a flag as "different" —
+  DEMOCRACY.md §5.4's author shortcut is "Same" only. Test: one author's
+  Different press leaves the flag pending; a second, distinct, non-author
+  press reaches `similarity_confirm_min` and dismisses it.
+- [x] **FIX-47** (LOW) `IP_HASH_SECRET` added to `settings_env.py` (required,
+  no default) and `.env.example`; `security.py::hash_ip` now salts with it
+  (SHA-256 of secret + address), so a stored `ip_hash` is no longer
+  reversible by enumerating the IPv4 space.
+- [x] **FIX-48** (LOW) `export_service.get_export` raises a new `Gone` (410)
+  error, code `export_expired`, the moment `expires_at` has passed,
+  independently of whether the hourly `expire_exports` sweep has run.
+- [x] **FIX-49** (LOW) `_mailto` moves from `routers/summaries.py` into
+  `summaries_service` (folded into `by_community_and_number`); the router
+  now only returns what the one service call produced.
+- [x] **FIX-50** (LOW) `GET /umbrellas/{id}`, `GET /results` and
+  `GET /solutions/{id}` each embed only the first page (25) of the lists
+  with a dedicated paginated endpoint to fall back on
+  (`problem_discussion`, `solutions`, `references`, dominant solutions'
+  `amendments` on the umbrella page; `past_cycles` on `/results`;
+  `amendments` on the solution page), each with its own `*_next_cursor`.
+  `problem_reports`, version history and a solution's own discussion have
+  no dedicated list endpoint and are left as they were.
+- [x] **FIX-51** I-28's `[~]` now names the style brief's unbuilt
+  California photography explicitly as a settled decision (ARCHITECTURE.md
+  §9), not only the missing screen-reader/browser runs.
+- [x] **FIX-52** Full evidence set re-run (migrations from empty,
+  `verify_schema.py`, seed dry-run, full suite — 231 + 2 live — every
+  required grep, `npm audit`, frontend `tsc`/`lint`/`build`,
+  `reconcile.py --dry-run` after two solution edits and two comment edits,
+  `git status`); all clean.
+
+---
+
 ## Phase 3 — Demo 2 candidates
 
 Not scheduled. Pulled forward by the director after Demo 1 is used.
@@ -553,4 +653,4 @@ What makes it bite, not only what it is.
 
 ---
 
-*Last updated: 2026-09-15 — demo-01 fix run 4 completed on `demo/01` by an unattended Claude Code run.*
+*Last updated: 2026-09-18 — demo-01 fix run 5 completed on `demo/01` by an unattended Claude Code run.*
