@@ -183,7 +183,7 @@ documents, not from this code.
 - [x] **I-25** `/feed`, `/posts/new`, `/umbrellas/[id]`, `/solutions/[id]`
 - [x] **I-26** `/ballot`, `/jury`, `/results`, `/summaries/...`
 - [x] **I-27** Cycle controls on `/admin` (the page itself is F-24)
-- [~] **I-28** Style brief applied; images-off check passes (the platform ships no `<img>` and no background image at all); keyboard and structural accessibility audited statically — labels bound to every control, native focusable controls, focus never removed, 44px targets, landmarks, a skip link, live regions, a distinct browser-tab title per page. **No screen reader and no browser were run**: the sandbox cannot download one. Evidence in `briefs/evidence/demo-01/a11y.txt`.
+- [~] **I-28** Style brief applied; images-off check passes (the platform ships no `<img>` and no background image at all); keyboard and structural accessibility audited statically — labels bound to every control, native focusable controls, focus never removed, 44px targets, landmarks, a skip link, live regions, a distinct browser-tab title per page. Residue, named in full (audit demo-01 run 5, LOW — FIX-51: the previous wording named only the first of these): **no screen reader and no browser were run** (the sandbox cannot download one); and the style brief's **California photography in page headers is unbuilt** — ARCHITECTURE.md §9 now records this as intended, not missing, until the director supplies the images, so it is named here as a settled decision rather than an open gap. Evidence in `briefs/evidence/demo-01/a11y.txt`.
 
 ### Tests
 - [x] **I-29** `rules.py` table-driven tests at boundaries
