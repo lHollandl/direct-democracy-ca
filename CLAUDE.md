@@ -159,11 +159,14 @@ pre-checks before every edit, evidence pasted for every claim.
 
 **Iteration** is the civic machinery — posts, umbrellas, the workshop,
 the jury, the ballot, the summary document, and all of their UI. It is
-rebuilt freely, demo after demo, and each rebuild starts from the
-documents rather than the previous code. Iteration schema is
-regenerated fresh for each demo. When a demo build becomes worth
-keeping, the director declares it the **keeper**, and from that build
-onward Iteration is under the same rigor as Foundation.
+revised freely, demo after demo, and the documents — not the previous
+demo — are always the truth: each demo's brief names what changed in the
+documents since the last one, and Claude Code rebuilds those parts, while
+the Iteration **schema and data** are regenerated fresh for each demo.
+Audited code that the documents still describe is carried forward, not
+rewritten to prove a point. When a demo build becomes worth keeping, the
+director declares it the **keeper**, and from that build onward Iteration
+is under the same rigor as Foundation.
 
 The boundary rule: Iteration code may read Foundation tables but never
 migrates them. Foundation prompts never touch Iteration tables. The

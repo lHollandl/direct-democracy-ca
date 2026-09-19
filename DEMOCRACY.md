@@ -473,11 +473,17 @@ If fewer eligible users exist than `jury_size`, the jury is the number
 available, and the summary document says so. If zero, the ballot
 proceeds with no jury review and the summary says so.
 
-The draw uses the platform's cryptographic random source. The draw is
-**logged**: the eligible pool (user ids), the drawn ids, the timestamp,
-and the random bytes used, so it can be inspected after the fact. A
-re-draw (§13) creates a new draw and marks the old one superseded; no
-draw is ever deleted.
+The draw takes 32 bytes from the platform's cryptographic random source,
+logs them, and **seeds the sampler from those bytes**, so the logged pool
+plus the logged bytes reproduce the drawn ids exactly (`random.Random`
+seeded from the bytes; `sample(pool_sorted_by_id, jury_size)`). The draw
+is **logged**: the eligible pool (user ids), the drawn ids, the
+timestamp, and the random bytes used. Anyone with the log can replay the
+draw. A re-draw (§13) creates a new draw and marks the old one
+superseded; no draw is ever deleted. (Demo 1 logged bytes that did not
+drive the sampler — audit run 6; corrected in Demo 2. Seeding the bytes
+from the previous summary's hash, so the draw is provably unmanipulable,
+remains parked in PROJECT.md.)
 Provably reproducible draws are parked (PROJECT.md).
 
 ### 8.2 Notification and acceptance

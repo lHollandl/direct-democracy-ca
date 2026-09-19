@@ -165,10 +165,12 @@ will be decided by Claude Code, and discovered afterwards. Precision
 here is cheaper than surprise later.
 
 **Every demo teaches; only keepers are kept.** A demo is used, audited,
-and its lessons written into the documents. The next demo is built
-from the improved documents, not from the previous code. When a demo is
-good enough that its data is worth keeping, the director declares it
-the keeper, and Iteration comes under full rigor.
+and its lessons written into the documents. The next demo is built from
+the improved documents: its brief names what changed, and Claude Code
+revises those parts of the Iteration half while the Iteration schema and
+data start fresh. When a demo is good enough that its data is worth
+keeping, the director declares it the keeper, and Iteration comes under
+full rigor.
 
 **Audit runs are separate from build runs.** After every long run, a
 fresh Claude Code session reads the documents and the code and reports
@@ -183,11 +185,14 @@ network access only to the host's Ollama, Anthropic's API, and the
 package registries. Claude Code can build anything inside a trial and
 cannot touch anything outside it. SANDBOX.md defines the setup.
 
-**One branch per trial.** `demo/NN` is branched from `main` and built
-in its own sandbox, which holds its own clone of the repository (clone
-mode, SANDBOX.md §6) — the host checkout is never written to.
-Foundation improvements merge to `main` by pull request. Demo branches
-never merge unless declared a keeper.
+**One branch per trial.** `demo/NN` is branched from `main` and built in
+its own sandbox with its own clone of the repository. `demo/01` was
+merged to `main` whole on 2026-09-19 as a one-time exception, because it
+carried the Foundation's first build and six audits had cleared it; the
+Iteration code it left on `main` is the previous demo, not the truth.
+From `demo/02` onward, a demo branch merges only when declared the
+keeper. Foundation fixes discovered during a demo go to `main` by their
+own pull request.
 
 **The director's time is the constraint.** Claude Code's runtime is
 cheap; the director's attention is not. Documents, briefs, and audits

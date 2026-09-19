@@ -200,10 +200,18 @@ pushes `demo/01` with the scoped token.
 
 ### 6.4 Use the demo
 
-Inside the sandbox the app listens on its ports. `sbx ports` manages
-port publishing to the host (**confirmed** the subcommand exists; run
-`sbx ports --help` on first use and record the exact form here). The
-frontend on 3000 and the API on 8000 are the two to publish.
+Inside the sandbox the app listens on its ports. **Confirmed 2026-09-19:**
+
+    sbx ports <sandbox-name> --publish 3000:3000 --publish 8000:8000
+    sbx ports <sandbox-name>            # lists the bindings
+
+Publishing starts a stopped sandbox. The bindings are on `127.0.0.1` and
+persist across `sbx stop`. The servers themselves must be started inside
+the VM (bound to `0.0.0.0`), which the director does by reopening the
+sandbox's Claude Code session — `sbx run --name <sandbox-name> claude .`
+reopens a stopped sandbox without cloning again — and asking it to start
+the stack. Claude Code inside a sandbox declines pasted instructions
+that start services; the director types the confirmation.
 
 ### 6.5 Audit sandbox
 
@@ -223,8 +231,9 @@ in §9.
 
 ### 6.6 Finish or discard
 
-- **Foundation:** open a PR from `demo/01` to `main`; merge on the host
-  after the audit is clean.
+- **Foundation:** Foundation changes reach `main` by pull request after
+  a clean audit. (`demo/01` merged whole as the one-time exception
+  recorded in PROJECT.md.)
 - **Iteration:** leave `demo/01` as a branch. Start `demo/02` from
   `main`.
 - Remove the sandbox: `sbx rm ddc-demo-01` (**confirmed**; `sbx ls`
@@ -282,13 +291,17 @@ policy, the ruleset, or the token. TODO P0-15 done.
 
 Recorded in TODO P0-15's HISTORY entry when resolved:
 
-- Exact `sbx ports` syntax for publishing 3000 and 8000.
 - Read-only filesystem policy for the audit sandbox (confirmed absent by
-  default; the flag, if one exists, is still to be found).
-- How to re-enter an existing sandbox with a new prompt (the run log's
-  `claude --resume <id>` reopens the *same* session; a fresh session in
-  the same VM is not yet documented). Fix runs use a new sandbox instead.
-- (resolved) `sbx ls`, `sbx rm`, `sbx stop`, `sbx prune`, `sbx version`.
+  default; the flag, if one exists, is still to be found). The auditor's
+  closing diff and the host diff are the safeguard.
+- `archive.ubuntu.com` and `security.ubuntu.com` are not on the
+  allowlist, so `apt` does not work inside the VM (fix run 4 worked
+  around it with `pip --break-system-packages`). Add both with `sbx
+  policy allow network` if a run needs system packages.
+- (resolved 2026-09-19) `sbx ports` syntax — §6.4.
+- (resolved 2026-09-19) reopening a sandbox — §6.4.
+- (resolved 2026-09-14) the clone starts on the host's current branch;
+  sync the local `demo/NN` before every run — §6.2.
 
 Sources: Docker Sandboxes docs — Install, Claude Code agent page,
 Network access policies (all dated 2026-09-10); Anthropic, "Choose a

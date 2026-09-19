@@ -82,6 +82,11 @@ map against the code, not the document against itself. Specific traps:
 - Any code path that changes a vote's weight or count based on
   verification level, admin status, or anything but the voter's choice
   — always `CRITICAL`.
+- Any name, display name, or other rendered string stored, hashed, or
+  published instead of resolved at read time from the user's display
+  settings (DATABASE §3.2). Two of demo-01's CRITICALs came from this.
+- Any edit that rewrites a row carrying a `content_hash` instead of
+  inserting a new version or revision (Law 6).
 
 ### 4.2 Specification conformance
 - Every table and column in DATABASE.md exists with the stated type,

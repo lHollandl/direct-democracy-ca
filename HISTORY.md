@@ -3097,3 +3097,26 @@ of it), so it cannot let the draw "be inspected after the fact" the way
 DEMOCRACY.md §8.1 says it can — the draw itself is genuinely random and
 unbiased. One document ambiguity recorded for the director. Findings live
 in the report, not here.
+
+## 2026-09-19 — Session 1 (Claude.ai planning session — audit run 6 review; Demo 1 cleared)
+
+**Completed:**
+- Reviewed `audits/demo-01-audit-6.md`: CRITICAL 0 · HIGH 0 · MEDIUM 1 · NOTE 2 — **CLEAN**. The auditor independently re-verified all 27 findings from runs 1–5; none present. The one MEDIUM (jury `random_bytes` not driving the sampler) goes to Demo 2 as D2-00.
+- Demo 1 opened for the director's use from the fix-5 sandbox: `sbx ports` confirmed, both ports published, stack started inside the VM.
+- Document updates applied by a document-only Claude Code run from `briefs/docs-update-2026-09-19.md`: CLAUDE.md "The Two Halves" (revise, not rewrite; schema and data fresh per demo); PROJECT.md "Every demo teaches" and "One branch per trial" (the `demo/01` merge exception; keeper-only merges from `demo/02`); AUDIT.md §4.1 (two new traps: names stored instead of resolved; edits that rewrite hashed rows); SANDBOX.md §6.4, §6.6, §9 (`sbx ports`, reopening a sandbox, apt blocked); DEMOCRACY.md §8.1 (seeded draw); TODO.md.
+
+**Decisions made:**
+1. **Director:** `demo/01` merges to `main` whole, as a one-time exception — it carries Foundation's first build and six audits cleared it. From `demo/02` onward only the keeper merges. Foundation fixes go to `main` by their own PR.
+2. **Director:** Demo 2 revises Iteration from the documents rather than deleting and rebuilding it: the brief names what changed; audited code the documents still describe carries forward; Iteration schema and data are regenerated. CLAUDE.md and PROJECT.md amended with director-approved wording.
+3. The audit-6 MEDIUM is a code fix (seed the sampler from the logged bytes), not a wording change; DEMOCRACY §8.1 now states the target.
+4. Demo 1 is not declared the keeper. The director uses it first; the keeper question is Director Decision #10.
+
+**Issues encountered:**
+- Claude Code inside a sandbox refuses pasted instructions that start services or print credentials, asking for a typed confirmation. Recorded in SANDBOX.md §6.4 so the director types "yes, go ahead" rather than pasting.
+
+**Notes:**
+- Demo 1 by the numbers: one build run, five fix runs, six audit runs; 27 distinct findings, 4 CRITICAL, 5 HIGH, all closed; 218+ tests. Two CRITICALs and one HIGH pair traced to document sentences that told the builder to store what should be resolved or to edit what should be versioned — the planning session's, not the builder's.
+
+**Document changes flagged:**
+- The Demo 2 brief waits on the director's use notes (D2-09).
+- P0-13 (search provider) still open; reference recommendation returns 503 until set.

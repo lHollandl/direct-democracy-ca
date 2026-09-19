@@ -13,7 +13,7 @@
 
 ## Current Status Snapshot
 
-*As of 2026-09-18. Demo 1 is built on `demo/01`: both halves, front to back,
+*As of 2026-09-19. Demo 1 is built on `demo/01`: both halves, front to back,
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
 in `briefs/evidence/demo-01/`. Audit run 1 returned FIX REQUIRED (one HIGH,
@@ -47,7 +47,7 @@ remains complete except the optional search provider.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
-| Documents | — | All nine current; consistency audit 2026-09-13 applied | Demo 1 built from them |
+| Documents | — | All nine current; consistency audit 2026-09-13 applied | Demo 1 documents final; Demo 2 brief pending director's use notes |
 | Sandbox | — | Set up and verified 2026-09-12; boundaries confirmed again by this run | The Docker Hub blob CDN and the browser download host are **not** reachable — see technical debt |
 | GitHub | — | Public repo; `main` protected; scoped sandbox token `ddc-sandbox` expires 2026-10-12 | `demo/01` pushed from the sandbox |
 | Infra (Docker Postgres + Redis) | F | `infra/docker-compose.yml` on postgres:16 and the single root `.env`; ran cleanly in this sandbox (fix run 2) | Legacy `backend/.env` and `infra/.env` were committed secrets; both removed and a `.gitignore` added |
@@ -76,6 +76,8 @@ remains complete except the optional search provider.*
 | Director controls | I | Built; every one writes to the public admin log | |
 | Frontend | I/F | Every route in ARCHITECTURE §9 built and rendering | No browser available, so no screenshots |
 | Demo database | — | Rebuilt from empty for fix run 1 and reloaded by `walkthrough_extended.py`; `ballot_min_dominant_days` back to 3 | San Jose cycle 1 is published (passed); Santa Clara County cycle 1 (empty) is published and cycle 2 is `prepared` with zero items, waiting on the director to publish it before a third can be prepared |
+
+**Demo 1 status:** six audits, run 6 CLEAN (CRITICAL 0 · HIGH 0 · MEDIUM 1). Merged to `main` 2026-09-19 as the one-time exception (PROJECT.md). Not the keeper; the director is using it.
 
 ---
 
@@ -499,10 +501,13 @@ evidence in HISTORY.md's latest build entry.
 
 ---
 
-## Phase 3 — Demo 2 candidates
+## Phase 3 — Demo 2 (revise per CLAUDE.md 'The Two Halves')
 
 Not scheduled. Pulled forward by the director after Demo 1 is used.
 
+- [ ] **D2-00** Jury draw seeded from the logged bytes (DEMOCRACY §8.1; audit-6 MEDIUM); test that pool + bytes replay the draw
+- [ ] **D2-09** Director's use notes from Demo 1 folded into the documents (the input to the Demo 2 brief)
+- [ ] **D2-10** California photography for page headers — director supplies images; ARCHITECTURE §9 — or the style brief drops it
 - [ ] **D2-01** Proposal system (PROJECT.md parking lot) — "propose a new umbrella" in the post form; proposal tables; thresholds; dormancy; similarity grouping
 - [ ] **D2-02** Comment moderation (needed before the friends beta)
 - [ ] **D2-03** Real quorum decision and implementation
@@ -528,6 +533,7 @@ Questions the documents flag; Demo 1 proceeds with the stated default.
 | 7 | Web search provider | unchosen; 503 until set | ARCHITECTURE §8.2 |
 | 8 | Hosting for friends beta | local only | PROJECT.md parking lot |
 | 9 | Residents of unincorporated areas have no city to select at signup (~10% of Californians) | blocked at signup | proposed: selectable "Unincorporated [County] County" → county + state communities only; decide before friends beta |
+| 10 | Keeper: is Demo 1 the keeper, or does Demo 2 become it? | Demo 2 | AUDIT.md §7 |
 
 Resolved 2026-09-13 (see HISTORY): #6 keep home city/county — now CLAUDE §6.
 
@@ -544,6 +550,7 @@ What makes it bite, not only what it is.
 - **`console` email backend** means no real verification email; Demo 1 reads links from the log. Bites at the friends beta — SMTP must be configured and tested first.
 - **Redis loss fails rate-limiting open.** Acceptable locally; must be revisited before deployment.
 - **Iteration ids restart per demo**; `ai_actions.demo_build` disambiguates but nothing else does. Bites if any Foundation table ever stores an Iteration id without the build label — the audit checks for this.
+- **Iteration code on `main` is Demo 1's.** Any session reading `main` must treat it as the previous demo; the documents are the truth (CLAUDE.md, The Two Halves). Bites if a brief says "match the existing code".
 
 ### Found by the Demo 1 build run (2026-09-14)
 
@@ -653,4 +660,4 @@ What makes it bite, not only what it is.
 
 ---
 
-*Last updated: 2026-09-18 — demo-01 fix run 5 completed on `demo/01` by an unattended Claude Code run.*
+*Last updated: 2026-09-19 — Demo 1 cleared and merged; documents final for Demo 1.*
