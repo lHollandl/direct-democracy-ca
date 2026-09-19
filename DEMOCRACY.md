@@ -234,8 +234,10 @@ The author is recorded and displayed per their display settings; the
 author has no special rights over amendments.
 
 **Editing.** The author may edit a solution's text only while it has
-zero votes and zero amendments. After that, changes happen only through
-amendments.
+zero votes and zero amendments. Such an edit creates version n+1 with
+`created_by` the author and no amendment — the same mechanism as
+absorption, so version 1 and its hash are kept (Law 6). After that,
+changes happen only through amendments.
 
 ### 4.4 Net score
 
@@ -321,8 +323,10 @@ together.
   amendment's author, press **Same**, the newer amendment is marked
   `merged_into` the older; its upvoters are counted as supporters of the
   older for the absorption threshold (a user who upvoted both counts
-  once). When the same number press **Different**, the flag is
-  dismissed and recorded.
+  once). When `similarity_confirm_min` distinct users press
+  **Different**, the flag is dismissed and recorded. The author shortcut
+  applies to **Same** only: one author may not block a merge that other
+  members want.
 - AI suggests; humans decide. The AI action and the human decision are
   both logged (§9.2).
 
@@ -334,13 +338,22 @@ Threaded discussion, Reddit-style, on two things only: an umbrella's
 problem (§3.3 item 3) and each dominant solution (§3.3 item 5). No
 comments on posts, non-dominant solutions, amendments, or references.
 
-- Depth: replies nest to `comment_max_depth` (Demo 1: 3). Deeper replies
-  attach to the depth-3 comment with "replying to @display".
+- Depth: a comment's `depth` is 0 for a top-level comment and grows by
+  one per reply, up to `comment_max_depth` (Demo 1: 3 — so four visible
+  levels, 0–3). A reply to a depth-3 comment is stored at depth 3 under
+  the same parent, with `reply_to_comment_id` pointing at the comment it
+  answered. The page renders "replying to @display" from that id **at
+  read time**, through the author-display rule (DATABASE §3.2). The
+  stored `text` is only what the person typed — never a name, which
+  would freeze someone's identity into a permanent hash (CLAUDE §6,
+  Law 6; audit demo-01 run 2).
 - Length: 1–2,000 chars.
 - Ordering within a thread: net score descending, ties oldest first.
 - Up/down votes; net score; nothing hidden by score.
 - Edit: within `comment_edit_minutes` (Demo 1: 15) of posting, marked
-  "edited". After that, immutable.
+  "edited" with the revision number. Each edit is a new revision row
+  with its own hash (DATABASE §4.11); the earlier text stays readable
+  from the comment's history. After the window, immutable.
 - Delete: soft — the row stays, text replaced by "[removed by author]",
   replies remain.
 
@@ -460,9 +473,17 @@ If fewer eligible users exist than `jury_size`, the jury is the number
 available, and the summary document says so. If zero, the ballot
 proceeds with no jury review and the summary says so.
 
-The draw uses the platform's cryptographic random source. The draw is
-**logged**: the eligible pool (user ids), the drawn ids, the timestamp,
-and the random bytes used, so it can be inspected after the fact.
+The draw takes 32 bytes from the platform's cryptographic random source,
+logs them, and **seeds the sampler from those bytes**, so the logged pool
+plus the logged bytes reproduce the drawn ids exactly (`random.Random`
+seeded from the bytes; `sample(pool_sorted_by_id, jury_size)`). The draw
+is **logged**: the eligible pool (user ids), the drawn ids, the
+timestamp, and the random bytes used. Anyone with the log can replay the
+draw. A re-draw (§13) creates a new draw and marks the old one
+superseded; no draw is ever deleted. (Demo 1 logged bytes that did not
+drive the sampler — audit run 6; corrected in Demo 2. Seeding the bytes
+from the previous summary's hash, so the draw is provably unmanipulable,
+remains parked in PROJECT.md.)
 Provably reproducible draws are parked (PROJECT.md).
 
 ### 8.2 Notification and acceptance
@@ -492,8 +513,11 @@ chosen alongside one of a fixed set of categories:
 A hold-back takes effect when **more than half of the seated jurors**
 (§8.2) have held back the same solution, counted when the ballot is
 opened; their categories need not agree. Each juror's category and
-reason are recorded and all are published. Jurors act independently;
-they do not see each other's hold-backs until the ballot opens.
+reason are recorded and **every one is published**, whether or not it
+reached a majority: on the solution's page under "Jury notes" from the
+moment the ballot opens, and in the summary document (§11.2). A juror
+is told exactly this when they submit. Jurors act independently; they
+do not see each other's hold-backs until the ballot opens.
 
 ### 8.4 Effect of a hold-back
 
@@ -532,6 +556,14 @@ umbrella names and statements for the relevant communities. Its output
 is a main category, an umbrella id per community (or none), and a
 confidence in [0, 1].
 
+**Reading the answer.** Small models repeat communities or echo ones from
+the prompt's example. For each selected community the labeler keeps the
+first answer that names an umbrella actually active in that community
+and ignores the rest; everything ignored is recorded on the AI action row
+under `output.repeated_or_unlisted_communities`, so the public log shows
+what the model said, not only what was used. The model runs at
+temperature 0.
+
 The author can confirm or correct. Confirm is one tap; correct opens the
 "pick an existing umbrella" chooser. Either way the label row records
 `confirmed_by_author` / `corrected_by_author` / `unreviewed`.
@@ -561,8 +593,10 @@ fields once.
 
 Compares two texts and returns a score in [0, 1]. Used for amendments
 (§5.4). Implementation: embeddings from Ollama (`nomic-embed-text` or
-whatever `EMBED_MODEL` is set to) and cosine similarity. The score and
-both input hashes are logged. The threshold is a setting.
+whatever `EMBED_MODEL` is set to) and cosine similarity. There is no
+prompt file — an embedding call has no prompt text — and the log row says
+so (DATABASE §3.10). The score and both input hashes are logged. The
+threshold is a setting.
 
 ### 9.4 Reference recommendation
 
@@ -658,6 +692,11 @@ zero items and no jury is drawn. The only transition available from
 publishes an empty summary ("No solutions reached the ballot this
 cycle") whenever ready, and the next cycle can then be prepared. A
 zero-item cycle never enters `jury_review`, `open`, or `closed`.
+Because prepare continues to `jury_review` in the same action whenever
+any item qualifies, a cycle is only ever *observed* in `prepared` when it
+is empty; the code's guard against publishing a non-empty `prepared`
+cycle is therefore unreachable today and is kept for the case where
+prepare is later split into two steps.
 
 ### 10.3 Open and close
 
@@ -698,7 +737,13 @@ before any real community votes.
 
 One document per community per cycle. Same content for every reader.
 Canonical form is a **web page** at a permanent public URL; a PDF is an
-export of it. Nothing personal in it.
+export of it. **Nothing personal in it**: no name, display name, user id,
+or other identifier of any member appears in the document or its
+canonical JSON. Jurors are "Juror n of m". Solutions are attributed to
+the community, not to a person — authorship lives on the solution page,
+where the display rule (DATABASE §3.2) resolves it at read time and
+account deletion reaches it. The hashed document therefore never has to
+change for anyone's sake (CLAUDE §6; audit demo-01 run 4).
 
 ### 11.2 Content, in order
 
@@ -706,12 +751,17 @@ export of it. Nothing personal in it.
    close timestamps. Active users at snapshot. Members who voted.
    Verification mix of voters ("142 voters: 142 unverified"). The
    sentence: "Residency is self-declared and unverified at this
-   verification level." Jurors drawn and jurors seated ("3 drawn, 2
+   verification level." Jurors drawn and jurors seated, counting every
+   person ever drawn including replacements ("4 drawn, 1 replaced, 2
    seated"), or "No jury was drawn" for a zero-item cycle.
 2. **Results.** For each ballot item, in ballot order: umbrella name;
    the frozen solution text (version number, hash); yes count; no count;
    result (**Passed** / **Failed**); the solution's AI-influence figure;
-   author display as of snapshot. Failed items are included.
+   the line "Proposed and refined in the [community] workshop" with a
+   link to the solution page (`PUBLIC_BASE_URL/solutions/{id}`). No
+   author. Failed items are included. Under any
+   item a juror held back without a majority: "Juror concerns (n of m
+   seated)" with each category and reason, attributed "Juror n of m".
 3. **Held back.** For each held-back solution: umbrella; text; the jury
    category and every juror's written reason, attributed "Juror n of
    m".
@@ -748,8 +798,10 @@ personalization: which three, not what's in them.
 On each summary page, **Send to my representatives** opens the user's
 own mail client (`mailto:`) with: recipients = every officials-directory
 entry for that community; subject = "Ballot results — [community],
-cycle N"; body = a short note and the summary URL and hash. The user
-sends it from their own address. The platform sends nothing and records
+cycle N"; body = a short note, the summary's **absolute** URL (built
+from `PUBLIC_BASE_URL`, so the link works in a representative's inbox),
+and the hash. The body is composed in the summaries service
+(ARCHITECTURE §2), the router only returns it. The user sends it from their own address. The platform sends nothing and records
 nothing about the send — it cannot know whether the user pressed send.
 
 **Demo 1:** every directory entry is the director's test address.
@@ -782,7 +834,9 @@ writes an admin action log row (who, what, subject, old/new values,
 reason if given).
 
 - Prepare ballot for a community (§10.2)
-- Re-draw jury (only while `jury_review`; logged with reason)
+- Re-draw jury (only while `jury_review`; logged with reason). The
+  previous draw is **kept** — its pool, drawn ids, random bytes, and
+  jurors' statuses stay inspectable, marked superseded (§8.1)
 - Open ballot; close ballot; publish summary
 - Trigger reference recommendation on an umbrella (§9.4)
 - Change a setting (§7.4)
@@ -795,6 +849,13 @@ reason if given).
 Admins are not exempt from any threshold and cannot vote twice, edit
 others' content, or alter votes. The admin log is public at
 `/admin/log` (read-only, no login required).
+
+**Becoming an admin.** There is no endpoint, page, or setting that makes
+an administrator. An admin is granted only by someone with access to the
+machine running `backend/scripts/grant_admin.py`, and the grant is
+written to the public admin log like any other admin action. An
+administrator can change every rule a democratic outcome depends on;
+that power must not be reachable from the web.
 
 ---
 
@@ -810,6 +871,8 @@ this document satisfies it.
 | §3 equal vote weight | §10.3 one vote per member; verification recorded, never weighted |
 | §3 identical ranking | §3.3 item 4 ordering; §12 feed-v0 |
 | §4 downvotes never hide | §3.3 item 4; §6 |
+| §4 minimum visibility for minority views | Met trivially in Demo 1: nothing ranks anything out of sight (§3.3 item 4 shows every solution; §12 feed-v0 has no ranking). The visibility rule and its §7.4 setting are owed the day any ranking feed exists (PROJECT.md parking lot, Small Voice) |
+| §6 nothing personal in the permanent record | §11.1; §11.2 item 2; §8.5 |
 | §5 AI never decides | §3.2 umbrellas; §5.4 humans confirm; §9.4 humans reject |
 | §5 every AI action logged | §9.2 |
 | §5 AI influence displayed | §9.5 |

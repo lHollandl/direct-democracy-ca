@@ -34,7 +34,10 @@
   `address`, `voter`). No other enum is shared.
 - **Reserved words** are never table or column names (`references`,
   `order`, `user`, …); hence `umbrella_references`, not `references`.
-- **Hashes** are `CHAR(64)` hex SHA-256.
+- **Hashes** are `VARCHAR(64) NOT NULL` lowercase hex SHA-256 (not
+  `CHAR`, which would space-pad); the application guarantees the length.
+  Wherever this document writes `char(n)` — hashes, `abbreviation`,
+  `fips` — read `VARCHAR(n)`; `CHAR` is never used.
 - **Foreign keys** are always indexed (Law 4). Composite uniqueness is
   a named `UNIQUE` constraint: `uq_<table>_<cols>`.
 - **Code citation**: documents refer to code as
@@ -50,7 +53,7 @@
 | Half | Tables | Migration practice |
 |---|---|---|
 | **Foundation** | `users`, `user_display_settings`, `refresh_tokens`, `email_verifications`, `password_resets`, `terms_versions`, `terms_acceptances`, `states`, `counties`, `cities`, `officials`, `settings`, `admin_actions`, `ai_actions`, `data_exports` | Alembic chain `foundation/`. Immutable once applied. |
-| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Regenerated fresh per demo until the keeper. |
+| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `comment_revisions`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Regenerated fresh per demo until the keeper. |
 
 Two Alembic branches in one `alembic/versions/` directory, labeled
 `foundation` and `iteration`, so `alembic upgrade foundation@head` and
@@ -139,7 +142,9 @@ Same shape: `id`, `user_id` FK, `token_hash` UNIQUE, `expires_at`,
 `privacy_policy_md` text, `terms_of_service_md` text, `published_at`.
 
 `terms_acceptances`: `id`, `user_id` FK, `terms_version_id` FK,
-`accepted_at`, `ip_hash` char(64). Never deleted (legal record; contains
+`accepted_at`, `ip_hash` char(64) — SHA-256 of `IP_HASH_SECRET` +
+address (a secret from `.env`, ARCHITECTURE §3), so the hash cannot be
+reversed by enumerating addresses. Never deleted (legal record; contains
 no PII beyond the user link, which anonymization severs by erasing the
 user).
 
@@ -213,6 +218,11 @@ char(64); `output` jsonb; `confidence` numeric(4,3) NULL;
 `created_at`. Index `(subject_type, subject_id)`, `created_at`. Only
 `human_outcome_*` are ever updated, once.
 
+For `similarity` actions there is no prompt file (DEMOCRACY §9.3):
+`prompt_file` is the literal `(embeddings: no prompt file)` and
+`prompt_hash` is 64 zeros. `model` still names the embedding model. No
+other action type may use the sentinel.
+
 Because Iteration ids restart per demo, `subject_id` alone is ambiguous
 across demos. Column `demo_build` text NOT NULL (e.g. `demo-01`, from
 configuration `BUILD_LABEL`) disambiguates; the keeper build's label is
@@ -221,9 +231,12 @@ frozen thereafter.
 ### 3.11 `data_exports`
 
 `id`, `user_id` FK, `requested_at`, `completed_at` NULL, `file_path`
-text NULL, `expires_at`. Export JSON contains the user's row, display
-settings, terms acceptances, jury service, and every Iteration row they
-authored or voted on, including their own ballot votes.
+text NULL, `expires_at` (= `completed_at` + `EXPORT_FILE_HOURS`,
+configuration, Demo 1: 48 — the window a person has to collect their
+own data). Export JSON contains three things: the user's
+Foundation rows (user, display settings, terms acceptances); their jury
+service; and every Iteration row they authored or voted on, including
+their own ballot votes.
 
 The exporter respects the boundary rule. `backend/services/export.py`
 (Foundation) gathers the Foundation data and then calls every
@@ -345,11 +358,14 @@ they are left in place (DEMOCRACY §4.1).
 ### 4.8 `solution_versions`
 
 `id`, `solution_id` FK, `version` int, `text` text, `created_by` FK
-`users` (v1: author; later: the amendment's author), `amendment_id` FK
-NULL, `ai_contribution_percentage` smallint DEFAULT 0, `content_hash`
+`users` (v1: author; later: the amendment's author, or the author again
+for a pre-vote edit — DEMOCRACY §4.3), `amendment_id` FK NULL,
+`ai_contribution_percentage` smallint DEFAULT 0, `content_hash`
 char(64) NOT NULL (canonical JSON `{solution_id, version, text,
 created_by, created_at}`), `created_at`. Unique `(solution_id,
-version)`. Immutable.
+version)`. **Immutable: no column of an existing row is ever updated.**
+`PATCH /solutions/{id}` inserts version n+1 and bumps
+`solutions.current_version`; it never touches version n.
 
 ### 4.9 `amendments`
 
@@ -366,7 +382,7 @@ version)`. Immutable.
 | `merged_into_id` | int FK `amendments` NULL | |
 | `net_score` | int NOT NULL DEFAULT 0 | cache |
 | `ai_contribution_percentage` | smallint DEFAULT 0 | |
-| `content_hash` | char(64) NOT NULL | |
+| `content_hash` | char(64) NOT NULL | canonical JSON `{solution_id, base_version, proposed_text, rationale, author_id, created_at}` |
 | `created_at`, `updated_at` | | |
 
 Index `solution_id`, `(solution_id, status)`.
@@ -384,11 +400,26 @@ enum (`same`, `different`), `created_at`; PK `(similarity_id, user_id)`.
 ### 4.11 `comments`
 
 `id`, `target_type` enum (`umbrella`, `solution`), `target_id` int,
-`parent_id` FK `comments` NULL, `depth` smallint NOT NULL, `author_id`
-FK, `text` text (1–2,000), `edited_at` NULL, `removed_at` NULL,
-`net_score` int DEFAULT 0, `ai_contribution_percentage` smallint DEFAULT
-0, `content_hash` char(64), `created_at`. Index `(target_type,
-target_id, parent_id)`, `author_id`.
+`parent_id` FK `comments` NULL, `reply_to_comment_id` FK `comments`
+NULL (set only when the reply was re-attached at the depth cap; the
+comment it actually answered — DEMOCRACY §6), `depth` smallint NOT NULL
+(0-based), `author_id` FK, `text` text (1–2,000; exactly what the
+author typed, never a rendered name — the **current** revision's text,
+a cache of the latest `comment_revisions` row), `current_revision`
+smallint NOT NULL DEFAULT 1, `edited_at` NULL, `removed_at` NULL,
+`net_score` int DEFAULT 0, `ai_contribution_percentage` smallint
+DEFAULT 0, `content_hash` char(64) (the hash of revision 1 — immutable,
+Law 6), `created_at`. Index `(target_type, target_id, parent_id)`,
+`author_id`, `reply_to_comment_id`.
+
+`comment_revisions`: `id`, `comment_id` FK, `revision` smallint, `text`,
+`ai_contribution_percentage` smallint DEFAULT 0, `content_hash` char(64)
+(canonical JSON `{comment_id, revision, text, author_id, created_at}`),
+`created_at`. Unique `(comment_id, revision)`. Immutable. Revision 1 is
+written with the comment in the same transaction; an edit inside
+`comment_edit_minutes` inserts revision n+1 and updates `comments.text`,
+`current_revision`, and `edited_at`. `reconcile.py` recomputes every
+revision's hash and `comments.content_hash` against revision 1.
 
 ### 4.12 `votes`
 
@@ -457,14 +488,29 @@ user's vote or any vote with a voter id; everything else is counts.
 
 ### 4.17 `juries`, `jurors`, `jury_holdbacks`
 
-`juries`: `id`, `cycle_id` FK UNIQUE, `size_requested` int,
-`eligible_pool` jsonb (user ids), `random_bytes` char(64), `drawn_at`,
-`redrawn_reason` text NULL.
+`juries`: `id`, `cycle_id` FK (not unique — one row per draw),
+`size_requested` int, `eligible_pool` jsonb (user ids), `random_bytes`
+char(64), `drawn_at`, `superseded_at` timestamptz NULL, `redrawn_reason`
+text NULL (on the **superseded** row: why it was replaced). Partial
+unique index: at most one row per `cycle_id` with `superseded_at IS
+NULL` — the current jury. Rows are never deleted; a re-draw sets
+`superseded_at` on the old row and inserts a new one. Jurors of a
+superseded jury keep their rows and statuses.
 
 `jurors`: `id`, `jury_id` FK, `user_id` FK, `seat` smallint ("Juror n"),
 `status` enum (`drawn`, `accepted`, `declined`, `replaced`,
 `no_response`), `replaced_by_id` FK `jurors` NULL, `created_at`,
 `updated_at`. Unique `(jury_id, user_id)`.
+
+Two different things happen to jurors and the columns are used
+differently for each. **Per-seat replacement** (DEMOCRACY §8.2): a juror
+declines → their row keeps `status = declined` and `replaced_by_id`
+points at the newly drawn juror's row. **Whole-jury supersession**
+(DEMOCRACY §13 re-draw): every juror of the superseded jury gets
+`status = replaced` and `replaced_by_id` stays NULL — the replacement is
+the new `juries` row, not a seat. The summary header's "r replaced"
+(DEMOCRACY §11.2) counts `declined` jurors on the **current** jury; it
+never counts the `replaced` status.
 
 `jury_holdbacks`: `id`, `jury_id` FK, `juror_id` FK, `ballot_item_id` FK,
 `reason_category` enum (`duplicate`, `not_actionable`, `incomplete`,

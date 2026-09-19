@@ -1,26 +1,167 @@
 @import "tailwindcss";
 
+/*
+ * Style brief (ARCHITECTURE.md §9): mobile-first, plain language, one accent
+ * colour, California photography in page headers, and every page works with
+ * images disabled. Accessibility per CLAUDE.md §8 — the accent is dark enough
+ * for white text at AA, focus is always visible, and nothing depends on colour
+ * alone.
+ *
+ * The page headers use a CSS gradient rather than a photograph, so the site is
+ * light on a slow connection and identical with images turned off. When the
+ * director has photographs to use, they go in `.page-header` as a background
+ * image over this gradient, and the page still reads without them.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fbfaf7;
+  --surface: #ffffff;
+  --foreground: #1b1a17;
+  --muted: #55524c;
+  --line: #dedad2;
+  /* One accent: the gold of the California flag's star, darkened until white
+     text on it passes WCAG AA. */
+  --accent: #8a5a00;
+  --accent-soft: #fdf4e3;
+  --good: #1d6f42;
+  --bad: #9b2226;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Always visible, never removed: a keyboard user must be able to see where
+   they are (CLAUDE.md §8). */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--surface);
+  padding: 0.75rem 1rem;
+  z-index: 50;
+}
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+.page-header {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.15)),
+    linear-gradient(120deg, #2e4b3c 0%, #6b7f4a 45%, #b9922f 100%);
+  color: #ffffff;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.badge {
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.5rem;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--foreground);
+  min-height: 44px; /* a comfortable target on a phone */
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface);
+  color: var(--foreground);
+  min-height: 44px;
+}
+
+.prose-plain p { margin-bottom: 0.85rem; }
+.prose-plain h1 { font-size: 1.6rem; font-weight: 700; margin: 1.2rem 0 0.6rem; }
+.prose-plain h2 { font-size: 1.25rem; font-weight: 700; margin: 1.2rem 0 0.5rem; }
+.prose-plain h3 { font-size: 1.05rem; font-weight: 700; margin: 1rem 0 0.4rem; }
+.prose-plain ul { list-style: disc; margin: 0 0 0.9rem 1.25rem; }
+.prose-plain ol { list-style: decimal; margin: 0 0 0.9rem 1.25rem; }
+.prose-plain li { margin-bottom: 0.3rem; }
+.prose-plain table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+.prose-plain th, .prose-plain td {
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+.prose-plain blockquote {
+  border-left: 4px solid var(--accent);
+  padding-left: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 0.9rem;
+}
+.prose-plain code {
+  background: var(--accent-soft);
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
 }

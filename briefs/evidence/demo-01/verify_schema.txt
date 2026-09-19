@@ -1,0 +1,20 @@
+=== verify_schema.py ===
+live database:    localhost:5432/directdemocracy
+scratch database: ddc_schema_scratch (built from both migration chains)
+
+[1] live database vs the ORM models
+    no drift
+
+[2] scratch database (from migrations) vs the ORM models
+    no drift
+
+[3] scratch vs live, table by table
+    no drift — 37 tables identical
+
+[4] the two halves (DATABASE.md §2)
+    no problems — 15 Foundation tables, 22 Iteration tables, none in both
+
+[5] every foreign key indexed (CLAUDE.md Law 4)
+    no problems
+
+=== RESULT: NO DRIFT ===

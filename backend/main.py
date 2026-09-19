@@ -1,76 +1,120 @@
+"""Application initialization and route registration. Nothing else lives here.
+
+ARCHITECTURE.md §2: `main.py` registers routers and lifespan hooks.
+"""
+
+from __future__ import annotations
+
 import logging
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
 
-from database import SessionLocal
-from limiter import limiter
-from routers import auth, labels, locations, posts, solutions, umbrella_issues, users, votes
-from seed_data import seed_california
-import models
-
-logger = logging.getLogger(__name__)
-
-app = FastAPI(title="Direct Democracy Cali API")
-
-# Allow the Next.js dev server to call this API during local development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+from backend.clients import redis as redis_client
+from backend.config.settings_env import get_env_settings
+from backend.db import dispose_engine
+from backend.errors import install_error_handlers
+from backend.jobs import runner, scheduler
+from backend.logging_config import configure_logging
+from backend.middleware import install_middleware
+from backend.routers import (
+    admin,
+    amendments,
+    auth,
+    ballots,
+    comments,
+    feed,
+    geo,
+    juries,
+    legal,
+    me,
+    posts,
+    references,
+    solutions,
+    summaries,
+    transparency,
+    umbrellas,
+    votes,
 )
+from backend.services import export as export_service
+from backend.services import export_iteration
+from backend.services import startup_sync
 
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(SlowAPIMiddleware)
-
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(posts.router)
-app.include_router(votes.router)
-app.include_router(labels.router)
-app.include_router(locations.router)
-app.include_router(solutions.router)
-app.include_router(umbrella_issues.router)
+log = logging.getLogger(__name__)
 
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    # Log the full error server-side so it can be debugged without ever
-    # exposing stack traces, database errors, or internal details to clients.
-    # Constitution §7: internal error details must never reach the client.
-    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "An internal error occurred. Please try again."},
-    )
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    env = get_env_settings()
+    configure_logging(env.LOG_LEVEL)
+    log.info("starting", extra={"build_label": env.BUILD_LABEL})
 
+    # Iteration registers its export contributor with Foundation's registry, so
+    # Foundation never names an Iteration table (ARCHITECTURE.md §2).
+    export_service.register_contributor("iteration", export_iteration.contribute)
 
-@app.on_event("startup")
-def startup():
-    # Schema is now managed by Alembic — run 'alembic upgrade head' before starting
-    # the server. create_all is NOT called here; Alembic owns all schema changes.
-
-    # Seed California geographic reference data if the states table is empty.
-    db = SessionLocal()
+    await startup_sync.sync_main_categories()
+    await scheduler.start()
     try:
-        if db.query(models.State).count() == 0:
-            seed_california(db)
+        yield
     finally:
-        db.close()
+        await runner.drain()
+        await scheduler.stop()
+        await redis_client.close_redis()
+        await dispose_engine()
+        log.info("stopped")
 
 
-@app.get("/")
-def root():
-    return {"message": "Direct Democracy Cali API", "status": "running"}
+def create_app() -> FastAPI:
+    env = get_env_settings()
+    app = FastAPI(
+        title="Direct Democracy Cali",
+        version=env.BUILD_LABEL,
+        description=(
+            "The people's tool. Every rule this API applies is published at "
+            "/settings; every AI action it takes is published at /ai/actions; "
+            "every administrator action is published at /admin/log."
+        ),
+        lifespan=lifespan,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=env.cors_origin_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-Id"],
+    )
+    install_middleware(app)
+    install_error_handlers(app)
+
+    # Foundation
+    app.include_router(auth.router)
+    app.include_router(me.router)
+    app.include_router(geo.router)
+    app.include_router(legal.router)
+    app.include_router(transparency.router)
+    # Iteration
+    app.include_router(posts.router)
+    app.include_router(feed.router)
+    app.include_router(umbrellas.router)
+    app.include_router(solutions.router)
+    app.include_router(amendments.router)
+    app.include_router(comments.router)
+    app.include_router(votes.router)
+    app.include_router(references.router)
+    app.include_router(ballots.router)
+    app.include_router(juries.router)
+    app.include_router(summaries.router)
+    # Admin: settings are Foundation, cycle controls are Iteration; one router.
+    app.include_router(admin.router)
+
+    @app.get("/health", tags=["platform"])
+    async def health() -> dict:
+        return {"status": "ok", "build": env.BUILD_LABEL}
+
+    return app
 
 
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
+app = create_app()

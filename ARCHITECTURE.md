@@ -43,18 +43,24 @@ routers they own (DATABASE.md §2; §6 below).
 | **Services** | `backend/services/` | repositories, clients, other services | routers, raw SQL |
 | **Repositories** | `backend/repositories/` | the database (async session) | services, clients, anything else |
 | **Clients** | `backend/clients/` | external processes over HTTP | the database |
-| **Jobs** | `backend/jobs/` | services | routers, repositories directly |
+| **Jobs** | `backend/jobs/` | services | routers, repositories, the session — `test_layering.py` scans `jobs/` with the same rules as routers |
 | **Config** | `backend/config/` | `.env`, YAML | anything |
 
 Rules:
 
-- A router parses the request into a Pydantic model, calls one service
-  function, and shapes the response. No logic.
+- A router parses the request into a Pydantic model, calls **one** service
+  function, and shapes the response. No logic. This holds for reads too:
+  every read the frontend needs has a service function, even a one-line
+  pass-through to a repository. A router never imports a repository
+  module, a client, or the session.
 - A service owns a transaction. Every multi-table write happens in one
   service function inside one session (Law 5).
 - A repository is the only place that touches a table. One module per
   aggregate: `users.py`, `solutions.py` (with versions and amendments),
-  `cycles.py` (with ballot items, votes, juries), etc.
+  `cycles.py` (with ballot items, votes, juries), etc. A service never
+  calls `session.execute`, `session.get`, or `select(...)` itself; it
+  calls a repository function. `backend/tests/test_layering.py` enforces
+  both rules by scanning the source (audit finding, demo-01 run 1).
 - Ranking and threshold code lives in `backend/services/rules.py`, with
   its plain-English explanation as the module docstring and a
   `RULES_VERSION` constant printed in every summary (Law 9).
@@ -62,6 +68,10 @@ Rules:
   (Law 10). Runtime settings (DEMOCRACY §7.4) come from the `settings`
   table via `backend/services/settings.py`, cached for 60 seconds.
 - `main.py` registers routers and lifespan hooks. Nothing else.
+- Background jobs are scheduled by the **service that owns the
+  transaction**, inside the same function, through
+  `backend/jobs/runner.py::spawn_after_commit` (§7). A router never
+  schedules a job.
 - Foundation services never import an Iteration repository. Where
   Foundation needs Iteration data (the data export, DATABASE §3.11),
   Iteration registers a contributor at startup and Foundation calls it
@@ -84,15 +94,18 @@ Docker Compose with `--env-file`. There is no separate `infra/.env` or
 | Key | Purpose |
 |---|---|
 | `DATABASE_URL` | `postgresql+asyncpg://…` |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | read by Docker Compose; must match the credentials inside `DATABASE_URL` |
 | `REDIS_URL` | |
 | `JWT_SECRET`, `ACCESS_TOKEN_MINUTES` (30), `REFRESH_TOKEN_DAYS` (14) | |
-| `EMAIL_VERIFY_HOURS` (24), `PASSWORD_RESET_MINUTES` (30) | |
+| `EMAIL_VERIFY_HOURS` (24), `PASSWORD_RESET_MINUTES` (30), `EXPORT_FILE_HOURS` (48) | |
 | `EMAIL_BACKEND` (`console` / `smtp`), `SMTP_*`, `EMAIL_FROM` | `console` prints emails to the log — Demo 1 default |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `EMBED_MODEL`, `OLLAMA_TIMEOUT_SECONDS` | host GPU |
 | `SEARCH_PROVIDER`, `SEARCH_API_KEY`, `SEARCH_BASE_URL` | reference recommendation |
 | `OFFICIALS_TEST_EMAIL` | Demo 1 directory address |
 | `BUILD_LABEL` | `demo-01`; stamped on `ai_actions` |
 | `CORS_ORIGINS` | |
+| `IP_HASH_SECRET` | random 32+ bytes; salts `terms_acceptances.ip_hash` (DATABASE §3.5) |
+| `PUBLIC_BASE_URL` | the address the frontend is reached at (Demo 1: `http://localhost:3000`); used wherever a link must work outside the site — the `mailto:` body, the PDF footer, the summary's verify text |
 | `RATE_LIMIT_WRITE_PER_MINUTE` (30) | |
 | `LOG_LEVEL` | |
 
@@ -108,7 +121,10 @@ the key name in the error.
   creates the user, a `terms_acceptances` row, and an email
   verification token; sends the verification email; returns 201 with
   no tokens. The account can log in but every write endpoint returns
-  403 `email_not_verified` until the link is used.
+  403 `email_not_verified` until the link is used — **except the three
+  that act only on the caller's own account**: `PATCH /me/display`,
+  `POST /me/export`, `DELETE /me`. A person's rights over their own data
+  (CLAUDE §6) never depend on our verification email having worked.
 - Login returns a 30-minute access JWT (`sub`, `exp`, `iat`, `jti`) and
   an opaque refresh token (random 32 bytes, base64url), stored hashed.
 - The refresh token travels only in an `httpOnly`, `SameSite=Strict`
@@ -123,7 +139,12 @@ the key name in the error.
 - Dependencies: `current_user` (valid JWT, not deleted),
   `verified_user` (+ `email_verified_at`), `admin_user` (+ `is_admin`),
   `community_member(level, entity_id)` (user's home community matches).
-- Passwords: bcrypt, cost 12, policy per Law 13.
+- Passwords: bcrypt, cost 12, policy per Law 13; maximum 72 bytes (bcrypt's
+  limit), refused with a plain message rather than silently truncated.
+- **Administrators are made only from the machine:**
+  `backend/scripts/grant_admin.py <email> (--dry-run | --apply) [--revoke]`. There is no
+  endpoint and no UI. The grant writes an `admin_actions` row like any
+  other administrator action (DEMOCRACY §13).
 - Every authenticated request updates `users.last_active_at` at most
   once per minute (Redis debounce) — the active-user source.
 
@@ -132,8 +153,10 @@ the key name in the error.
 ## 5. Rate Limiting and Errors
 
 - Every `POST`/`PUT`/`PATCH`/`DELETE` passes through a Redis
-  token-bucket keyed by user id (or IP when unauthenticated), limit
-  `RATE_LIMIT_WRITE_PER_MINUTE`. 429 with `Retry-After`.
+  **fixed-window** counter per calendar minute keyed by user id (or IP
+  when unauthenticated), limit `RATE_LIMIT_WRITE_PER_MINUTE`. 429 with
+  `Retry-After` = seconds to the next minute. (A token bucket was named
+  earlier; the fixed window is what was built and is sufficient.)
 - Errors: services raise typed exceptions (`NotFound`, `Forbidden`,
   `Conflict`, `ValidationFailed`, `ExternalServiceDown`); one exception
   handler maps them to status codes and a body `{error: <code>, message:
@@ -146,7 +169,21 @@ the key name in the error.
 ## 6. Endpoints
 
 `F` = Foundation, `I` = Iteration. All JSON. All list endpoints paginate
-with `?cursor=&limit=` (default 25, max 100).
+with `?cursor=&limit=` (default 25, max 100; a `limit` above 100 is
+refused with 422, never silently capped) **except** five fixed-size
+reference lists, which return whole: `GET /geo/counties`, `GET
+/geo/counties/{id}/cities`, `GET /communities/{level}/{id}/officials`,
+`GET /settings`, and the main-category list inside `GET /feed`'s filter
+metadata. No other exemptions. A **whole-page endpoint** (`GET
+/umbrellas/{id}`, `GET /results`, `GET /solutions/{id}`) is not a list
+endpoint, but every list it embeds is the **first page** (25) with a
+`next_cursor`; the page fetches the rest from the corresponding list
+endpoint. Nothing embeds an unbounded list.
+
+### Service and legal (F, public)
+`GET /health` (liveness; no database access), `GET /legal/privacy`,
+`GET /legal/terms`, `GET /legal/cookies` (current markdown), `GET
+/legal/current-version`.
 
 ### Auth and account (F)
 | | |
@@ -155,7 +192,7 @@ with `?cursor=&limit=` (default 25, max 100).
 | `POST /auth/verify-email` | token |
 | `POST /auth/login`, `/auth/refresh`, `/auth/logout` | |
 | `POST /auth/forgot-password`, `/auth/reset-password` | |
-| `GET /auth/me` | user, display settings, home communities with names, verification level |
+| `GET /auth/me` | user, display settings, home communities with names, verification level — the one read; `/me/*` below are the writes |
 | `PATCH /me/display` | `public_name_mode` |
 | `POST /me/export` → `GET /me/export/{id}` | async export |
 | `DELETE /me` | password confirm; runs anonymization |
@@ -222,14 +259,21 @@ jury history; never ballot votes).
 
 ## 7. Background Work
 
-`backend/jobs/` — asyncio tasks started in the app lifespan; no Celery.
+`backend/jobs/` — asyncio tasks; no Celery. A job triggered by a request
+is started by `runner.py::spawn_after_commit(session, factory)`, called
+from the service that owns the transaction: the task is created only
+after that session commits, and the runner holds a strong reference so
+the task outlives the request and is never cancelled by a client
+disconnect (demo-01 bug: FastAPI `BackgroundTasks` died with the
+connection). Periodic jobs are started in the lifespan.
 
 | Job | Trigger | Does |
 |---|---|---|
 | `label_post` | after `POST /posts` commits | calls Ollama; writes `ai_actions` then `labels` then `post_communities.umbrella_id`; sets `label_status` |
-| `label_retry` | every `label_retry_minutes` | re-queues `unlabeled` posts |
+| `label_retry` | every `label_retry_minutes` | re-queues `unlabeled` posts, and `pending` posts older than the retry window whose job never started |
 | `similarity_check` | after amendment create | embeds, compares, writes `amendment_similarity` |
-| `recommend_references` | admin trigger | DEMOCRACY §9.4 |
+| `recommend_references` | admin trigger (`POST /admin/umbrellas/{id}/recommend-references`) — the endpoint returns 202 `pending` at once; the Ollama and search calls run in this job | DEMOCRACY §9.4 |
+| `build_export` | after `POST /me/export` commits | assembles the export file; DATABASE §3.11 |
 | `reconcile` | 03:00 daily and on demand | DATABASE §7 |
 | `evaluate_dominance` | inside `reconcile`, and after every solution vote | DEMOCRACY §7.1 |
 | `expire_exports` | hourly | delete export files past `expires_at` (files only; rows stay) |
@@ -252,7 +296,12 @@ them. Timeouts raise `ExternalServiceDown`; the caller decides (labeling
 
 Prompt files: `ai/prompts/labeler.md`, `reference_queries.md`,
 `reference_select.md`. Each has a header block stating its inputs, its
-required output JSON shape, and its version. Output is parsed strictly;
+required output JSON shape in prose **and** as a JSON Schema, and its
+version. The client passes the schema to Ollama's `format` parameter so
+the model's output is constrained to the shape; the prose remains the
+contract (Law 7). Generation runs at temperature 0 so the same input
+files the same way twice. Embedding calls have no prompt file (§9.3 of
+DEMOCRACY; DATABASE §3.10 says how their `ai_actions` rows record that). Output is parsed strictly;
 malformed output is logged as an `ai_actions` row with
 `output.error` and treated as failure.
 
@@ -292,7 +341,8 @@ Next.js App Router, TypeScript, Tailwind. `frontend/src/app/` routes:
 | `/solutions/[id]` | full solution with versions, amendments, discussion |
 | `/ballot` | current cycle for each home community |
 | `/jury` | duties |
-| `/results`, `/summaries/[level]/[id]/[number]` | the summary document |
+| `/results`, `/summaries/[level]/[id]/[number]`, `/summaries/hashes` | the summary document; the public hash list (DEMOCRACY §11.3) |
+| `/`, `/posts/[id]`, `/cycles/[id]` | landing page; a post with its label status and created solutions; a cycle with its state, items, and every jury draw |
 | `/admin` (cycle controls: prepare, redraw, open, close, publish, recommend references, relabel) | Iteration — added to the Foundation page |
 
 `frontend/src/lib/api.ts` is the only place `fetch` is called; it holds
@@ -300,16 +350,21 @@ the access token in memory and the refresh token in an `httpOnly`
 cookie set by the backend, and silently refreshes on 401.
 
 **Style brief** (director, 2026-09-06): mobile-first; plain language;
-one accent color; California photography in page headers; every page
-works with images disabled; accessible per CLAUDE §8. Iterate on the
-UI freely between demos.
+one accent color; California photography in page headers **when the
+director supplies the images — none yet (2026-09-18), so pages ship
+text-only and that is intended**; every page works with images
+disabled; accessible per CLAUDE §8. Iterate on the UI freely between
+demos. `api.ts` is the only file that calls `fetch`, including on the
+landing page; `test_layering.py`'s frontend check greps for it.
 
 ---
 
 ## 10. Testing
 
 `backend/tests/` with pytest-asyncio against a throwaway Postgres
-(Docker, created and dropped by the test session). Required coverage:
+**database** on whatever server `DATABASE_URL` points at, created and
+dropped by the test session and built from both migration chains, never
+`create_all`. Required coverage:
 
 - Every service function in `rules.py` with table-driven cases,
   including the `threshold()` formula at boundaries (0, 1, exact,
@@ -322,6 +377,12 @@ UI freely between demos.
   every civic row still resolves.
 - Auth: refresh rotation and reuse detection; blacklist on logout.
 - Every endpoint: 401/403 paths.
+- Layering (`test_layering.py`): no router imports a repository, client,
+  job, or session; no service calls the session or `select` directly;
+  and no endpoint function calls more than one service module beyond a
+  `require_*` resolver, or contains arithmetic on a setting (§2).
+- `npm audit --audit-level=high` in `frontend/` returns no findings;
+  it is part of every run's evidence set.
 
 Ollama and search are mocked in tests via the client interfaces; one
 opt-in test (`-m live`) hits the real Ollama to validate prompt-file

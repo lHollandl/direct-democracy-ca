@@ -1,0 +1,119 @@
+FIX-07 — re-running the build brief's "What done means" evidence set after
+FIX-01 through FIX-06, demo-01 fix run 1, 2026-09-14.
+
+Migrations run against a throwaway scratch database (fix07_scratch, dropped
+afterward) so the live demo database populated by FIX-06's walkthrough was
+not disturbed.
+
+################################################################
+# Migrations, from empty
+################################################################
+$ DATABASE_URL=postgresql+asyncpg://ddcuser:***@localhost:5432/fix07_scratch alembic upgrade foundation@head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 25035d5b7ff5, Foundation initial schema — DATABASE.md §3.
+$ DATABASE_URL=postgresql+asyncpg://ddcuser:***@localhost:5432/fix07_scratch alembic upgrade iteration@head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> b4b4da0b6e54, Iteration schema — Demo 1 (DATABASE.md §4).
+$ DATABASE_URL=postgresql+asyncpg://ddcuser:***@localhost:5432/fix07_scratch alembic heads
+25035d5b7ff5 (foundation) (head)
+b4b4da0b6e54 (iteration) (head)
+
+################################################################
+# backend/scripts/verify_schema.py, against the live (walkthrough-populated) database
+################################################################
+=== verify_schema.py ===
+live database:    localhost:5432/directdemocracy
+scratch database: ddc_schema_scratch (built from both migration chains)
+
+[1] live database vs the ORM models
+    no drift
+
+[2] scratch database (from migrations) vs the ORM models
+    no drift
+
+[3] scratch vs live, table by table
+    no drift — 37 tables identical
+
+[4] the two halves (DATABASE.md §2)
+    no problems — 15 Foundation tables, 22 Iteration tables, none in both
+
+[5] every foreign key indexed (CLAUDE.md Law 4)
+    no problems
+
+=== RESULT: NO DRIFT ===
+
+################################################################
+# python -m backend.seed --dry-run, against the live database
+################################################################
+[geography (Foundation)]
+  to write:            0
+  already present:     542
+  in database only:    0
+[officials directory]
+  to write:            0
+  already present:     5
+  in database only:    0
+[main categories (config mirror)]
+  to write:            0
+  already present:     10
+  in database only:    0
+[umbrellas (Iteration)]
+  to write:            0
+  already present:     10
+  in database only:    0
+---
+pending writes: 0
+Nothing to do: every seed row is already in the database.
+
+################################################################
+# The full test suite, including the new backend/tests/test_layering.py
+################################################################
+$ python -m pytest backend/tests/ -q
+........................................................................ [ 35%]
+........................................................................ [ 70%]
+...........................................................              [100%]
+203 passed, 2 deselected in 96.33s (0:01:36)
+
+$ python -m pytest backend/tests/ -m live -q
+..                                                                       [100%]
+2 passed, 203 deselected in 2.15s
+
+(203 = the build's original 201 plus the two new test_layering.py cases.)
+
+################################################################
+# The three greps the build brief asks for
+################################################################
+$ grep -rn "TODO\|FIXME" backend/ frontend/src/
+(nothing)
+$ grep -rn "os.environ" backend/ | grep -v settings_env.py
+(nothing — walkthrough_extended.py's two env-var reads were removed for this
+ reason; see HISTORY.md)
+$ grep -rEn "except:\s*$|except: pass|except Exception: pass" backend/
+(nothing)
+
+################################################################
+# The audit's two layering-violation greps (FIX-01)
+################################################################
+$ for f in backend/routers/*.py; do grep -n "_repo\.\|repositories\." "$f"; done
+(nothing)
+$ grep -rln "session\.execute\|session\.get(\|select(" backend/services/*.py
+(nothing)
+
+################################################################
+# git status / git log
+################################################################
+$ git status --short
+(clean, before this commit)
+$ git log --oneline -10
+98d0253 FIX-06: scripted walkthrough for the three scenarios three accounts can't reach
+b16fb80 FIX-04: comments.content_hash was missing parent_id (DATABASE.md §4.11)
+49078dc FIX-02: move background-job scheduling from routers into the owning service
+34ea10b FIX-03: pyproject.toml version to PEP 440, demo label stays in BUILD_LABEL
+20e02ea FIX-01: enforce layering — routers call only services, services call only repositories
+867d68f Post-audit document updates; fix brief demo-01-fix-1
+743aa79 audit demo-01 run 1
+1d1465f Restore ballot_min_dominant_days to 3 with a logged reason
+47dd7bd demo-01 complete
+e5357fc Retry posts stuck at 'being filed'; evidence for the demo-01 run

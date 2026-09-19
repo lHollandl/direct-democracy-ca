@@ -1,52 +1,42 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+"""Workshop votes (DEMOCRACY.md §4.4)."""
 
-from auth import get_current_user
-from database import get_db
-from models import User, Vote, VoteType
+from __future__ import annotations
 
-router = APIRouter()
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
 
+from backend.deps import SessionDep, VerifiedUser
+from backend.services import votes as votes_service
 
-class VoteCreate(BaseModel):
-    # user_id comes from the authenticated token, not the request body
-    post_id: int
-    vote_type: VoteType
+router = APIRouter(prefix="/votes", tags=["votes"])
 
 
-@router.post("/votes")
-async def cast_vote(
-    vote_data: VoteCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    vote = Vote(
-        user_id=current_user.id,
-        post_id=vote_data.post_id,
-        vote_type=vote_data.vote_type,
+class VoteIn(BaseModel):
+    target_type: str = Field(pattern="^(solution|amendment|comment)$")
+    target_id: int
+    direction: int = Field(description="1 for up, -1 for down")
+
+
+@router.put("")
+async def cast_vote(body: VoteIn, user: VerifiedUser, session: SessionDep) -> dict:
+    return await votes_service.cast(
+        session,
+        user=user,
+        target_type=body.target_type,
+        target_id=body.target_id,
+        direction=body.direction,
     )
-    db.add(vote)
-    try:
-        db.commit()
-    except IntegrityError:
-        # The unique constraint uq_vote_user_post prevents duplicate votes at the DB level
-        db.rollback()
-        raise HTTPException(status_code=409, detail="You have already voted on this post")
-
-    db.refresh(vote)
-    return {"id": vote.id, "post_id": vote.post_id, "vote_type": vote.vote_type.value}
 
 
-@router.get("/posts/{post_id}/votes")
-async def get_post_votes(post_id: int, db: Session = Depends(get_db)):
-    votes = db.query(Vote).filter(Vote.post_id == post_id).all()
-    upvotes = sum(1 for v in votes if v.vote_type == VoteType.upvote)
-    downvotes = sum(1 for v in votes if v.vote_type == VoteType.downvote)
-    return {
-        "post_id": post_id,
-        "upvotes": upvotes,
-        "downvotes": downvotes,
-        "total": len(votes),
-    }
+class VoteRemoveIn(BaseModel):
+    target_type: str = Field(pattern="^(solution|amendment|comment)$")
+    target_id: int
+
+
+@router.delete("")
+async def remove_vote(
+    body: VoteRemoveIn, user: VerifiedUser, session: SessionDep
+) -> dict:
+    return await votes_service.withdraw(
+        session, user=user, target_type=body.target_type, target_id=body.target_id
+    )

@@ -1,0 +1,35 @@
+
+1. Images off — the platform ships no <img>, no background-image, and no icon font.
+   none found: every page is text, CSS colour and gradient only
+
+2. Every form control has a label bound to it by id.
+   every control is labelled
+
+3. Interactive elements are native and therefore keyboard reachable.
+src/app/umbrellas/[id]/page.tsx:338:                                    onClick={async () => {
+src/app/umbrellas/[id]/page.tsx:394:                            onClick={async () => {
+src/app/ballot/page.tsx:141:                            onClick={() => void vote(ballot.cycle_id, item.ballot_item_id, choice)}
+src/app/admin/page.tsx:161:                        onClick={() => void run(`/admin/cycles/${live.id}/${step.action}`)}
+src/app/admin/page.tsx:170:                        onClick={() => {
+   every onClick above sits on a <button>; there are no clickable <div>s
+
+4. Landmarks, skip link, and live regions.
+   landmark and ARIA attributes in the source: 14
+   skip link present in the served HTML: class=skip-link
+   main landmark present: <main id=main>
+   navigation landmark present: <nav aria-label=Main
+
+5. Focus is never removed, and tap targets are at least 44px.
+56::focus-visible {
+113:  min-height: 44px; /* a comfortable target on a phone */
+135:  min-height: 44px;
+
+6. Nothing depends on colour alone: every badge and status also carries words.
+   badges, all of which render text: 3
+
+7. Reduced motion is respected.
+165:@media (prefers-reduced-motion: reduce) {
+
+8. Every page declares its language and its own name.
+    <html lang=en>
+   pages that set their own browser-tab title: 24

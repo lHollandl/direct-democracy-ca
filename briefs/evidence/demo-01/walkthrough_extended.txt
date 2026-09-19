@@ -1,0 +1,249 @@
+
+##############################################################################
+# STEP 1 — Six accounts, all residents of San Jose / Santa Clara County
+##############################################################################
+$ POST /auth/signup  (AliceN)
+{"id": 1, "message": "Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ POST /auth/verify-email  (AliceN)
+{"message": "Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ POST /auth/login  (AliceN)
+{"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzg5MzYwMTYwLCJleHAiOjE3ODkzNjE5NjAsImp0aSI6ImRmNjJhMDQ2ODZlMTRhNDRhOTU4MjY5MzM0YTZjYWNlIn0.7gtj7q2Rp4_4q8xB-NR9HNooDYuYMlY5G41a_ga2i7g", "token_type": "bearer", "user_id": 1, "email_verified": true}
+HTTP 200
+
+$ POST /auth/signup  (BenO)
+{"id": 2, "message": "Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ POST /auth/verify-email  (BenO)
+{"message": "Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ POST /auth/login  (BenO)
+{"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzg5MzYwMTYwLCJleHAiOjE3ODkzNjE5NjAsImp0aSI6IjAzZDM4YTBjOWE0ZDRjZWY4MmNkOTkyZTMxYzUyOTM2In0.KvlyVfC3Vs8MQc_tiJ0OAauAABcXsHlQxLXfilweec8", "token_type": "bearer", "user_id": 2, "email_verified": true}
+HTTP 200
+
+$ POST /auth/signup  (CarlaS)
+{"id": 3, "message": "Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ POST /auth/verify-email  (CarlaS)
+{"message": "Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ POST /auth/login  (CarlaS)
+{"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiaWF0IjoxNzg5MzYwMTYwLCJleHAiOjE3ODkzNjE5NjAsImp0aSI6IjRkZmYzOTE2NjFjZjQyZTRhMjNlZTM5Y2NjMDMzZGMyIn0.ZYrfyvAnaanuMlJsPZMKVxbU8g36Pc6u73Gsstc_Y6c", "token_type": "bearer", "user_id": 3, "email_verified": true}
+HTTP 200
+
+$ POST /auth/signup  (DerekK)
+{"id": 4, "message": "Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ POST /auth/verify-email  (DerekK)
+{"message": "Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ POST /auth/login  (DerekK)
+{"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0IiwiaWF0IjoxNzg5MzYwMTYxLCJleHAiOjE3ODkzNjE5NjEsImp0aSI6ImVlZGFkNDY1YjIxYjRhNWQ5ZmNlNGRkMTIyY2JiMGExIn0.7UYBPP-rx-IrFRHRK8R9_rG2g1Vgwa6C-fIaoIrbY4k", "token_type": "bearer", "user_id": 4, "email_verified": true}
+HTTP 200
+
+$ POST /auth/signup  (ElenaV)
+{"id": 5, "message": "Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ POST /auth/verify-email  (ElenaV)
+{"message": "Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ POST /auth/login  (ElenaV)
+{"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwiaWF0IjoxNzg5MzYwMTYxLCJleHAiOjE3ODkzNjE5NjEsImp0aSI6IjE4OGYyZTU5YjgzNDRmYWY5ZjJlNDcwM2VjYTg5ZGU2In0.kFoTFRBaeEp-_R5qn72_ntCRqeAzStneuNTVltXIRyk", "token_type": "bearer", "user_id": 5, "email_verified": true}
+HTTP 200
+
+$ POST /auth/signup  (FaridH)
+{"id": 6, "message": "Account created. Check your email and use the confirmation link before posting, voting or commenting."}
+HTTP 201
+
+$ POST /auth/verify-email  (FaridH)
+{"message": "Email confirmed. You can now post, vote and comment."}
+HTTP 200
+
+$ POST /auth/login  (FaridH)
+{"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2IiwiaWF0IjoxNzg5MzYwMTYxLCJleHAiOjE3ODkzNjE5NjEsImp0aSI6IjE5ZjhkYzFjNmEzNTRkM2U4Y2U0ZDc0OGU2OWRiNDlmIn0.sE6cA42xNiqXoKxRCCqyBL6Orhdm-Hq1eQnJlSnQ3vE", "token_type": "bearer", "user_id": 6, "email_verified": true}
+HTTP 200
+
+
+##############################################################################
+# STEP 2 — Alice becomes an administrator — no endpoint, only the script (DEMOCRACY.md §13)
+##############################################################################
+$ python backend/scripts/grant_admin.py alice_admin@example.com --dry-run
+WOULD GRANT administrator on alice_admin@example.com (user 1)
+$ python backend/scripts/grant_admin.py alice_admin@example.com --apply
+GRANT administrator on alice_admin@example.com (user 1)
+
+
+##############################################################################
+# STEP 3 — (a) Alice — the admin, who is also the author — posts one problem with two solutions to both the city and the county community (DEMOCRACY.md §4.1)
+##############################################################################
+$ POST /posts  (Alice, 2 solutions, city + county)
+{"id": 1, "label_status": "pending", "message": "Posted. It is being filed into an umbrella now \u2014 that usually takes a moment. You can confirm or correct where it lands."}
+HTTP 201
+
+... waiting for the labeling job to file both communities ...
+{"id": 1, "title": "Homeless encampments along the creeks in this city create real health and\u2026", "problem_text": "Homeless encampments along the creeks in this city create real health and safety concerns for nearby residents, and the underlying cause is regional: rents and home prices across the county have outpaced wages for years, so fewer people can afford to stay housed.", "author": "AliceN", "author_id": 1, "created_at": "2026-09-14T04:29:22.466105Z", "content_hash": "a3f8132afcfb28b4e01753b6204585230a970b8c98d8a37dae258314a32d36cb", "label_status": "labeled", "category_choice": "ai", "ai_influence": {"ai_contribution_percentage": 0, "label": "AI assistance on this platform: 0%", "explanation": "This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."}, "communities": [{"community": {"level": "city", "entity_id": 408, "name": "San Jose", "label": "San Jose (city)"}, "umbrella_id": 3, "umbrella_name": "Encampments Along Creeks and Trails", "main_category": "Housing and Homelessness", "label_status": "Filed", "label_outcome": "unreviewed", "label_shown_as": "AI-labeled, not yet reviewed by the author", "confidence": 1.0, "solution_ids": [1, 2]}, {"community": {"level": "county", "entity_id": 43, "name": "Santa Clara", "label": "Santa Clara County"}, "umbrella_id": 6, "umbrella_name": "Affordable Housing Supply", "main_category": "Housing and Homelessness", "label_status": "Filed", "label_outcome": "unreviewed", "label_shown_as": "AI-labeled, not yet reviewed by the author", "confidence": 1.0, "solution_ids": [3, 4]}], "solution_texts": [{"id": 1, "position": 1, "text": "Fund a coordinated outreach and cleanup program for encampments along creeks and trails, with services offered before any site is cleared.", "content_hash": "1c9d47c91c16d3568af8f4745b2d2704f4fb5caab78e036e32e0aa56c7d6051d"}, {"id": 2, "position": 2, "text": "Set an annual target for new affordable housing units approved countywide, published and tracked publicly.", "content_hash": "a930752d92f35d9ebffd464ff0ee6d61aa2f2aaa29ac3b2cf38339cb94541d42"}], "immutable_note": "Posts cannot be edited or deleted in this build. The problem text was fingerprinted when it was created. The solutions evolve in the workshop."}
+
+city umbrella: 3   county umbrella: 6
+solutions rows for this post, read directly from the database:
+  {'id': 1, 'umbrella_id': 3, 'post_solution_id': 1, 'author_id': 1}
+  {'id': 2, 'umbrella_id': 3, 'post_solution_id': 2, 'author_id': 1}
+  {'id': 3, 'umbrella_id': 6, 'post_solution_id': 1, 'author_id': 1}
+  {'id': 4, 'umbrella_id': 6, 'post_solution_id': 2, 'author_id': 1}
+Confirmed: four solutions rows, two per umbrella, each with its post_solution_id.
+
+##############################################################################
+# STEP 4 — (b) members vote the city solution dominant and qualified; a jury of three is drawn from a pool of five (Alice excluded as admin and as author)
+##############################################################################
+$ GET /umbrellas/3/solutions
+{"ordering": {"version": "solutions-v0", "explanation": "Highest net score first; where two solutions have the same score, the older one is shown first. Nothing is ever hidden \u2014 a solution with a negative score appears at the bottom of the list."}, "solutions": [{"id": 1, "text": "Fund a coordinated outreach and cleanup program for encampments along creeks and trails, with services offered before any site is cleared.", "version": 1, "version_hash": "66983638283d181447fb8b603a50c277b400f878bbcaf6789d7d67692df21bc6", "author": "AliceN", "net_score": 0, "my_vote": null, "status_badge": null, "is_dominant": false, "dominant_since": null, "on_track_for_ballot": false, "last_ballot_result": null, "last_ballot_version": null, "post_id": 1, "ai_influence": {"ai_contribution_percentage": 0, "label": "AI assistance on this platform: 0%", "explanation": "This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."}, "created_at": "2026-09-14T04:29:23.206692Z"}, {"id": 2, "text": "Set an annual target for new affordable housing units approved countywide, published and tracked publicly.", "version": 1, "version_hash": "9c956265a614e3322bddfbf89781c1194c05ee9b04e97cb86b77f0fb4e4584f0", "author": "AliceN", "net_score": 0, "my_vote": null, "status_badge": null, "is_dominant": false, "dominant_since": null, "on_track_for_ballot": false, "last_ballot_result": null, "last_ballot_version": null, "post_id": 1, "ai_influence": {"ai_contribution_percentage": 0, "label": "AI assistance on this platform: 0%", "explanation": "This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."}, "created_at": "2026-09-14T04:29:23.209402Z"}]}
+HTTP 200
+
+$ PUT /votes  (ben@example.com +1 on solution 1)
+{"target_type": "solution", "target_id": 1, "net_score": 1, "upvotes": 1, "downvotes": 0, "is_dominant": true, "dominant_since": "2026-09-14T04:29:23.832373Z", "dominance_changed": true, "dominant_threshold": 1, "active_users": 6, "on_track_for_ballot": true, "ballot_threshold": 1}
+HTTP 200
+
+$ PUT /votes  (carla@example.com +1 on solution 1)
+{"target_type": "solution", "target_id": 1, "net_score": 2, "upvotes": 2, "downvotes": 0, "is_dominant": true, "dominant_since": "2026-09-14T04:29:23.832373Z", "dominance_changed": false, "dominant_threshold": 1, "active_users": 6, "on_track_for_ballot": true, "ballot_threshold": 1}
+HTTP 200
+
+$ PUT /votes  (derek@example.com +1 on solution 1)
+{"target_type": "solution", "target_id": 1, "net_score": 3, "upvotes": 3, "downvotes": 0, "is_dominant": true, "dominant_since": "2026-09-14T04:29:23.832373Z", "dominance_changed": false, "dominant_threshold": 1, "active_users": 6, "on_track_for_ballot": true, "ballot_threshold": 1}
+HTTP 200
+
+$ GET /solutions/1
+{"id": 1, "umbrella": {"id": 3, "name": "Encampments Along Creeks and Trails"}, "community": {"level": "city", "entity_id": 408, "name": "San Jose", "label": "San Jose (city)"}, "text": "Fund a coordinated outreach and cleanup program for encampments along creeks and trails, with services offered before any site is cleared.", "current_version": 1, "author": "AliceN", "net_score": 3, "my_vote": null, "supporters": 3, "is_dominant": true, "dominant_since": "2026-09-14T04:29:23.832373Z", "dominant_threshold": 1, "ballot_threshold": 1, "absorption_threshold": 1, "on_track_for_ballot": true, "last_ballot_result": null, "last_ballot_version": null, "return_rule_note": "A solution that has been on a ballot \u2014 passed, failed or held back \u2014 returns only once it has a newer version. The way back is an amendment.", "ownership_note": "Solutions belong to the community once posted. The author is recorded and shown; changes happen through amendments.", "versions": [{"version": 1, "text": "Fund a coordinated outreach and cleanup program for encampments along creeks and trails, with services offered before any site is cleared.", "written_by": "AliceN", "from_amendment_id": null, "content_hash": "66983638283d181447fb8b603a50c277b400f878bbcaf6789d7d67692df21bc6", "created_at": "2026-09-14T04:29:23.206692Z"}], "amendments": [], "similar_pairs": [], "discussion": [], "discussion_note": null, "ai_influence": {"ai_contribution_percentage": 0, "label": "AI assistance on this platform: 0%", "explanation": "This is the share of the text that was written by AI the platform provided. This build offers no AI writing help, so it is 0% everywhere. Text somebody pasted in from an AI tool elsewhere cannot be detected, and this figure does not claim otherwise."}}
+HTTP 200
+
+$ POST /admin/settings  (ballot_min_dominant_days -> 0)
+{"key": "ballot_min_dominant_days", "old_value": 3, "new_value": 0, "message": "Changed. The new value is on the public settings page and the change is in the public admin log."}
+HTTP 200
+
+$ POST /admin/cycles/prepare  (city)
+{"cycle_id": 1, "number": 1, "state": "jury_review", "community": {"level": "city", "entity_id": 408, "name": "San Jose", "label": "San Jose (city)"}, "active_users_at_prepare": 6, "items": [{"solution_id": 1, "version": 1, "umbrella": "Encampments Along Creeks and Trails", "net_score": 3}], "considered": [{"solution_id": 2, "umbrella": "Encampments Along Creeks and Trails", "net_score": 0, "conditions": {"dominant": false, "dominant_long_enough": false, "score_at_or_above_ballot_threshold": false, "newer_than_last_ballot_version": true}}, {"solution_id": 1, "umbrella": "Encampments Along Creeks and Trails", "net_score": 3, "conditions": {"dominant": true, "dominant_long_enough": true, "score_at_or_above_ballot_threshold": true, "newer_than_last_ballot_version": true}}], "jury": {"jury_id": 1, "size_requested": 3, "eligible_pool_size": 5, "drawn": 3, "note": null}, "zero_item_note": null}
+HTTP 200
+
+
+##############################################################################
+# STEP 5 — Discovering who was drawn (each account can see only its own jury duty)
+##############################################################################
+$ GET /juries/mine  (ben@example.com)
+{"duties": [{"juror_id": 3, "seat": 3, "status": "drawn", "cycle_id": 1, "cycle_number": 1, "cycle_state": "jury_review", "community": {"level": "city", "entity_id": 408, "name": "San Jose", "label": "San Jose (city)"}, "what_you_can_do": "You can look at every solution that qualified and, for any of them, hold it back with a written reason that will be published. You cannot change anything, and you cannot add anything. Doing nothing is a valid answer.", "items": []}], "note": "Jurors are anonymous to the public \u2014 the published document says 'Juror 1 of 3' \u2014 and the reasons you write are published in full."}
+HTTP 200
+
+$ GET /juries/mine  (carla@example.com)
+{"duties": [], "note": "Jurors are anonymous to the public \u2014 the published document says 'Juror 1 of 3' \u2014 and the reasons you write are published in full."}
+HTTP 200
+
+$ GET /juries/mine  (derek@example.com)
+{"duties": [{"juror_id": 1, "seat": 1, "status": "drawn", "cycle_id": 1, "cycle_number": 1, "cycle_state": "jury_review", "community": {"level": "city", "entity_id": 408, "name": "San Jose", "label": "San Jose (city)"}, "what_you_can_do": "You can look at every solution that qualified and, for any of them, hold it back with a written reason that will be published. You cannot change anything, and you cannot add anything. Doing nothing is a valid answer.", "items": []}], "note": "Jurors are anonymous to the public \u2014 the published document says 'Juror 1 of 3' \u2014 and the reasons you write are published in full."}
+HTTP 200
+
+$ GET /juries/mine  (elena@example.com)
+{"duties": [], "note": "Jurors are anonymous to the public \u2014 the published document says 'Juror 1 of 3' \u2014 and the reasons you write are published in full."}
+HTTP 200
+
+$ GET /juries/mine  (farid@example.com)
+{"duties": [{"juror_id": 2, "seat": 2, "status": "drawn", "cycle_id": 1, "cycle_number": 1, "cycle_state": "jury_review", "community": {"level": "city", "entity_id": 408, "name": "San Jose", "label": "San Jose (city)"}, "what_you_can_do": "You can look at every solution that qualified and, for any of them, hold it back with a written reason that will be published. You cannot change anything, and you cannot add anything. Doing nothing is a valid answer.", "items": []}], "note": "Jurors are anonymous to the public \u2014 the published document says 'Juror 1 of 3' \u2014 and the reasons you write are published in full."}
+HTTP 200
+
+$ POST /jurors/3/accept  (accepts)
+{"juror_id": 3, "status": "accepted", "message": "Thank you. You can now look at every solution that qualified and hold any of them back with a written reason."}
+HTTP 200
+
+$ POST /jurors/1/decline  (declines)
+{"declined": 1, "replacement_drawn": true, "note": "Thank you for answering quickly \u2014 someone else has been drawn."}
+HTTP 200
+
+(farid@example.com never responds — left at status 'drawn' on purpose.)
+$ POST /jurors/4/accept  (the replacement accepts)
+{"juror_id": 4, "status": "accepted", "message": "Thank you. You can now look at every solution that qualified and hold any of them back with a written reason."}
+HTTP 200
+
+
+##############################################################################
+# STEP 6 — One seated juror holds an item back; one of two is not a majority
+##############################################################################
+$ POST /ballot-items/1/holdback  (ben@example.com)
+{"ballot_item_id": 1, "note": "Recorded. Jurors do not see each other's hold-backs until the ballot opens. Your reason will be published with the results."}
+HTTP 200
+
+$ POST /admin/cycles/1/open
+{"cycle_id": 1, "state": "open", "opened_at": "2026-09-14T04:29:23.972614Z", "would_close_on": "2026-09-21T04:29:23.972614Z", "jurors_drawn": 4, "jurors_seated": 2, "items_votable": 1, "items_held_back": 0, "note": "In this build the ballot closes when the director closes it. The window shown is what the setting says it would be."}
+HTTP 200
+
+seated_count = 2 (expected 2)
+the never-responding juror's status is now: 'no_response' (expected 'no_response')
+$ GET /cycles/1/ballot
+{"cycle_id": 1, "cycle_number": 1, "state": "open", "community": {"level": "city", "entity_id": 408, "name": "San Jose", "label": "San Jose (city)"}, "you_can_vote": false, "ordering": {"version": "ballot-order-v0", "explanation": "Ballot items are numbered by umbrella name A-Z, then by net score at the snapshot (highest first), then by solution id (lowest first)."}, "privacy_note": "Your ballot votes are shown to you and to nobody else. Not to other voters, and not to administrators \u2014 they see totals only.", "items": [{"ballot_item_id": 1, "position": 1, "umbrella": "Encampments Along Creeks and Trails", "solution_id": 1, "frozen_version": 1, "frozen_text": "Fund a coordinated outreach and cleanup program for encampments along creeks and trails, with services offered before any site is cleared.", "frozen_hash": "66983638283d181447fb8b603a50c277b400f878bbcaf6789d7d67692df21bc6", "net_score_at_snapshot": 3, "held_back": false, "votable": true, "my_vote": null, "yes_count": null, "no_count": null, "result": null}]}
+HTTP 200
+
+Confirmed: the item is still votable — one hold-back of two seated is not a majority.
+$ PUT /cycles/1/ballot/1/vote  (alice_admin@example.com, yes)
+{"ballot_item_id": 1, "your_vote": "yes", "note": "You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ PUT /cycles/1/ballot/1/vote  (ben@example.com, yes)
+{"ballot_item_id": 1, "your_vote": "yes", "note": "You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ PUT /cycles/1/ballot/1/vote  (carla@example.com, yes)
+{"ballot_item_id": 1, "your_vote": "yes", "note": "You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ PUT /cycles/1/ballot/1/vote  (derek@example.com, yes)
+{"ballot_item_id": 1, "your_vote": "yes", "note": "You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ PUT /cycles/1/ballot/1/vote  (elena@example.com, yes)
+{"ballot_item_id": 1, "your_vote": "yes", "note": "You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ PUT /cycles/1/ballot/1/vote  (farid@example.com, yes)
+{"ballot_item_id": 1, "your_vote": "yes", "note": "You can change this until the ballot closes. Only you can see it."}
+HTTP 200
+
+$ POST /admin/cycles/1/close
+{"cycle_id": 1, "state": "closed", "closed_at": "2026-09-14T04:29:24.023362Z", "results": [{"ballot_item_id": 1, "yes": 6, "no": 0, "result": "passed"}]}
+HTTP 200
+
+$ POST /admin/cycles/1/publish
+{"summary_hash": "fe42d6a5afda7ee6bde656e1415fdd59db4e30e200798ada26bf4573ff8fc307", "published_at": "2026-09-14T04:29:24.030784Z", "document": {"document_version": "summary-v1", "rules_version": "rules-v1", "header": {"community_name": "San Jose", "community_level": "city", "community_label": "San Jose (city)", "cycle_number": 1, "ballot_opened_at": "2026-09-14T04:29:23.972614+00:00", "ballot_closed_at": "2026-09-14T04:29:24.023362+00:00", "active_users_at_snapshot": 6, "members_who_voted": 6, "verification_mix": "6 voters: 6 unverified", "verification_mix_counts": {"unverified": 6}, "residency_note": "Residency is self-declared and unverified at this verification level.", "jury": "4 drawn, 2 seated", "jurors_drawn": 4, "jurors_seated": 2, "build": "demo-01"}, "results": [{"position": 1, "umbrella": "Encampments Along Creeks and Trails", "solution_text": "Fund a coordinated outreach and cleanup program for encampments along creeks and trails, with services offered before any site is cleared.", "solution_version": 1, "solution_version_hash": "66983638283d181447fb8b603a50c277b400f878bbcaf6789d7d67692df21bc6", "author_display_at_snapshot": "AliceN", "ai_influence_percentage": 0, "ai_influence_label": "AI assistance on this platform: 0%", "yes": 6, "no": 0, "result": "Passed"}], "held_back": [], "how_this_was_produced": [{"heading": "Who counted as an active user", "text": "An active user of this community is someone whose home city, county or state is this community, whose email is confirmed, whose account has not been deleted, and who signed in and did something within the window below. That number is the denominator for every percentage on this page.", "settings_in_force": "active_user_window_days = 30; active users at snapshot = 6", "rule_version": "rules-v1"}, {"heading": "How a solution became dominant", "text": "A solution becomes dominant when the number of people who upvoted it, minus the number who downvoted it, reaches a threshold: a percentage of the active users or a fixed number, whichever is lower, and never less than one. Dominant solutions are the only ones that can be amended and discussed.", "settings_in_force": "dominant_pct = 5.0; dominant_min = 3", "rule_version": "rules-v1"}, {"heading": "How a solution qualified for this ballot", "text": "At the moment the ballot was prepared, a solution qualified if it was dominant, had been dominant for long enough, had a score at or above the ballot threshold, and \u2014 if it had ever been on a ballot before, whether it passed, failed or was held back \u2014 had been changed since. Nothing returns to the ballot unchanged; the way back is an amendment.", "settings_in_force": "ballot_pct = 10.0; ballot_min = 5; ballot_min_dominant_days = 0", "rule_version": "rules-v1"}, {"heading": "How the jury was drawn and what it could do", "text": "Jurors were drawn at random from this community's active users, leaving out anyone who wrote or proposed a change to a solution on this ballot, and leaving out administrators. The draw is recorded with the pool it drew from. A juror could do nothing, or hold a solution back with a written reason that is published below. A hold-back took effect when more than half of the seated jurors held the same solution back. Jurors could not change anything and could not add anything.", "settings_in_force": "jury_size = 3; jury_no_repeat_cycles = 0; jury_review_days = 2", "rule_version": "rules-v1"}, {"heading": "How a vote passed", "text": "Every member of this community could vote yes or no on every item, once, and could change that vote until the ballot closed. Every vote counted the same, whatever the voter's verification level. An item passed when more people voted yes than no and at least the quorum voted. A tie failed.", "settings_in_force": "ballot_pass_rule = simple_majority; ballot_quorum_min = 1; ballot_window_days = 7", "rule_version": "rules-v1"}], "settings_in_force": {"jury_size": 3, "ballot_min": 5, "ballot_pct": 10.0, "dominant_min": 3, "dominant_pct": 5.0, "amendment_min": 3, "amendment_pct": 25.0, "min_signup_age": 17, "ballot_pass_rule": "simple_majority", "jury_review_days": 2, "ballot_quorum_min": 1, "comment_max_depth": 3, "ballot_window_days": 7, "label_retry_minutes": 10, "comment_edit_minutes": 15, "reference_reject_min": 2, "similarity_threshold": 0.85, "jury_no_repeat_cycles": 0, "similarity_confirm_min": 2, "active_user_window_days": 30, "ballot_min_dominant_days": 0, "references_ai_max_per_umbrella": 5}, "empty_note": null, "send_to_representatives": {"recipients": [{"office": "City Council (all districts)", "email": "audit-director@example.invalid"}, {"office": "Mayor", "email": "audit-director@example.invalid"}], "subject": "Ballot results \u2014 San Jose (city), cycle 1", "note": "Pressing send opens your own email program with this message already written. You send it, from your own address. The platform sends nothing and cannot know whether you pressed send.", "demo_note": "In this build every address in the directory is a test address, not a real official."}}, "verify": {"hash": "fe42d6a5afda7ee6bde656e1415fdd59db4e30e200798ada26bf4573ff8fc307", "algorithm": "SHA-256 of the canonical JSON (keys sorted, UTF-8, no whitespace)", "explanation": "This code is a fingerprint of everything above. It is made by running a standard calculation called SHA-256 over this document's data. If anyone changes one letter of it, the fingerprint will not match. You can check it yourself: download the JSON from this page, run SHA-256 over the file, and compare. Every published document's fingerprint is listed at /summaries/hashes.", "hash_list_url": "/summaries/hashes"}}
+HTTP 200
+
+$ POST /admin/settings  (ballot_min_dominant_days -> 3)
+{"key": "ballot_min_dominant_days", "old_value": 0, "new_value": 3, "message": "Changed. The new value is on the public settings page and the change is in the public admin log."}
+HTTP 200
+
+
+##############################################################################
+# STEP 7 — (c) in the county, nobody voted on the post's county solutions, so nothing qualifies: a zero-item cycle, published directly, then the next cycle unblocked
+##############################################################################
+$ POST /admin/cycles/prepare  (county, nothing qualifies)
+{"cycle_id": 2, "number": 1, "state": "prepared", "community": {"level": "county", "entity_id": 43, "name": "Santa Clara", "label": "Santa Clara County"}, "active_users_at_prepare": 6, "items": [], "considered": [{"solution_id": 3, "umbrella": "Affordable Housing Supply", "net_score": 0, "conditions": {"dominant": false, "dominant_long_enough": false, "score_at_or_above_ballot_threshold": false, "newer_than_last_ballot_version": true}}, {"solution_id": 4, "umbrella": "Affordable Housing Supply", "net_score": 0, "conditions": {"dominant": false, "dominant_long_enough": false, "score_at_or_above_ballot_threshold": false, "newer_than_last_ballot_version": true}}], "jury": null, "zero_item_note": "No solution qualified. Publish this cycle when ready and the next one can be prepared; no jury is drawn for an empty ballot."}
+HTTP 200
+
+$ POST /admin/cycles/2/publish  (empty summary)
+{"summary_hash": "e60cfe8ede6d1380d6539dfbd643cbb2f2a611a707be53419fe74ed6e4928761", "published_at": "2026-09-14T04:29:24.059593Z", "document": {"document_version": "summary-v1", "rules_version": "rules-v1", "header": {"community_name": "Santa Clara", "community_level": "county", "community_label": "Santa Clara County", "cycle_number": 1, "ballot_opened_at": null, "ballot_closed_at": null, "active_users_at_snapshot": 6, "members_who_voted": 0, "verification_mix": "No votes were cast.", "verification_mix_counts": {}, "residency_note": "Residency is self-declared and unverified at this verification level.", "jury": "No jury was drawn", "jurors_drawn": 0, "jurors_seated": 0, "build": "demo-01"}, "results": [], "held_back": [], "how_this_was_produced": [{"heading": "Who counted as an active user", "text": "An active user of this community is someone whose home city, county or state is this community, whose email is confirmed, whose account has not been deleted, and who signed in and did something within the window below. That number is the denominator for every percentage on this page.", "settings_in_force": "active_user_window_days = 30; active users at snapshot = 6", "rule_version": "rules-v1"}, {"heading": "How a solution became dominant", "text": "A solution becomes dominant when the number of people who upvoted it, minus the number who downvoted it, reaches a threshold: a percentage of the active users or a fixed number, whichever is lower, and never less than one. Dominant solutions are the only ones that can be amended and discussed.", "settings_in_force": "dominant_pct = 5.0; dominant_min = 3", "rule_version": "rules-v1"}, {"heading": "How a solution qualified for this ballot", "text": "At the moment the ballot was prepared, a solution qualified if it was dominant, had been dominant for long enough, had a score at or above the ballot threshold, and \u2014 if it had ever been on a ballot before, whether it passed, failed or was held back \u2014 had been changed since. Nothing returns to the ballot unchanged; the way back is an amendment.", "settings_in_force": "ballot_pct = 10.0; ballot_min = 5; ballot_min_dominant_days = 3", "rule_version": "rules-v1"}, {"heading": "How the jury was drawn and what it could do", "text": "Jurors were drawn at random from this community's active users, leaving out anyone who wrote or proposed a change to a solution on this ballot, and leaving out administrators. The draw is recorded with the pool it drew from. A juror could do nothing, or hold a solution back with a written reason that is published below. A hold-back took effect when more than half of the seated jurors held the same solution back. Jurors could not change anything and could not add anything.", "settings_in_force": "jury_size = 3; jury_no_repeat_cycles = 0; jury_review_days = 2", "rule_version": "rules-v1"}, {"heading": "How a vote passed", "text": "Every member of this community could vote yes or no on every item, once, and could change that vote until the ballot closed. Every vote counted the same, whatever the voter's verification level. An item passed when more people voted yes than no and at least the quorum voted. A tie failed.", "settings_in_force": "ballot_pass_rule = simple_majority; ballot_quorum_min = 1; ballot_window_days = 7", "rule_version": "rules-v1"}], "settings_in_force": {"jury_size": 3, "ballot_min": 5, "ballot_pct": 10.0, "dominant_min": 3, "dominant_pct": 5.0, "amendment_min": 3, "amendment_pct": 25.0, "min_signup_age": 17, "ballot_pass_rule": "simple_majority", "jury_review_days": 2, "ballot_quorum_min": 1, "comment_max_depth": 3, "ballot_window_days": 7, "label_retry_minutes": 10, "comment_edit_minutes": 15, "reference_reject_min": 2, "similarity_threshold": 0.85, "jury_no_repeat_cycles": 0, "similarity_confirm_min": 2, "active_user_window_days": 30, "ballot_min_dominant_days": 3, "references_ai_max_per_umbrella": 5}, "empty_note": "No solutions reached the ballot this cycle.", "send_to_representatives": {"recipients": [{"office": "Board of Supervisors", "email": "audit-director@example.invalid"}], "subject": "Ballot results \u2014 Santa Clara County, cycle 1", "note": "Pressing send opens your own email program with this message already written. You send it, from your own address. The platform sends nothing and cannot know whether you pressed send.", "demo_note": "In this build every address in the directory is a test address, not a real official."}}, "verify": {"hash": "e60cfe8ede6d1380d6539dfbd643cbb2f2a611a707be53419fe74ed6e4928761", "algorithm": "SHA-256 of the canonical JSON (keys sorted, UTF-8, no whitespace)", "explanation": "This code is a fingerprint of everything above. It is made by running a standard calculation called SHA-256 over this document's data. If anyone changes one letter of it, the fingerprint will not match. You can check it yourself: download the JSON from this page, run SHA-256 over the file, and compare. Every published document's fingerprint is listed at /summaries/hashes.", "hash_list_url": "/summaries/hashes"}}
+HTTP 200
+
+empty summary hash: e60cfe8ede6d1380d6539dfbd643cbb2f2a611a707be53419fe74ed6e4928761
+$ POST /admin/cycles/prepare  (county, cycle 2 — proves the community is unblocked)
+{"cycle_id": 3, "number": 2, "state": "prepared", "community": {"level": "county", "entity_id": 43, "name": "Santa Clara", "label": "Santa Clara County"}, "active_users_at_prepare": 6, "items": [], "considered": [{"solution_id": 3, "umbrella": "Affordable Housing Supply", "net_score": 0, "conditions": {"dominant": false, "dominant_long_enough": false, "score_at_or_above_ballot_threshold": false, "newer_than_last_ballot_version": true}}, {"solution_id": 4, "umbrella": "Affordable Housing Supply", "net_score": 0, "conditions": {"dominant": false, "dominant_long_enough": false, "score_at_or_above_ballot_threshold": false, "newer_than_last_ballot_version": true}}], "jury": null, "zero_item_note": "No solution qualified. Publish this cycle when ready and the next one can be prepared; no jury is drawn for an empty ballot."}
+HTTP 200
+
+
+##############################################################################
+# STEP 8 — Done
+##############################################################################
+All three scenarios exercised end to end against the live server.

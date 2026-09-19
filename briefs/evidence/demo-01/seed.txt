@@ -1,0 +1,134 @@
+=== python -m backend.seed --apply ===
+=== backend.seed — APPLY ===
+[settings (DEMOCRACY.md §7.4)]
+  to write:            22
+  already present:     0
+  in database only:    0
+    + active_user_window_days = 30
+    + dominant_pct = 5
+    + dominant_min = 3
+    + amendment_pct = 25
+    + amendment_min = 3
+    + ballot_pct = 10
+    + ballot_min = 5
+    + ballot_min_dominant_days = 3
+    + similarity_threshold = 0.85
+    + similarity_confirm_min = 2
+    + ... and 12 more
+[geography: state]
+  to write:            1
+  already present:     0
+  in database only:    0
+    + California (CA)
+[geography: counties]
+  to write:            58
+  already present:     0
+  in database only:    0
+    + Alameda (06001)
+    + Alpine (06003)
+    + Amador (06005)
+    + Butte (06007)
+    + Calaveras (06009)
+    + Colusa (06011)
+    + Contra Costa (06013)
+    + Del Norte (06015)
+    + El Dorado (06017)
+    + Fresno (06019)
+    + ... and 48 more
+[geography: cities]
+  to write:            483
+  already present:     0
+  in database only:    0
+    + Alameda, Alameda
+    + Albany, Alameda
+    + Berkeley, Alameda
+    + Dublin, Alameda
+    + Emeryville, Alameda
+    + Fremont, Alameda
+    + Hayward, Alameda
+    + Livermore, Alameda
+    + Newark, Alameda
+    + Oakland, Alameda
+    + ... and 473 more
+[legal: terms version]
+  to write:            1
+  already present:     0
+  in database only:    0
+    + 2026-09-draft-1
+[officials directory]
+  to write:            5
+  already present:     0
+  in database only:    0
+    + Mayor — San Jose, Santa Clara County
+    + City Council (all districts) — San Jose, Santa Clara County
+    + Board of Supervisors — Santa Clara County
+    + State Assembly Member — California
+    + State Senator — California
+[main categories (config mirror)]
+  to write:            10
+  already present:     0
+  in database only:    0
+    + Roads and Infrastructure
+    + Housing and Homelessness
+    + Public Safety
+    + Environmental Issues
+    + Education
+    + Public Transit
+    + Water and Utilities
+    + Parks and Recreation
+    + Economic Development
+    + Government Accountability
+[umbrellas (Iteration)]
+  to write:            10
+  already present:     0
+  in database only:    0
+    + Road Damage and Pothole Repair — San Jose, Santa Clara County
+    + Pedestrian Safety Near Schools — San Jose, Santa Clara County
+    + Encampments Along Creeks and Trails — San Jose, Santa Clara County
+    + Park Maintenance and Restroom Access — San Jose, Santa Clara County
+    + Bus and Light Rail Frequency — Santa Clara County
+    + Affordable Housing Supply — Santa Clara County
+    + Wildfire Smoke and Air Quality Response — Santa Clara County
+    + Electricity Costs and Reliability — California
+    + Public Access to Government Records — California
+    + Teacher Retention and Classroom Funding — California
+---
+pending writes: 590
+
+=== python -m backend.seed --dry-run  (re-run after seeding) ===
+=== backend.seed — DRY RUN ===
+[settings (DEMOCRACY.md §7.4)]
+  to write:            0
+  already present:     22
+  in database only:    0
+[geography: state]
+  to write:            0
+  already present:     1
+  in database only:    0
+[geography: counties]
+  to write:            0
+  already present:     58
+  in database only:    0
+[geography: cities]
+  to write:            0
+  already present:     483
+  in database only:    0
+[legal: terms version]
+  to write:            0
+  already present:     1
+  in database only:    0
+[officials directory]
+  to write:            0
+  already present:     5
+  in database only:    0
+[main categories (config mirror)]
+  to write:            0
+  already present:     10
+  in database only:    0
+[umbrellas (Iteration)]
+  to write:            0
+  already present:     10
+  in database only:    0
+---
+pending writes: 0
+Nothing to do: every seed row is already in the database.

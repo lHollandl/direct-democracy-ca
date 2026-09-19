@@ -1,1 +1,15 @@
-Generic single-database configuration.
+Two migration chains share this directory (DATABASE.md §2, §6).
+
+  foundation/  permanent from the adoption of CLAUDE.md; never edited after
+               `alembic upgrade` has run against any real database.
+  iteration/   regenerated fresh for each demo until the director declares a
+               keeper build; immutable from that build onward.
+
+Apply both, in this order, against an empty database:
+
+  alembic upgrade foundation@head
+  alembic upgrade iteration@head
+
+Migrations are schema-only. No INSERT, no UPDATE, no backfill: seeds are
+`python -m backend.seed --apply` and data fixes are scripts under
+backend/scripts/, each re-runnable with --dry-run.

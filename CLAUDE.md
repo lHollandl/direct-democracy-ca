@@ -135,7 +135,8 @@ the more secure option even if it takes longer to build.
 
 **8. Accessibility and inclusion.**
 Democracy only works when everyone can participate. Every component is
-accessible — ARIA labels, keyboard navigation, screen readers. Plain
+accessible — ARIA labels, keyboard navigation, screen readers — to the
+WCAG 2.1 AA standard, which is the named bar for every page. Plain
 language over jargon in all UI copy. The platform works on low-end
 devices and slow connections, and every page works with images off.
 Never assume the user is technical. Complex concepts — hashing, AI
@@ -158,11 +159,14 @@ pre-checks before every edit, evidence pasted for every claim.
 
 **Iteration** is the civic machinery — posts, umbrellas, the workshop,
 the jury, the ballot, the summary document, and all of their UI. It is
-rebuilt freely, demo after demo, and each rebuild starts from the
-documents rather than the previous code. Iteration schema is
-regenerated fresh for each demo. When a demo build becomes worth
-keeping, the director declares it the **keeper**, and from that build
-onward Iteration is under the same rigor as Foundation.
+revised freely, demo after demo, and the documents — not the previous
+demo — are always the truth: each demo's brief names what changed in the
+documents since the last one, and Claude Code rebuilds those parts, while
+the Iteration **schema and data** are regenerated fresh for each demo.
+Audited code that the documents still describe is carried forward, not
+rewritten to prove a point. When a demo build becomes worth keeping, the
+director declares it the **keeper**, and from that build onward Iteration
+is under the same rigor as Foundation.
 
 The boundary rule: Iteration code may read Foundation tables but never
 migrates them. Foundation prompts never touch Iteration tables. The
@@ -197,7 +201,10 @@ and no new code writes to it. This protects historical civic data.
 
 **6. `content_hash` is permanent.** Generated at creation for every
 post, solution, and summary document from the content plus its AI
-metadata. Never modified or deleted afterward.
+metadata. Never modified or deleted afterward. Where the process allows
+text to change — an author's pre-vote edit, a comment's edit window —
+the change is a **new hashed row**, never a rewrite: every version and
+revision is kept with its own hash, and the earlier one stays valid.
 
 **7. Every AI action is a row.** Labels, recommendations, groupings,
 summaries — each one is recorded before its result is shown, with
@@ -234,7 +241,8 @@ returned to the client as a generic message. No `except: pass`. No
 
 **13. Input is validated and parameterized.** Every request body is a
 Pydantic model. Every query is parameterized. Passwords are bcrypt
-hashed, minimum 8 characters with an uppercase letter and a number.
+hashed, minimum 8 characters with an uppercase letter and a number,
+maximum 72 bytes (bcrypt's limit — refused, never silently truncated).
 Every endpoint that creates or modifies data is rate limited.
 
 **14. The backend is independent of the frontend.** Every action is

@@ -1,6 +1,6 @@
 # This is the seed main category list controlled by the platform owner.
 # Subcategories are NOT defined here — they are umbrella problems created through
-# the democratic proposal system. See TODO.md for full design. To add a main
+# the democratic proposal system. See the tracker for the full design. To add a main
 # category before the proposal system is built, add it to this list and restart
 # the server.
 

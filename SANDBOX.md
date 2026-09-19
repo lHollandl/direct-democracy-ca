@@ -75,8 +75,10 @@ sbx
 ### 4.1 Anthropic
 Either store an API key as a sandbox secret — `sbx secret set anthropic`
 (verified) — or use `/login` inside Claude Code for a Claude
-subscription. Sandboxes do not inherit the host's `~/.claude`; each
-sandbox authenticates on its own.
+subscription. **Confirmed 2026-09-12:** a subscription login done once
+inside a sandbox persists for later sandboxes on the same host (a
+second sandbox started straight into a working prompt). Unattended runs
+are therefore possible with the subscription.
 
 ### 4.2 GitHub
 The fine-grained token from the security cleanup (repo:
@@ -118,9 +120,15 @@ sbx policy allow network files.pythonhosted.org
 sbx policy allow network registry.npmjs.org
 sbx policy allow network registry-1.docker.io
 sbx policy allow network auth.docker.io
-sbx policy allow network production.cloudflare.docker.com
+sbx policy allow network production.cloudfront.docker.com
 sbx policy allow network <host-ollama-address>:11434
 ```
+
+**Confirmed 2026-09-14:** the Docker Hub blob host is
+`production.cloudfront.docker.com` (an earlier draft of this file said
+`cloudflare`; the demo-01 build could not pull images until the rule was
+corrected). `host.docker.internal` and `localhost` are **not** routes to
+the host from the VM; only the LAN address below is.
 
 **Confirmed:** `<host-ollama-address>` is the host's LAN IP (currently
 `192.168.1.165`; re-check with `ip -4 addr show` if the router
@@ -155,8 +163,15 @@ in its own clone.
 
 ### 6.2 Start the build sandbox (verified command form)
 
+**Sync the host's local branch first — every time.** `--clone` copies the
+host checkout's *local* branches, so a stale local `demo/NN` gives the
+sandbox an old branch (confirmed 2026-09-14: the audit sandbox started
+with `demo/01` at `main` and had to fast-forward itself):
+
 ```
 cd ~/direct-democracy-ca
+git fetch origin
+git switch demo/01 && git pull && git switch main
 sbx run --clone --name ddc-demo-01 claude . -- "$(cat briefs/demo-01.md)"
 ```
 
@@ -164,9 +179,11 @@ sbx run --clone --name ddc-demo-01 claude . -- "$(cat briefs/demo-01.md)"
 untouched. The brief is passed as the prompt. Claude Code starts with
 `--dangerously-skip-permissions` by default inside the sandbox.
 
-**Confirm on first setup:** that the sandbox's clone checks out
-`demo/01` rather than `main` — if not, the brief's first instruction
-(`git switch demo/01`) handles it, and that is what the brief says.
+**Confirmed 2026-09-14:** the clone starts on the host's current branch
+(`main`); the brief's first instruction (`git switch demo/01`) handles
+it. Fix runs use a fresh sandbox (`ddc-demo-NN-fix-K`) started the same
+way with the fix brief; the build sandbox's database is not needed
+because every run rebuilds from empty.
 
 ### 6.3 Review from the host (verified)
 
@@ -183,9 +200,18 @@ pushes `demo/01` with the scoped token.
 
 ### 6.4 Use the demo
 
-Inside the sandbox the app listens on its ports. **Confirm on first
-setup:** how `sbx` exposes a sandbox port to the host browser (port
-forwarding flag or sandbox address). Record the URL pattern here.
+Inside the sandbox the app listens on its ports. **Confirmed 2026-09-19:**
+
+    sbx ports <sandbox-name> --publish 3000:3000 --publish 8000:8000
+    sbx ports <sandbox-name>            # lists the bindings
+
+Publishing starts a stopped sandbox. The bindings are on `127.0.0.1` and
+persist across `sbx stop`. The servers themselves must be started inside
+the VM (bound to `0.0.0.0`), which the director does by reopening the
+sandbox's Claude Code session — `sbx run --name <sandbox-name> claude .`
+reopens a stopped sandbox without cloning again — and asking it to start
+the stack. Claude Code inside a sandbox declines pasted instructions
+that start services; the director types the confirmation.
 
 ### 6.5 Audit sandbox
 
@@ -195,30 +221,38 @@ A second sandbox, read-only on the source:
 sbx run --clone --name ddc-demo-01-audit claude . -- "$(cat briefs/audit.md)"
 ```
 
-**Confirm on first setup:** the flag or filesystem policy that makes
-the clone read-only except `audits/` (Docker's "Filesystem access"
-page). Until confirmed, the audit brief instructs the auditor not to
-edit, and the host diff check (`git diff --stat` against the audit
-remote) proves it didn't — any file outside `audits/` in that diff is
-a `HIGH` finding against the auditor.
+**Confirmed 2026-09-14: the source is writable in the audit sandbox**
+(the auditor's `touch` test succeeded). No read-only flag has been
+found yet. The safeguards are the audit brief's instruction not to edit,
+the auditor's own final `git diff main...HEAD --stat`, and the host
+check of the same diff — any file outside `audits/` and `HISTORY.md` is
+a `HIGH` finding against the auditor. Finding the read-only policy stays
+in §9.
 
 ### 6.6 Finish or discard
 
-- **Foundation:** open a PR from `demo/01` to `main`; merge on the host
-  after the audit is clean.
+- **Foundation:** Foundation changes reach `main` by pull request after
+  a clean audit. (`demo/01` merged whole as the one-time exception
+  recorded in PROJECT.md.)
 - **Iteration:** leave `demo/01` as a branch. Start `demo/02` from
   `main`.
-- Remove the sandbox: `sbx rm ddc-demo-01` (**confirm** exact
-  subcommand). The branch and the remote fetch survive; the VM, its
-  database, and its Docker state do not.
+- Remove the sandbox: `sbx rm ddc-demo-01` (**confirmed**; `sbx ls`
+  lists, `sbx stop` pauses without removing, `sbx prune` clears stopped
+  ones). The branch and the remote fetch survive; the VM, its database,
+  and its Docker state do not.
 
 ---
 
 ## 7. Boundary Checks (run 2026-09-12 — all seven passed; screenshots held by the director)
 
 Inside a throwaway sandbox (`sbx run --clone --name boundary-test
-shell .`). The sandbox user is `agent`, home is `/home/agent`, and the
-clone is at `/home/agent/workspace`.
+shell .`). The sandbox user is `agent`. With `--clone`, the host folder
+is mounted read-only at `/run/sandbox/source` and the sandbox's own
+clone is mounted read-write at the **same path as on the host** (e.g.
+`/home/kees-soares/direct-democracy-ca`), so paths in logs look like
+host paths but are inside the VM. Each sandbox is created with 64 CPUs
+and 32 GiB by default. The run log prints a `claude --resume <id>`
+line; it reopens that session inside the same sandbox.
 
 1. `curl -sS https://api.anthropic.com` — reachable (any HTTP response).
 2. `curl -sS https://example.com` — **blocked**.
@@ -257,10 +291,17 @@ policy, the ruleset, or the token. TODO P0-15 done.
 
 Recorded in TODO P0-15's HISTORY entry when resolved:
 
-- Port exposure for using the demo from the host browser.
-- Read-only filesystem policy for the audit sandbox.
-- `sbx` subcommands for listing and removing sandboxes (`sbx --help`
-  lists them; record the exact names when first used).
+- Read-only filesystem policy for the audit sandbox (confirmed absent by
+  default; the flag, if one exists, is still to be found). The auditor's
+  closing diff and the host diff are the safeguard.
+- `archive.ubuntu.com` and `security.ubuntu.com` are not on the
+  allowlist, so `apt` does not work inside the VM (fix run 4 worked
+  around it with `pip --break-system-packages`). Add both with `sbx
+  policy allow network` if a run needs system packages.
+- (resolved 2026-09-19) `sbx ports` syntax — §6.4.
+- (resolved 2026-09-19) reopening a sandbox — §6.4.
+- (resolved 2026-09-14) the clone starts on the host's current branch;
+  sync the local `demo/NN` before every run — §6.2.
 
 Sources: Docker Sandboxes docs — Install, Claude Code agent page,
 Network access policies (all dated 2026-09-10); Anthropic, "Choose a
