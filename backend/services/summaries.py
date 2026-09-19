@@ -430,6 +430,12 @@ async def hash_list(session: AsyncSession, *, cursor: int | None, limit: int) ->
     }
 
 
+#: ARCHITECTURE.md §6 — a whole-page endpoint embeds only the first page of
+#: any list, with a `next_cursor`; the rest comes from the list's own
+#: endpoint (here, `GET /communities/{level}/{id}/cycles`).
+_PAST_CYCLES_PAGE = 25
+
+
 async def for_user(session: AsyncSession, *, user) -> dict:
     """DEMOCRACY.md §11.4 — the user's three communities' most recent summaries
     and their past cycles. The personalization is which three, not what is in
@@ -444,22 +450,28 @@ async def for_user(session: AsyncSession, *, user) -> dict:
             if summary is None:
                 continue
             published.append(
-                {
-                    "cycle_number": cycle.number,
-                    "published_at": summary.published_at,
-                    "summary_hash": summary.summary_hash,
-                    "url": (
-                        f"/summaries/{community.level}/{community.entity_id}/{cycle.number}"
-                    ),
-                    "item_count": len(summary.data.get("results", []))
-                    + len(summary.data.get("held_back", [])),
-                }
+                (
+                    cycle.id,
+                    {
+                        "cycle_number": cycle.number,
+                        "published_at": summary.published_at,
+                        "summary_hash": summary.summary_hash,
+                        "url": (
+                            f"/summaries/{community.level}/{community.entity_id}/{cycle.number}"
+                        ),
+                        "item_count": len(summary.data.get("results", []))
+                        + len(summary.data.get("held_back", [])),
+                    },
+                )
             )
+        rest = published[1:]
+        page = rest[:_PAST_CYCLES_PAGE]
         out.append(
             {
                 "community": community.as_dict(),
-                "most_recent": published[0] if published else None,
-                "past_cycles": published[1:],
+                "most_recent": published[0][1] if published else None,
+                "past_cycles": [item for _id, item in page],
+                "past_cycles_next_cursor": page[-1][0] if len(page) == _PAST_CYCLES_PAGE else None,
                 "current_cycle_state": cycles[0].state if cycles else None,
             }
         )

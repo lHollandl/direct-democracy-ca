@@ -69,10 +69,16 @@ LIST_ENDPOINTS = {
 
 #: Everything else: a single resource, or a whole-page assembly that embeds
 #: other lists as page furniture (the page a person is actively looking at,
-#: not an open scroll) — audit runs 1 through 3 have never flagged any of
-#: these for missing pagination. Named explicitly so a brand-new route that
-#: isn't sorted into any of the three sets fails the completeness check
-#: below instead of silently passing unchecked.
+#: not an open scroll). Three of these — `/umbrellas/{umbrella_id}`,
+#: `/results`, and `/solutions/{solution_id}` — are the "whole-page
+#: endpoints" ARCHITECTURE.md §6 names: each embeds the *first page* (25) of
+#: any list it shows, with a `next_cursor`, and the page fetches the rest
+#: from that list's own dedicated endpoint. Nothing here embeds an
+#: unbounded list (audit demo-01 run 5, NOTE — resolved by the director into
+#: a rule; see test_whole_page_endpoints_embed_only_the_first_page below).
+#: Named explicitly so a brand-new route that isn't sorted into any of the
+#: three sets fails the completeness check below instead of silently
+#: passing unchecked.
 DETAIL_ENDPOINTS = {
     "/admin/users/{user_id}",
     "/auth/me",
@@ -331,3 +337,87 @@ async def test_community_cycles_and_hash_list_paginate(client):
     ).json()
     assert len(h_second["summaries"]) == 1
     assert h_second["next_cursor"] is None
+
+
+async def test_whole_page_endpoints_embed_only_the_first_page(client):
+    """FIX-50 (LOW, audit demo-01 run 5): ARCHITECTURE.md §6's rule for a
+    whole-page endpoint — embed only the first page (25) of any list it
+    shows, with a next_cursor — checked for each of the three named
+    endpoints: GET /umbrellas/{id}, GET /results, GET /solutions/{id}."""
+    from datetime import datetime, timezone
+
+    from backend.db import session_scope
+    from backend.repositories import cycles as cycles_repo
+
+    director = await make_user(client, email="dir3@example.com", display_name="Dir3", admin=True)
+
+    # GET /results — 27 published cycles for one community: the most recent
+    # is "most_recent", leaving 26 past cycles — one more than the first
+    # page's worth. Inserted directly: 27 cycles is 54 admin writes over
+    # HTTP (prepare + publish each), well past RATE_LIMIT_WRITE_PER_MINUTE,
+    # and the write path itself isn't what this test is about.
+    async with session_scope() as session:
+        for n in range(1, 28):
+            cycle = await cycles_repo.add(
+                session,
+                community_level="city",
+                community_entity_id=1,
+                number=n,
+                state="published",
+                settings_snapshot={},
+                published_at=datetime.now(timezone.utc),
+            )
+            await cycles_repo.add_summary(
+                session,
+                cycle_id=cycle.id,
+                data={"results": [], "held_back": []},
+                summary_hash=f"test-hash-{n}",
+            )
+    results = (await client.get("/results", headers=director["headers"])).json()
+    city_entry = next(c for c in results["communities"] if c["community"]["level"] == "city")
+    assert len(city_entry["past_cycles"]) == 25
+    assert city_entry["past_cycles_next_cursor"] is not None
+
+    # GET /umbrellas/{id} — 26 solutions in one umbrella.
+    umbrella = await make_umbrella(name="Sidewalks", statement="Sidewalks are cracked and uneven.")
+    member = await make_user(client, email="sw@example.com", display_name="Sw")
+    for i in range(26):
+        created = await client.post(
+            f"/umbrellas/{umbrella}/solutions",
+            headers=member["headers"],
+            json={"text": f"Repave sidewalk segment number {i} on the north side of the block."},
+        )
+        assert created.status_code == 201, created.text
+    page = (await client.get(f"/umbrellas/{umbrella}")).json()
+    assert len(page["solutions"]) == 25
+    assert page["solutions_next_cursor"] is not None
+
+    # GET /solutions/{id} — 26 amendments on one dominant solution. A
+    # separate amending user, so its write count doesn't add to member's
+    # 26 solution-creation writes above within the same rate-limit window.
+    author = await make_user(client, email="sw-author@example.com", display_name="SwAuthor")
+    amender = await make_user(client, email="sw-amender@example.com", display_name="SwAmender")
+    solution_created = await client.post(
+        f"/umbrellas/{umbrella}/solutions",
+        headers=author["headers"],
+        json={"text": "Repave the whole block, not just one segment, in a single pass."},
+    )
+    solution_id = solution_created.json()["id"]
+    await client.put(
+        "/votes",
+        headers=member["headers"],
+        json={"target_type": "solution", "target_id": solution_id, "direction": 1},
+    )
+    for i in range(26):
+        amended = await client.post(
+            f"/solutions/{solution_id}/amendments",
+            headers=amender["headers"],
+            json={
+                "proposed_text": f"Repave the whole block using approach number {i} instead.",
+                "rationale": f"Approach {i} is cheaper than the one before it, reason number {i}.",
+            },
+        )
+        assert amended.status_code == 201, amended.text
+    solution_page = (await client.get(f"/solutions/{solution_id}")).json()
+    assert len(solution_page["amendments"]) == 25
+    assert solution_page["amendments_next_cursor"] is not None

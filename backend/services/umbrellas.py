@@ -27,6 +27,12 @@ from backend.services import settings as settings_service
 from backend.services import similarity as similarity_service
 from backend.services.display import author_displays
 
+#: ARCHITECTURE.md §6 — a whole-page endpoint embeds only the first page of
+#: a list it shows, with a next_cursor; the rest comes from the list's own
+#: dedicated endpoint (audit demo-01 run 5, NOTE — resolved by the director
+#: into a rule rather than left as an observation).
+_PAGE_SIZE = 25
+
 
 async def listing(
     session: AsyncSession, level: str, entity_id: int, *, cursor: int | None, limit: int
@@ -73,6 +79,25 @@ async def page(session: AsyncSession, umbrella_id: int, viewer_id: int | None) -
     values = await settings_service.all_values(session)
     categories = await umbrellas_repo.categories_by_ids(session, [umbrella.main_category_id])
 
+    # ARCHITECTURE.md §6 — a whole-page endpoint embeds only the first page
+    # of a list it shows, with a next_cursor; the rest comes from the
+    # list's own dedicated endpoint (audit demo-01 run 5, NOTE — resolved by
+    # the director into a rule).
+    discussion_page = await comments_service.thread_page(
+        session,
+        target_type="umbrella",
+        target_id=umbrella.id,
+        viewer_id=viewer_id,
+        cursor=None,
+        limit=_PAGE_SIZE,
+    )
+    solutions_page = await solutions_list_page(
+        session, umbrella, viewer_id, cursor=None, limit=_PAGE_SIZE
+    )
+    references_page = await references_service.listing_page(
+        session, umbrella.id, cursor=None, limit=_PAGE_SIZE
+    )
+
     return {
         "problem": {
             "id": umbrella.id,
@@ -99,12 +124,12 @@ async def page(session: AsyncSession, umbrella_id: int, viewer_id: int | None) -
             ),
         },
         "problem_reports": await _problem_reports(session, umbrella),
-        "problem_discussion": await comments_service.thread(
-            session, target_type="umbrella", target_id=umbrella.id, viewer_id=viewer_id
-        ),
-        "solutions": await solution_list(session, umbrella, viewer_id, active_users, values),
+        "problem_discussion": discussion_page["comments"],
+        "problem_discussion_next_cursor": discussion_page["next_cursor"],
+        "solutions": solutions_page["solutions"],
+        "solutions_next_cursor": solutions_page["next_cursor"],
         "dominant_solutions": await _dominant_detail(session, umbrella, viewer_id),
-        "references": await references_service.listing(session, umbrella.id),
+        "references": references_page,
         "ordering": {
             "version": rules.SOLUTION_ORDER_VERSION,
             "explanation": rules.SOLUTION_ORDER_EXPLANATION,
@@ -202,8 +227,9 @@ async def solutions_list_page(
     session: AsyncSession, umbrella: Umbrella, viewer_id: int | None, *, cursor: int | None, limit: int
 ) -> dict:
     """`GET /umbrellas/{id}/solutions` (ARCHITECTURE.md §6, audit demo-01 run
-    3 HIGH). The page's own solutions section (`page()`) stays whole — this
-    is the dedicated, ever-growing list."""
+    3 HIGH). `page()` calls this too, for its own first page (audit demo-01
+    run 5, NOTE — a whole-page endpoint embeds only the first page of a
+    list, with a next_cursor)."""
     rows = await solution_list(session, umbrella, viewer_id)
     return _paginate_by_id(rows, cursor=cursor, limit=limit, key="solutions")
 
@@ -241,7 +267,11 @@ async def _dominant_detail(
     versions = await solutions_repo.current_versions(session, [s.id for s in dominant])
     out = []
     for solution in dominant:
-        amendments = await solutions_repo.amendments_for(session, solution.id)
+        # ARCHITECTURE.md §6 — first page + next_cursor; the rest comes from
+        # GET /solutions/{id}/amendments.
+        amendments = await solutions_repo.amendments_for_page(
+            session, solution.id, cursor=None, limit=_PAGE_SIZE
+        )
         displays = await author_displays(session, [a.author_id for a in amendments])
         my_votes = (
             await votes_repo.user_votes_on(
@@ -281,6 +311,9 @@ async def _dominant_detail(
                     }
                     for a in amendments
                 ],
+                "amendments_next_cursor": (
+                    amendments[-1].id if len(amendments) == _PAGE_SIZE else None
+                ),
                 "similar_pairs": await similarity_service.pairs_for_solution(
                     session, solution.id
                 ),

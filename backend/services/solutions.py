@@ -36,6 +36,10 @@ log = logging.getLogger(__name__)
 MIN_TEXT = 20
 MAX_TEXT = 5000
 
+#: ARCHITECTURE.md §6 — a whole-page endpoint embeds only the first page of
+#: a list, with a next_cursor (audit demo-01 run 5, NOTE).
+_PAGE_SIZE = 25
+
 
 def validate_text(text: str, what: str = "A solution") -> str:
     stripped = text.strip()
@@ -262,7 +266,13 @@ async def detail_view(session: AsyncSession, solution: Solution, viewer: User | 
         if viewer
         else None
     )
-    amendments = await solutions_repo.amendments_for(session, solution.id)
+    # ARCHITECTURE.md §6 — a whole-page endpoint embeds only the first page
+    # of a list, with a next_cursor; the rest comes from the list's own
+    # endpoint (here, GET /solutions/{id}/amendments — audit demo-01 run 5,
+    # NOTE, resolved by the director into a rule).
+    amendments = await solutions_repo.amendments_for_page(
+        session, solution.id, cursor=None, limit=_PAGE_SIZE
+    )
     community = await community_service.resolve(
         session, umbrella.community_level, umbrella.community_entity_id
     )
@@ -343,6 +353,7 @@ async def detail_view(session: AsyncSession, solution: Solution, viewer: User | 
             }
             for a in amendments
         ],
+        "amendments_next_cursor": amendments[-1].id if len(amendments) == _PAGE_SIZE else None,
         "similar_pairs": await similarity_service.pairs_for_solution(session, solution.id),
         "discussion": (
             await comments_service.thread(
