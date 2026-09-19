@@ -3081,3 +3081,19 @@ Full audit of `demo/01` after fix run 4, written to `audits/demo-01-audit-5.md`.
 
 **Document changes flagged:**
 - None beyond what the director's planning session already made. No new ambiguity surfaced during this run's fixes.
+
+## 2026-09-19 — Session 3 (Claude Code audit — demo-01, run 6)
+
+Full audit of `demo/01` after fix run 5, written to `audits/demo-01-audit-6.md`.
+Counts: **CRITICAL 0 · HIGH 0 · MEDIUM 1 · LOW 0 · NOTE 2**. Verdict:
+**CLEAN** — the first audit with zero `CRITICAL` and zero `HIGH`. Both
+always-`CRITICAL` traps reproduced clean in my own three-account
+walkthrough. I independently re-verified all 27 distinct findings from
+audits 1–5 by reading the current code and, where the finding concerned
+live behavior, reproducing the fix myself; none are still present. One new
+`MEDIUM`: the jury draw logs a `random_bytes` field that is never actually
+used to produce the draw (`secrets.SystemRandom()` samples independently
+of it), so it cannot let the draw "be inspected after the fact" the way
+DEMOCRACY.md §8.1 says it can — the draw itself is genuinely random and
+unbiased. One document ambiguity recorded for the director. Findings live
+in the report, not here.
