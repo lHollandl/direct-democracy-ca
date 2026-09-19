@@ -12,6 +12,7 @@ is the whole promise: if one letter changes, the fingerprint will not match.
 from __future__ import annotations
 
 import logging
+import urllib.parse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -346,7 +347,34 @@ async def by_community_and_number(
         raise Conflict(
             "That cycle has not been published yet.", code="summary_not_published"
         )
-    return _shape(summary.data, summary.summary_hash, summary.published_at)
+    document = _shape(summary.data, summary.summary_hash, summary.published_at)
+    document["mailto"] = _mailto(
+        document["document"]["send_to_representatives"], level, entity_id, number, summary.summary_hash
+    )
+    return document
+
+
+def _mailto(send: dict, level: str, entity_id: int, number: int, digest: str) -> str:
+    """DEMOCRACY.md §11.5 — the user's own mail client, from their own
+    address. The platform sends nothing and records nothing about the send.
+    The body's URL is absolute (`PUBLIC_BASE_URL`) so it still resolves once
+    forwarded outside a browser session with the platform open (audit
+    demo-01 run 3, LOW). Composed here, not in the router (ARCHITECTURE.md
+    §2: "no logic" in a router — audit demo-01 run 5, LOW)."""
+    recipients = ",".join(r["email"] for r in send["recipients"])
+    url = get_env_settings().absolute_url(f"/summaries/{level}/{entity_id}/{number}")
+    body = (
+        "I am a resident of this community. These are the results of our ballot "
+        "this cycle, voted on by residents and published in full:\n\n"
+        f"{url}\n\n"
+        f"Document fingerprint (SHA-256): {digest}\n\n"
+        "The page explains every rule that produced these results and how to "
+        "check that the document has not been altered.\n"
+    )
+    query = urllib.parse.urlencode(
+        {"subject": send["subject"], "body": body}, quote_via=urllib.parse.quote
+    )
+    return f"mailto:{recipients}?{query}"
 
 
 async def require_summary(session: AsyncSession, *, cycle: Cycle):

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import urllib.parse
-
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 
@@ -39,12 +37,9 @@ async def my_results(user: VerifiedUser, session: SessionDep) -> dict:
 async def summary_page(
     level: str, entity_id: int, number: int, session: SessionDep
 ) -> dict:
-    document = await summaries_service.by_community_and_number(
+    return await summaries_service.by_community_and_number(
         session, level=level, entity_id=entity_id, number=number
     )
-    send = document["document"]["send_to_representatives"]
-    document["mailto"] = _mailto(send, level, entity_id, number, document["summary_hash"])
-    return document
 
 
 @router.get("/summaries/{level}/{entity_id}/{number}/json", response_class=PlainTextResponse)
@@ -95,25 +90,3 @@ async def summary_pdf(
             )
         },
     )
-
-
-def _mailto(send: dict, level: str, entity_id: int, number: int, digest: str) -> str:
-    """DEMOCRACY.md §11.5 — the user's own mail client, from their own address.
-    The platform sends nothing and records nothing about the send. The body's
-    URL is absolute (`PUBLIC_BASE_URL`) so it still resolves once forwarded
-    outside a browser session with the platform open (audit demo-01 run 3,
-    LOW)."""
-    recipients = ",".join(r["email"] for r in send["recipients"])
-    url = get_env_settings().absolute_url(f"/summaries/{level}/{entity_id}/{number}")
-    body = (
-        "I am a resident of this community. These are the results of our ballot "
-        "this cycle, voted on by residents and published in full:\n\n"
-        f"{url}\n\n"
-        f"Document fingerprint (SHA-256): {digest}\n\n"
-        "The page explains every rule that produced these results and how to "
-        "check that the document has not been altered.\n"
-    )
-    query = urllib.parse.urlencode(
-        {"subject": send["subject"], "body": body}, quote_via=urllib.parse.quote
-    )
-    return f"mailto:{recipients}?{query}"

@@ -220,6 +220,21 @@ async def test_a_problem_becomes_a_published_result(client):
     assert pdf.status_code == 200
     assert pdf.content.startswith(b"%PDF")
 
+    # FIX-49 (LOW, audit demo-01 run 5): the mailto: body is composed in
+    # summaries_service, not the router (ARCHITECTURE.md §2 — "no logic" in
+    # a router); the page endpoint still calls exactly one service function.
+    import urllib.parse
+
+    page = await client.get("/summaries/city/1/1")
+    assert page.status_code == 200
+    mailto = page.json()["mailto"]
+    assert mailto.startswith("mailto:")
+    recipients, query_string = mailto[len("mailto:") :].split("?", 1)
+    assert "@" in recipients
+    query = urllib.parse.parse_qs(query_string)
+    assert stored_hash in query["body"][0]
+    assert "cycle 1" in query["subject"][0]
+
     # --- what happens afterwards -----------------------------------------
     solution = (await client.get(f"/solutions/{crosswalk}")).json()
     assert solution["last_ballot_result"] == "passed"
