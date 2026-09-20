@@ -190,6 +190,10 @@ When that community has no active umbrella at all, the "Is that the
 right place?" control is replaced by "There are no umbrellas in
 <community> yet. Proposing a new umbrella is planned." The three states
 never share a sentence (CLAUDE §2, transparency about weakness).
+A Home card can span several communities in different states, so it
+carries one short line per state present ("Being filed", "Not filed
+yet — AI unreachable", "Not filed — no umbrella covers this yet");
+the full sentence, with the community named, is the post page's.
 
 The author may correct an AI label at any time from the post. Every
 correction is recorded on the label row (§9.2).
