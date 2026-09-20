@@ -157,7 +157,12 @@ async def test_the_ai_log_records_the_model_the_prompt_file_and_its_hash(client)
     assert row["prompt_file"] == "labeler.md"
     assert len(row["prompt_hash"]) == 64
     assert len(row["input_hash"]) == 64
-    assert row["demo_build"] == "demo-01"
+    from backend.config.settings_env import get_env_settings
+
+    # `demo_build` is `BUILD_LABEL` from configuration (CLAUDE.md Law 10),
+    # never a literal — asserting a specific build's spelling here would
+    # break every time `.env`'s `BUILD_LABEL` legitimately changes.
+    assert row["demo_build"] == get_env_settings().BUILD_LABEL
     assert row["human_outcome"] == "unreviewed"
     assert "AI never decides anything here" in log["explanation"]
 
