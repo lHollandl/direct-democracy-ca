@@ -46,7 +46,7 @@ first page of the lists they show, with a `next_cursor`, per ARCHITECTURE
 §6's now-explicit rule. Full evidence in HISTORY.md's latest build entry.
 `demo/01` merged to `main` 2026-09-19 and tagged `demo-1`; work proceeds by
 `change/NN` branches. Phase 0 remains complete except the optional search
-provider.*
+provider. change/01 fix run 1 done; change audit next.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -540,9 +540,13 @@ director's test, then a change audit before its PR to `main`.
 - [x] **C1-11** "How the ballot works" / "How the jury works" explainers
 - [x] **C1-12** Jury draw replayable (closes D2-00)
 - [x] **C1-13** Three honest filing messages, and the no-umbrellas case
-- [x] **C1-14** Test data: `load_test_data.py` / `remove_test_data.py`, `ALLOW_TEST_DATA`
+- [x] **C1-14** Test data: `load_test_data.py`, `ALLOW_TEST_DATA`
 - [x] **C1-15** The admin page explains itself
 - [x] **C1-16** Evidence — full suite, `verify_schema.py`, seed dry-run, a loaded test dataset against real Ollama, one full cycle through the API, `reconcile.py --dry-run`, the greps, `npm audit`/`build`/`test`, `git status`
+- [x] **FX-01** No code path deletes a hashed row — the test-data remover withdrawn; test data cleared by rebuilding the database from empty
+- [x] **FX-02** An empty ballot says why it is empty, with that cycle's own settings-snapshot numbers, on `/ballot`, `/cycles/[id]`, and the Home panel
+- [x] **FX-03** `AUDIT.md` §6 names change reports (`audits/change-NN-audit-K.md`)
+- [x] **FX-04** Fix-run-1 evidence — full suite, `verify_schema.py`, seed dry-run, `load_test_data.py --apply`, a zero-item and a non-empty cycle, `reconcile.py --dry-run`, `npm run build`/`test`, `git status`
 
 ---
 

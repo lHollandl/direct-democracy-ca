@@ -3369,3 +3369,131 @@ passed, 2 deselected) before any change.
 - Search, each sort, and "All of California" on Home.
 - The ballot switch is remembered after a reload.
 - Both "How it works" buttons open and close by keyboard.
+
+## 2026-09-20 — Session 1 (Claude.ai planning session — change/01 review; director's first test)
+
+**Completed:**
+- Reviewed the change/01 build entry: C1-01…C1-16 built as specified, 259 tests, evidence complete. Build decisions 1–4 and 6 adopted as made.
+- The director ran change/01 from the build sandbox with the test data loaded, signed up in Fremont, was granted admin, and prepared a Fremont cycle.
+- Fix brief `briefs/change-01-fix-1.md` and the reusable change-audit brief `briefs/audit.md` written.
+
+**Decisions made:**
+1. **The test-data remover is withdrawn.** The change/01 brief asked for a script that hard-deletes hashed rows; Law 6 allows no deletion and names no exception. The build noticed (its Decision 5, and the docstring in `services/test_data.py`) and drew the line at ballot items; the planning session draws it at the law. Test data is cleared by rebuilding the database, and `ALLOW_TEST_DATA` keeps test accounts and real users from ever sharing one. The constitution is unchanged. This is the third time a planning-session instruction quietly overrode a general rule (HANDOFF 2026-09-19 §5); the check "does this store, hash, publish — or delete — something the constitution protects?" is now asked of every brief item.
+2. A zero-item cycle must explain itself on every page that shows it, with the numbers from its own settings snapshot (DEMOCRACY §10.2).
+3. Audit reports for changes are `audits/change-NN-audit-K.md` (AUDIT.md §6).
+
+**Issues encountered:**
+- The director's first prepared ballot was empty because every test solution had been dominant for minutes, not the `ballot_min_dominant_days` the rule requires. The rule worked; the page said nothing. FX-02.
+- The build's own evidence cycle in San Jose reported "0 eligible jurors" with eight test residents loaded. Possibly correct (authors of ballot items and administrators are excluded; activity window), possibly not — put to the auditor as a named question.
+
+**Director verified in the browser (2026-09-20):** the three tabs plus Admin for an administrator; the footer's transparency links; `/admin` reachable after sign-out and sign-in; `/ballot` renders with the "How the ballot works" control. **Not yet reported:** session survives a reload; `/login?next=` return; phone width; landing redirect when signed in; search, sorts, and "All of California"; the ballot switch after a reload; explainers by keyboard.
+
+## 2026-09-20 — Session 5 (Claude Code build — change/01-site-shell, fix run 1)
+
+Built from `briefs/change-01-fix-1.md` on `change/01-site-shell` (newest
+commit at start: `c50845d`, "change/01 fix-1 and audit briefs"). Pre-checks:
+`.env` built from `.env.example` with `OLLAMA_BASE_URL` at the host LAN
+address (`192.168.1.165`, per SANDBOX.md §5) — `llama3.2` and
+`nomic-embed-text` both present; Docker Compose up; both migration chains
+applied to an empty database; seed `--apply`; full suite green (259 passed,
+2 deselected) before any change.
+
+**Completed:**
+- **FX-01** — deleted `backend/scripts/remove_test_data.py`,
+  `backend/services/test_data.py`, `backend/repositories/test_data.py`, and
+  `backend/tests/test_test_data.py`. All four tests in the last covered the
+  withdrawn `purge`/`impact_report` functions, not the loader or the signup
+  domain rule (already covered by `test_auth.py`), so nothing needed moving.
+  `ARCHITECTURE.md` §3 and `test_dataset.yaml`'s header updated to the
+  brief's verbatim wording; `settings_env.py`'s `ALLOW_TEST_DATA` comment
+  brought in line with the same wording so the proof grep is clean outside
+  `HISTORY.md`/`briefs/`/`audits/`. Proof: `git grep -n
+  'remove_test_data\|test_data_repo\|services\.test_data'` — no hits outside
+  the three excepted paths; `git grep -n -i 'session\.delete\|\.delete(\|DELETE
+  FROM' backend/ -- ':!backend/tests'` — four hits, all confirmed harmless:
+  `backend/clients/redis.py:100` deletes a Redis cache key, not a database
+  row; `backend/routers/comments.py:49`, `me.py:72`, `votes.py:36` are route
+  decorators, not database deletes — `comments_service.remove` is a soft
+  update (text replaced, row kept), `account_service.delete_account`
+  anonymizes rather than deletes, and `votes_service.withdraw` deletes a
+  `votes` row, which DATABASE.md §4.12 already documents as "the only hard
+  delete in Iteration" since a vote carries no `content_hash`. Full suite:
+  255 passed (259 minus the four withdrawn tests), 2 deselected.
+- **FX-02** — `ballots_service.ballot_view()` now returns
+  `settings_in_force` (the cycle's own `settings_snapshot`, matching
+  `cycles_service.view()`'s field of the same name). A new
+  `zeroItemBallotSentence()` in `content/explainers.tsx` composes the
+  director-approved sentence from that snapshot's
+  `ballot_min_dominant_days`/`ballot_pct`/`ballot_min` — never the live
+  settings (Law 8) — wired onto `/ballot` and `/cycles/[id]` in place of the
+  bare empty state. The Home panel gets the shorter "Nothing qualified this
+  cycle — next ballot expected …" line, keyed off `cycle.state ===
+  "prepared"`: DEMOCRACY.md §10.2 already establishes that a cycle is only
+  ever observed `prepared` when it qualified nothing, since prepare advances
+  straight to `jury_review` whenever anything qualifies, so no extra
+  `item_count` field was needed on `/cycles/mine`. DEMOCRACY.md §10.2 gained
+  the director-approved paragraph, inserted after the "never enters
+  `jury_review`, `open`, or `closed`" sentence as specified. New test
+  `test_a_zero_item_cycle_carries_its_settings_snapshot_for_the_pages`
+  (`test_jury_and_ballot.py`) checks at the API level that both
+  `/cycles/{id}/ballot` and `/cycles/{id}` carry the snapshot and that it
+  matches what `cycles_repo.get` reads off the cycle row. Full suite: 256
+  passed (255 + 1 new), 2 deselected.
+- **FX-03** — `AUDIT.md` §6's report path and template title changed to
+  `change-NN`/`demo-N`, verbatim per the brief.
+- **FX-04** — evidence, below.
+
+**Decisions made (documents silent):**
+1. FX-01's proof requires zero hits for the remover outside three excepted
+   paths; `backend/config/settings_env.py`'s `ALLOW_TEST_DATA` comment named
+   `remove_test_data.py` and would have failed that grep, so it was brought
+   in line too even though the item didn't name the file — the alternative
+   was a proof step that couldn't pass.
+2. FX-02's "Home ballot panel line" and the full `/ballot`/`/cycles/[id]`
+   sentence are deliberately different texts, both given verbatim in the
+   item description — the panel's compact form fits the space and doesn't
+   need the numbers repeated, since Home already carries "How the ballot
+   works" (C1-11) one click away.
+
+**Issues encountered:**
+- No headless browser is reachable in this sandbox (`playwright.azureedge.net`
+  and `cdn.playwright.dev` both blocked by network policy — SANDBOX.md §5
+  names this class of gap already: "the browser download host is not
+  reachable"). FX-02's "rendered HTML" proof was produced instead by
+  importing the real, committed component code (`Empty`,
+  `zeroItemBallotSentence`, `BallotPanel`) into a `tsx` script and calling
+  `react-dom/server`'s `renderToStaticMarkup` against the real API payloads
+  captured from the running backend — the same technique C1-04's build used
+  to verify `SiteNav`'s states without a browser. Script written under
+  `frontend/`, run, and deleted; not part of the change.
+- The dev-sandbox `.env` had `ALLOW_TEST_DATA=true` left over from running
+  `load_test_data.py` for the FX-02/FX-04 evidence, and the full suite
+  failed `test_the_reserved_test_domain_is_refused_when_test_data_is_not_
+  allowed` — the same gotcha the 09-20 build entry already recorded. Fixed
+  by flipping it back to `false` before the evidence run's final full-suite
+  pass; `.env` is left at the documented default.
+
+**Notes:**
+- FX-04 evidence, full: backend suite 256 passed, 2 deselected;
+  `verify_schema.py` — no drift, 38 tables; seed `--dry-run` — 0 pending
+  writes after `--apply`; `load_test_data.py --apply` against real Ollama —
+  1 new account (15 already existed from an earlier interrupted run that had
+  signed them up before failing on a log-path mismatch), 40 posts, 310
+  votes, 27 comments; a zero-item cycle prepared in Fremont (cycle 1, then
+  published) with no setting changes — nothing there had been dominant long
+  enough; `ballot_min_dominant_days` set to 0 with a reason, a non-empty
+  cycle prepared in San Jose (cycle 2, 13 items, reached `jury_review`), then
+  the setting restored to 3 with a reason; a second Fremont cycle prepared
+  with the setting temporarily at 7 (cycle 3, zero items) to prove each
+  cycle keeps its own snapshot — cycle 1's rendered sentence says "3 days",
+  cycle 3's says "7 days", both from their own `settings_in_force`, both
+  restored afterward; `reconcile.py --dry-run` — `corrected: false`, all
+  four drift/orphan/mismatch lists empty; `npm run build` — 25 routes,
+  clean; `npm test` — 4/4; `git status` — clean except this run's own
+  document updates. Database dropped and rebuilt from empty (both migration
+  chains, seed `--apply`, no test data) after the evidence run, for a clean
+  handoff — `ALLOW_TEST_DATA=false`, matching FX-01's own point that test
+  data is cleared this way now.
+
+**Document changes flagged:**
+- None beyond the three items' own verbatim wording.
