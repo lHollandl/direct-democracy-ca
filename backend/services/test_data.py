@@ -110,6 +110,14 @@ async def _foreign_rows(session: AsyncSession, test_ids: list[int], owned: dict)
             "and ballot records are not touched by this tool"
         )
 
+    for ballot_item_id, solution_id in await test_data_repo.solutions_on_ballots(
+        session, owned["solutions"]
+    ):
+        foreign.append(
+            f"solution {solution_id} appears on ballot item {ballot_item_id} — "
+            "jury and ballot records are not touched by this tool"
+        )
+
     return foreign
 
 

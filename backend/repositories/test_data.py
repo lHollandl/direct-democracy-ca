@@ -6,7 +6,17 @@ from __future__ import annotations
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Amendment, Comment, Juror, Post, Solution, TermsAcceptance, User, Vote
+from backend.models import (
+    Amendment,
+    BallotItem,
+    Comment,
+    Juror,
+    Post,
+    Solution,
+    TermsAcceptance,
+    User,
+    Vote,
+)
 
 
 async def account_ids_at_domain(session: AsyncSession, domain: str) -> list[int]:
@@ -137,6 +147,20 @@ async def votes_on_comments(
             Vote.target_type == "comment",
             Vote.target_id.in_(comment_ids),
             Vote.user_id.notin_(excluding_users),
+        )
+    )
+    return list(rows.all())
+
+
+async def solutions_on_ballots(session: AsyncSession, solution_ids: list[int]) -> list[tuple[int, int]]:
+    """Which of `solution_ids` have ever appeared on a ballot — a frozen,
+    permanent part of the civic record (DATABASE.md §4.15, CLAUDE.md Law 6),
+    never touched by this tool. Returns (ballot_item_id, solution_id)."""
+    if not solution_ids:
+        return []
+    rows = await session.execute(
+        select(BallotItem.id, BallotItem.solution_id).where(
+            BallotItem.solution_id.in_(solution_ids)
         )
     )
     return list(rows.all())
