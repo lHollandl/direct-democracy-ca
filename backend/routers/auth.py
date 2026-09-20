@@ -190,6 +190,8 @@ class MeOut(BaseModel):
     email: EmailStr
     real_name: str
     display_name: str
+    gender: str
+    political_party: str
     public_name_mode: str
     verification_level: str
     verification_explanation: str

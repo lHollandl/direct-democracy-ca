@@ -333,6 +333,8 @@ async def me_view(session: AsyncSession, user: User) -> dict:
         "email": user.email,
         "real_name": user.real_name,
         "display_name": user.display_name,
+        "gender": user.gender,
+        "political_party": user.political_party,
         "public_name_mode": display.public_name_mode if display else "display_name",
         "verification_level": user.verification_level,
         "verification_explanation": (

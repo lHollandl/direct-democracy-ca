@@ -11,6 +11,8 @@ export type Me = {
   email: string;
   real_name: string;
   display_name: string;
+  gender: string;
+  political_party: string;
   public_name_mode: string;
   verification_level: string;
   verification_explanation: string;
