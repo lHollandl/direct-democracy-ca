@@ -26,7 +26,7 @@ type SessionValue = {
   signOut: () => Promise<void>;
 };
 
-const SessionContext = createContext<SessionValue>({
+export const SessionContext = createContext<SessionValue>({
   me: null,
   loading: true,
   reload: async () => {},

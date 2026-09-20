@@ -35,9 +35,11 @@ export default function RootLayout({
                 Everything this platform does is published.
               </p>
               <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                <li><a href="/results">Results</a></li>
                 <li><a href="/settings">Every rule and its value</a></li>
                 <li><a href="/ai/actions">Every action AI has taken</a></li>
                 <li><a href="/admin/log">Every action an administrator has taken</a></li>
+                <li><a href="/summaries/hashes">Summary fingerprints</a></li>
                 <li><a href="/legal/privacy">Privacy</a></li>
                 <li><a href="/legal/terms">Terms</a></li>
                 <li><a href="/legal/cookies">Cookies</a></li>

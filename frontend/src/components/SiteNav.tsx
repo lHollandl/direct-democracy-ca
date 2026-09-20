@@ -5,11 +5,9 @@ import { usePathname } from "next/navigation";
 import { useSession } from "@/components/Session";
 
 const LINKS = [
-  { href: "/feed", label: "Feed" },
-  { href: "/posts/new", label: "Post a problem" },
-  { href: "/ballot", label: "Ballot" },
-  { href: "/jury", label: "Jury" },
-  { href: "/results", label: "Results" },
+  { href: "/explained", label: "Direct Democracy Explained" },
+  { href: "/home", label: "Home" },
+  { href: "/posts/new", label: "New post" },
 ];
 
 export default function SiteNav() {
