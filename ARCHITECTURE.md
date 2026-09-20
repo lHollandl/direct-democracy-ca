@@ -103,7 +103,10 @@ Docker Compose with `--env-file`. There is no separate `infra/.env` or
 | `SEARCH_PROVIDER`, `SEARCH_API_KEY`, `SEARCH_BASE_URL` | reference recommendation |
 | `OFFICIALS_TEST_EMAIL` | Demo 1 directory address |
 | `BUILD_LABEL` | `demo-01`; stamped on `ai_actions` |
-| `CORS_ORIGINS` | |
+| `CORS_ORIGINS` | default http://localhost:3000,http://127.0.0.1:3000 |
+| `NEXT_PUBLIC_API_BASE_URL` | the address the **browser** uses for the API. It must share its host name with `PUBLIC_BASE_URL` (both `localhost`, or both the same domain): the refresh cookie is `SameSite=Strict`, and a browser on `localhost:3000` calling `127.0.0.1:8000` is cross-site, so the cookie is never sent and every page load signs the user out (found by the director, 2026-09-19). When unset, the browser uses the page's own host name with port 8000 |
+| `ALLOW_TEST_DATA` (`false`) | `true` only in a demo environment. Enables `backend/scripts/load_test_data.py` and lets signup accept `TEST_DATA_EMAIL_DOMAIN`; when `false` the loader refuses to run and signup refuses that domain, so test accounts and real users never share a database. There is no remover: Law 6 allows no deletion of a hashed row, test data included. Test data is cleared by rebuilding the database from empty (DATABASE §2), which is possible only until the keeper — and a keeper database never has `ALLOW_TEST_DATA=true` |
+| `TEST_DATA_EMAIL_DOMAIN` (`test.example.com`), `TEST_DATA_PASSWORD` | the reserved domain that marks a test account; the one password the loader gives every test account |
 | `IP_HASH_SECRET` | random 32+ bytes; salts `terms_acceptances.ip_hash` (DATABASE §3.5) |
 | `PUBLIC_BASE_URL` | the address the frontend is reached at (Demo 1: `http://localhost:3000`); used wherever a link must work outside the site — the `mailto:` body, the PDF footer, the summary's verify text |
 | `RATE_LIMIT_WRITE_PER_MINUTE` (30) | |
@@ -212,7 +215,7 @@ officials list), `GET /communities/{level}/{id}/officials`.
 | `POST /posts` | problem, solutions[] (≥1), communities[], category_choice, optional umbrella per community; writes `posts` + `post_solutions` + `post_communities` in one transaction; workshop solutions are created when each community gets its umbrella (DATABASE §4.7) |
 | `GET /posts/{id}` | includes each community's label status and, once filed, links to the created solutions |
 | *(no `PATCH`/`DELETE /posts`)* | posts are immutable in Demo 1 (DEMOCRACY §4.1) |
-| `GET /feed?community=&category=&cursor=` | newest first; response includes `ranking: "feed-v0", explanation` |
+| `GET /feed?scope=&community=&category=&q=&sort=&cursor=` | DEMOCRACY §12.1. `scope=all` widens a signed-in viewer to every community; `q` 2–100 chars; `sort` ∈ `newest` (default), `oldest`, `most_votes`, `most_comments`. Each item carries `vote_count` and `comment_count`. `cursor` is opaque: keyset on (`created_at`, `id`) for the date sorts and on (count, `id`) for the count sorts. Response includes `ranking: "feed-v1"`, the `sort` in force, and its `explanation` |
 | `POST /posts/{id}/label/confirm`, `.../label/correct` | author only |
 
 ### Umbrellas (I)
@@ -242,6 +245,7 @@ DEMOCRACY §3.3 sections, including the AI action list),
 | `GET /juries/mine` | current juror duties |
 | `POST /jurors/{id}/accept`, `/decline` | |
 | `POST /ballot-items/{id}/holdback` | juror; category + text |
+| `GET /cycles/mine` | auth. One entry per home community: `community`, `cycle` (`id`, `number`, `state`, `opened_at`, `expected_close`) or null, `last_closed_at`, `next_ballot_expected`, `last_jury_drawn_at`, `next_jury_draw_expected`, `my_jury_status` (`none`, `drawn`, `accepted`, `declined`, `no_response`) with `respond_by` when `drawn`. One service call: `cycles_service.mine` |
 
 ### Summaries (I, public)
 `GET /summaries/{level}/{id}/{number}` (page data), `.../{number}/json`,
@@ -335,15 +339,36 @@ Next.js App Router, TypeScript, Tailwind. `frontend/src/app/` routes:
 | `/signup`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password` | Foundation |
 | `/me` (display settings, export, delete), `/legal/privacy`, `/legal/terms`, `/legal/cookies` | Foundation |
 | `/settings` (public), `/ai/actions` (public), `/admin/log` (public), `/admin` (settings change only) | Foundation — the transparency pages ship with the tables they display; the cycle controls on `/admin` are Iteration |
-| `/feed` | feed-v0 with community and category filters |
+| `/home` | DEMOCRACY §12: the ballot and jury panels, ballot items pinned, then feed-v1 with search, sort, community and category filters. `/feed` redirects here |
+| `/explained` | "Direct Democracy Explained" — how the platform works, in plain terms with diagrams; public |
 | `/posts/new` | DEMOCRACY §4.1; three sections: problem, solutions, communities; category: AI or pick |
 | `/umbrellas/[id]` | the umbrella page, DEMOCRACY §3.3 |
 | `/solutions/[id]` | full solution with versions, amendments, discussion |
 | `/ballot` | current cycle for each home community |
 | `/jury` | duties |
 | `/results`, `/summaries/[level]/[id]/[number]`, `/summaries/hashes` | the summary document; the public hash list (DEMOCRACY §11.3) |
-| `/`, `/posts/[id]`, `/cycles/[id]` | landing page; a post with its label status and created solutions; a cycle with its state, items, and every jury draw |
+| `/` | the landing page: what the platform offers, one large centred "Join" button, and "See what people are working on" → `/home`. A signed-in visitor is redirected to `/home` |
+| `/posts/[id]`, `/cycles/[id]` | a post with its label status and created solutions; a cycle with its state, items, and every jury draw |
 | `/admin` (cycle controls: prepare, redraw, open, close, publish, recommend references, relabel) | Iteration — added to the Foundation page |
+
+**Navigation.** The top bar holds the site name and exactly three tabs —
+"Direct Democracy Explained" (`/explained`), "Home" (`/home`), "New
+post" (`/posts/new`) — plus "Admin" for administrators only, and the
+account / sign-in controls on the right. Ballot and jury are reached
+from Home (DEMOCRACY §12.2). The footer, on every page, links Results,
+Settings, AI actions, Administrator log, Summary fingerprints, Privacy,
+Terms, and Cookies, so every transparency page stays one click away
+(CLAUDE §2).
+
+**Signing in returns you to where you were.** A page that needs a
+session sends the visitor to `/login?next=<path>`; after sign-in the
+site goes to `next` only when the browser's own URL parser
+resolves it to this site's origin (a path beginning with a single `/`,
+with no backslash and no control character — a browser reads `/\` as
+`//`); otherwise to `/home`. The guard is
+`frontend/src/lib/nextPath.ts::safeNextPath`. When a session ends while a page is open,
+the page says "You have been signed out. Sign in again." with that link;
+it never shows a signed-in page to a signed-out visitor.
 
 `frontend/src/lib/api.ts` is the only place `fetch` is called; it holds
 the access token in memory and the refresh token in an `httpOnly`

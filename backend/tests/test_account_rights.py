@@ -87,6 +87,9 @@ async def test_export_contains_the_user_and_their_civic_record(client):
 
     downloaded = await client.get(f"/me/export/{export_id}", headers=world["other"]["headers"])
     assert downloaded.status_code == 200
+    assert downloaded.headers["content-disposition"] == (
+        f'attachment; filename="direct-democracy-ca-export-{world["other"]["id"]}.json"'
+    )
     payload = downloaded.json()
     assert payload["account"]["email"] == "other@example.com"
     civic = payload["civic_record"]["iteration"]

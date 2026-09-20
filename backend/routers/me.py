@@ -60,7 +60,7 @@ async def download_export(export_id: int, user: CurrentUser, session: SessionDep
     return FileResponse(
         row.file_path,
         media_type="application/json",
-        filename=f"direct-democracy-cali-export-{user.id}.json",
+        filename=f"direct-democracy-ca-export-{user.id}.json",
     )
 
 

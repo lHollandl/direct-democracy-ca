@@ -5,9 +5,10 @@ import { useRef, useState, type ReactNode } from "react";
 import { get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
-import { Badge, Empty, Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { Badge, Empty, Explainer, Loading, Notice, PageHeader, Section } from "@/components/ui";
 import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
+import { JuryExplainer, useSettingsMap } from "@/content/explainers";
 
 type Item = {
   ballot_item_id: number;
@@ -46,6 +47,7 @@ const CATEGORY_WORDS: Record<string, string> = {
 export default function JuryPage() {
   useDocumentTitle("Jury duty");
   const { me, loading } = useSession();
+  const settings = useSettingsMap();
   const [note, setNote] = useState<string | null>(null);
   const { error, alertRef, clear, fail } = useFormError();
   const { data: duties, reload } = useLoader<Duty[]>(async () => {
@@ -192,7 +194,14 @@ export default function JuryPage() {
         }
       />
       <div className={`mx-auto px-4 py-8 ${!loading && me && duties !== null ? "max-w-3xl" : "max-w-md"}`}>
-        {body}
+        <Explainer title="How the jury works">
+          {settings ? (
+            <JuryExplainer settings={settings} />
+          ) : (
+            <Loading what="the explanation" />
+          )}
+        </Explainer>
+        <div className="mt-4">{body}</div>
       </div>
     </>
   );

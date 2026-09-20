@@ -477,6 +477,19 @@ async def previous_jury_user_ids(
     return set(rows)
 
 
+async def most_recent_jury_drawn_at(session: AsyncSession, level: str, entity_id: int):
+    """The latest jury draw for this community, across every cycle
+    (DEMOCRACY.md §12.2 — "Last jury drawn <date>")."""
+    return (
+        await session.execute(
+            select(func.max(Jury.drawn_at))
+            .select_from(Jury)
+            .join(Cycle, Cycle.id == Jury.cycle_id)
+            .where(Cycle.community_level == level, Cycle.community_entity_id == entity_id)
+        )
+    ).scalar_one_or_none()
+
+
 # --- summaries ------------------------------------------------------------
 
 

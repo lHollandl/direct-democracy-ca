@@ -13,6 +13,47 @@ from backend.repositories import users as users_repo
 from backend.tests.conftest import make_user
 
 
+def _signup_payload(email: str) -> dict:
+    return {
+        "email": email,
+        "password": "Crosswalk1",
+        "real_name": "Test Domain Person",
+        "display_name": "TestDomainPerson",
+        "date_of_birth": "1990-01-01",
+        "gender": "prefer_not_to_say",
+        "political_party": "no_party_preference",
+        "county_id": 1,
+        "city_id": 1,
+        "terms_version": "test-terms-1",
+        "agreed_to_terms": True,
+    }
+
+
+async def test_the_reserved_test_domain_is_refused_when_test_data_is_not_allowed(client):
+    """ARCHITECTURE.md §3, C1-14: signup refuses TEST_DATA_EMAIL_DOMAIN unless
+    ALLOW_TEST_DATA=true."""
+    response = await client.post(
+        "/auth/signup", json=_signup_payload("t01@test.example.com")
+    )
+    assert response.status_code == 422
+    assert response.json()["error"] == "test_domain_reserved"
+
+
+async def test_the_reserved_test_domain_is_accepted_when_test_data_is_allowed(
+    client, monkeypatch
+):
+    from backend.config.settings_env import get_env_settings
+    from backend.services import auth as auth_service
+
+    allowed = get_env_settings().model_copy(update={"ALLOW_TEST_DATA": True})
+    monkeypatch.setattr(auth_service, "get_env_settings", lambda: allowed)
+
+    response = await client.post(
+        "/auth/signup", json=_signup_payload("t01@test.example.com")
+    )
+    assert response.status_code == 201, response.text
+
+
 async def test_signup_refuses_an_under_age_applicant_and_stores_nothing(client):
     response = await client.post(
         "/auth/signup",

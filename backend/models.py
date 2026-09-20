@@ -548,6 +548,12 @@ class Post(Base):
         Index("ix_posts_author_id", "author_id"),
         Index("ix_posts_created_at", "created_at"),
         Index("ix_posts_label_status", "label_status"),
+        # Home search (DEMOCRACY §12.1, DATABASE §4.3).
+        Index(
+            "ix_posts_problem_text_fts",
+            text("to_tsvector('english', problem_text)"),
+            postgresql_using="gin",
+        ),
     )
 
 
@@ -572,6 +578,12 @@ class PostSolution(Base):
     __table_args__ = (
         UniqueConstraint("post_id", "position", name="uq_post_solutions_post_position"),
         Index("ix_post_solutions_post_id", "post_id"),
+        # Home search (DEMOCRACY §12.1, DATABASE §4.4).
+        Index(
+            "ix_post_solutions_text_fts",
+            text("to_tsvector('english', text)"),
+            postgresql_using="gin",
+        ),
     )
 
 

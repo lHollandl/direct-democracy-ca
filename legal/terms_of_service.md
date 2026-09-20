@@ -9,7 +9,7 @@
 
 ## What this platform is
 
-Direct Democracy Cali is a place for California residents to document problems
+Direct Democracy CA is a place for California residents to document problems
 in their community, propose and improve solutions together, vote on them, and
 send the result to the people who represent them.
 

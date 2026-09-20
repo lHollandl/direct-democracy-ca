@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from backend.deps import OptionalUser, SessionDep, VerifiedUser
+from backend.deps import CurrentUser, OptionalUser, SessionDep, VerifiedUser
 from backend.routers.common import CursorParam, DEFAULT_LIMIT, LimitParam
 from backend.services import ballots as ballots_service
 from backend.services import cycles as cycles_service
@@ -22,6 +22,13 @@ async def community_cycles(
     limit: LimitParam = DEFAULT_LIMIT,
 ) -> dict:
     return await cycles_service.for_community(session, level, entity_id, cursor=cursor, limit=limit)
+
+
+@router.get("/cycles/mine")
+async def my_cycles(session: SessionDep, viewer: CurrentUser) -> dict:
+    """DEMOCRACY.md §12.2 — the ballot and jury panels on Home. Registered
+    before `/cycles/{cycle_id}` so "mine" is never read as a cycle id."""
+    return {"communities": await cycles_service.mine(session, viewer=viewer)}
 
 
 @router.get("/cycles/{cycle_id}")

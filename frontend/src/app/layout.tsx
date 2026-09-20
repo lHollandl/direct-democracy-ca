@@ -5,13 +5,13 @@ import SiteNav from "@/components/SiteNav";
 
 export const metadata: Metadata = {
   title: {
-    default: "Direct Democracy Cali",
+    default: "Direct Democracy CA",
     // Every route sets its own `metadata.title`, rendered into this
     // template server-side, so the title in the served HTML is right
     // before any client JavaScript runs (WCAG 2.4.2; CLAUDE.md §8; audit
     // demo-01 run 2 — every route used to serve the same title and set the
     // real one from a client-side useEffect after hydration).
-    template: "%s · Direct Democracy Cali",
+    template: "%s · Direct Democracy CA",
   },
   description:
     "Document a problem in your community, work on solutions with your neighbours, vote, and send the result to the people who represent you.",
@@ -35,9 +35,11 @@ export default function RootLayout({
                 Everything this platform does is published.
               </p>
               <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                <li><a href="/results">Results</a></li>
                 <li><a href="/settings">Every rule and its value</a></li>
                 <li><a href="/ai/actions">Every action AI has taken</a></li>
                 <li><a href="/admin/log">Every action an administrator has taken</a></li>
+                <li><a href="/summaries/hashes">Summary fingerprints</a></li>
                 <li><a href="/legal/privacy">Privacy</a></li>
                 <li><a href="/legal/terms">Terms</a></li>
                 <li><a href="/legal/cookies">Cookies</a></li>

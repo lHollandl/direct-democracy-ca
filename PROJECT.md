@@ -1,4 +1,4 @@
-# PROJECT.md — Direct Democracy Cali
+# PROJECT.md — Direct Democracy CA
 
 > Mission, scope, boundaries, and the parking lot. Read this first when
 > reorienting. For principles and laws, see CLAUDE.md. For how the civic
@@ -10,7 +10,7 @@
 
 ## Mission
 
-Direct Democracy Cali gives ordinary California citizens the tools that
+Direct Democracy CA gives ordinary California citizens the tools that
 only well-funded political organizations currently have: a place to
 document problems in their community, workshop solutions with their
 neighbors, vote on the solutions that earn broad agreement, and deliver
@@ -54,7 +54,7 @@ That is the full cycle. Demo 1 proves it end to end.
 The project is built in two halves on two clocks (CLAUDE.md, "The Two
 Halves of the Codebase"). This table is the authoritative assignment.
 
-| Foundation — built once, kept, full rigor | Iteration — rebuilt per demo until a keeper |
+| Foundation — built once, kept, full rigor | Iteration — improved change by change; data disposable until the keeper |
 |---|---|
 | Infrastructure: Docker, Postgres, Redis, configuration, logging | Posts, problems, solutions, versions, amendments, comments |
 | Accounts: signup, login, JWT + refresh tokens, password reset, email verification | Umbrellas and the umbrella page |
@@ -121,9 +121,11 @@ Iteration side and a first real version on the Foundation side.
 Named here so nothing is built by accident. Each has a home below.
 
 - The democratic proposal system (new categories and umbrellas). Post
-  creation offers "let AI decide" and "pick an existing umbrella"; the
-  third option, "propose a new one," is Demo 2. → Parking lot, Proposal
-  system.
+  creation offers "let AI decide" and "pick an existing umbrella". The
+  director decided on 2026-09-19 that "propose a new umbrella" comes out
+  of the parking lot: without it, a resident of any community with no
+  umbrellas can post but never reach a workshop. It is designed and built
+  as its own change. → Parking lot, Proposal system, until then.
 - Smart feed, clusters, Small Voice. → Parking lot.
 - Any verification method beyond `unverified`. → Parking lot,
   Verification.
@@ -164,13 +166,15 @@ these documents in long unattended runs. What is vague in the documents
 will be decided by Claude Code, and discovered afterwards. Precision
 here is cheaper than surprise later.
 
-**Every demo teaches; only keepers are kept.** A demo is used, audited,
-and its lessons written into the documents. The next demo is built from
-the improved documents: its brief names what changed, and Claude Code
-revises those parts of the Iteration half while the Iteration schema and
-data start fresh. When a demo is good enough that its data is worth
-keeping, the director declares it the keeper, and Iteration comes under
-full rigor.
+**Every change teaches; `main` keeps what passes.** The director uses
+the site, and what it teaches becomes a change: one brief that carries
+both the code revision and the exact document wording, run on its own
+branch. A change the director likes is audited and merged; one the
+director does not like is deleted, code and document edits together. A
+demo is a tag on `main` (`demo-1`, `demo-2`, …), a named point the
+director can always return to. When the data is worth keeping, the
+director declares the keeper, the Iteration schema freezes, and
+Iteration comes under full rigor.
 
 **Audit runs are separate from build runs.** After every long run, a
 fresh Claude Code session reads the documents and the code and reports
@@ -185,14 +189,14 @@ network access only to the host's Ollama, Anthropic's API, and the
 package registries. Claude Code can build anything inside a trial and
 cannot touch anything outside it. SANDBOX.md defines the setup.
 
-**One branch per trial.** `demo/NN` is branched from `main` and built in
-its own sandbox with its own clone of the repository. `demo/01` was
-merged to `main` whole on 2026-09-19 as a one-time exception, because it
-carried the Foundation's first build and six audits had cleared it; the
-Iteration code it left on `main` is the previous demo, not the truth.
-From `demo/02` onward, a demo branch merges only when declared the
-keeper. Foundation fixes discovered during a demo go to `main` by their
-own pull request.
+**`main` is the only long-lived branch.** It always holds the newest
+audited code and the documents that describe it. Every change is a
+`change/NN-short-name` branch cut from `main`, built in its own sandbox
+with its own clone and its own database, and either merged back by pull
+request after its audit or deleted. No branch outlives its change.
+`demo/01` was the last trial branch; it merged whole on 2026-09-19 and
+is tagged `demo-1`. Foundation changes follow the same path under full
+rigor.
 
 **The director's time is the constraint.** Claude Code's runtime is
 cheap; the director's attention is not. Documents, briefs, and audits
@@ -338,3 +342,8 @@ Platform-community post.
 HOPES.md, DirectDemocracyCali_ProjectSummary_v2.md, and the pre-
 2026-09-05 docs/design/ files are archived in `archive/`. This document
 and DEMOCRACY.md supersede them.
+
+### A name for posts
+The third tab reads "New post" for now. The director wants a word of the
+platform's own for a post, the way other platforms named theirs. Not
+chosen.

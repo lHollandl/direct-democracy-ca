@@ -1,10 +1,6 @@
-import type { Metadata } from "next";
-import PageClient from "./PageClient";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "What people are working on",
-};
-
+/** `/feed` is now `/home` (DEMOCRACY.md §12, ARCHITECTURE.md §9). */
 export default function Page() {
-  return <PageClient />;
+  redirect("/home");
 }

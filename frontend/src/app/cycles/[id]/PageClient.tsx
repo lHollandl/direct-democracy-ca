@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { get } from "@/lib/api";
-import { Badge, BackLink, Loading, PageHeader, Section } from "@/components/ui";
+import { Badge, BackLink, Empty, Loading, PageHeader, Section } from "@/components/ui";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
+import { zeroItemBallotSentence, type SettingsMap } from "@/content/explainers";
 
 type Cycle = {
   id: number;
@@ -13,7 +14,7 @@ type Cycle = {
   state: string;
   community: { level: string; entity_id: number; label: string };
   active_users_at_prepare: number | null;
-  settings_in_force: Record<string, unknown>;
+  settings_in_force: SettingsMap;
   item_count: number;
   jury: { drawn: number; seated: number | null; size_requested: number; eligible_pool_size: number } | null;
   jury_review_would_close_on: string | null;
@@ -44,6 +45,9 @@ export default function CyclePage() {
         <BackLink href="/ballot">Back to the ballot</BackLink>
 
         <Section title="Where it stands">
+          {data.item_count === 0 ? (
+            <Empty>{zeroItemBallotSentence(data.settings_in_force)}</Empty>
+          ) : null}
           <ul className="space-y-1 text-sm">
             <li>Items on the ballot: {data.item_count}</li>
             <li>Active residents when it was prepared: {data.active_users_at_prepare ?? "—"}</li>

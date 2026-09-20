@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 import pytest
 
 from backend.db import session_scope
@@ -59,6 +61,31 @@ async def test_the_draw_excludes_authors_and_administrators_and_is_logged(client
         assert jury.size_requested == 3
         assert len(jurors) == 3
         assert {j.user_id for j in jurors} <= pool
+
+
+async def test_the_draw_is_replayable_from_its_logged_pool_and_bytes(client, town):
+    """DEMOCRACY.md §8.1, TODO D2-00 (audit-6 MEDIUM): the sampler is seeded
+    from the logged bytes, so the logged pool plus the logged bytes reproduce
+    the drawn ids exactly."""
+    author = town["people"][0]
+    solution_id = await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    assert prepared.status_code == 200
+    cycle_id = prepared.json()["cycle_id"]
+
+    async with session_scope() as session:
+        jury = await cycles_repo.jury_for_cycle(session, cycle_id)
+        jurors = await cycles_repo.jurors(session, jury.id)
+        drawn_ids = [j.user_id for j in sorted(jurors, key=lambda j: j.seat)]
+        pool, random_bytes, size = jury.eligible_pool, jury.random_bytes, jury.size_requested
+
+    replayed = random.Random(int(random_bytes, 16)).sample(pool, min(size, len(pool)))
+    assert replayed == drawn_ids
 
 
 async def test_declining_draws_a_replacement_immediately(client, town):
@@ -563,3 +590,41 @@ async def test_a_tie_fails_and_the_quorum_is_respected(client, town):
         f"/admin/cycles/{cycle_id}/close", headers=town["director"]["headers"]
     )
     assert closed.json()["results"][0]["result"] == "failed", "a tie fails, and quorum was 3"
+
+
+async def test_a_zero_item_cycle_carries_its_settings_snapshot_for_the_pages(client, town):
+    """FX-02 (change/01 fix run 1): the ballot page, the cycle page, and the
+    Home panel each say why an empty ballot is empty, with the numbers from
+    that cycle's own settings_snapshot — never the live settings (DEMOCRACY
+    §10.2, CLAUDE Law 8). No solution was proposed, so prepare qualifies
+    nothing."""
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    assert prepared.status_code == 200, prepared.text
+    assert prepared.json()["items"] == []
+    assert prepared.json()["state"] == "prepared"
+    cycle_id = prepared.json()["cycle_id"]
+
+    ballot = await client.get(f"/cycles/{cycle_id}/ballot")
+    assert ballot.status_code == 200
+    assert ballot.json()["items"] == []
+    ballot_snapshot = ballot.json()["settings_in_force"]
+    for key in ("ballot_min_dominant_days", "ballot_pct", "ballot_min"):
+        assert key in ballot_snapshot, f"the page needs {key} to explain an empty ballot"
+
+    cycle = await client.get(f"/cycles/{cycle_id}")
+    assert cycle.status_code == 200
+    assert cycle.json()["item_count"] == 0
+    assert cycle.json()["settings_in_force"] == ballot_snapshot, (
+        "the ballot page and the cycle page must agree on the rule that judged this cycle"
+    )
+
+    async with session_scope() as session:
+        stored = await cycles_repo.get(session, cycle_id)
+    assert stored.settings_snapshot == ballot_snapshot, (
+        "the page reads exactly what was recorded on the cycle at prepare time, "
+        "not the live settings table"
+    )

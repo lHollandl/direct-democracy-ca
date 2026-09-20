@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import datetime
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, func, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Label, Post, PostCommunity, PostSolution
+from backend.models import Comment, Label, Post, PostCommunity, PostSolution, Solution, Vote
 
 
 async def get(session: AsyncSession, post_id: int) -> Post | None:
@@ -149,18 +150,69 @@ async def latest_label(
     ).scalar_one_or_none()
 
 
+_CURSOR_SEP = "|"
+
+
+def _encode_feed_cursor(*parts: object) -> str:
+    """The cursor is opaque to the client (ARCHITECTURE.md §6) — a base64
+    token, never a bare id, so a count-sort cursor can't be mistaken for a
+    date-sort one or hand-edited into a different page."""
+    raw = _CURSOR_SEP.join(str(p) for p in parts)
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii")
+
+
+def _decode_feed_cursor(cursor: str) -> tuple[str, str]:
+    raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+    first, _, second = raw.partition(_CURSOR_SEP)
+    return first, second
+
+
+def _fts_match(column, q: str):
+    return func.to_tsvector("english", column).op("@@")(func.websearch_to_tsquery("english", q))
+
+
 async def feed_page(
     session: AsyncSession,
     *,
-    cursor: int | None,
+    sort: str,
+    cursor: str | None,
     limit: int,
     community: tuple[str, int] | None = None,
     main_category_id: int | None = None,
     community_keys: list[tuple[str, int]] | None = None,
-) -> list[Post]:
-    """feed-v0: newest first, filtered by community and main category. That is
-    the entire ordering rule (DEMOCRACY.md §12)."""
-    stmt = select(Post).where(Post.deleted_at.is_(None))
+    query: str | None = None,
+) -> tuple[list, str | None]:
+    """feed-v1 (DEMOCRACY.md §12.1; the sort explanations live beside
+    `FEED_SORTS` in `backend/services/rules.py`, Law 9).
+
+    `vote_count` and `comment_count` are computed per post, not stored: the
+    number of `votes` rows (up and down alike) whose target is a solution
+    with that `post_id`, and the number of not-removed comments whose target
+    is one of those solutions. `query` filters via PostgreSQL full-text
+    search on the problem text or any solution text; it never orders
+    (DEMOCRACY.md §12.1) — the GIN indexes it uses live in DATABASE.md §4.3,
+    §4.4.
+    """
+    vote_count_col = (
+        select(func.count(Vote.id))
+        .select_from(Vote)
+        .join(Solution, and_(Solution.id == Vote.target_id, Vote.target_type == "solution"))
+        .where(Solution.post_id == Post.id)
+        .correlate(Post)
+        .scalar_subquery()
+    )
+    comment_count_col = (
+        select(func.count(Comment.id))
+        .select_from(Comment)
+        .join(Solution, and_(Solution.id == Comment.target_id, Comment.target_type == "solution"))
+        .where(Solution.post_id == Post.id, Comment.removed_at.is_(None))
+        .correlate(Post)
+        .scalar_subquery()
+    )
+
+    stmt = select(
+        Post, vote_count_col.label("vote_count"), comment_count_col.label("comment_count")
+    ).where(Post.deleted_at.is_(None))
     if community or main_category_id is not None or community_keys:
         stmt = stmt.join(PostCommunity, PostCommunity.post_id == Post.id)
     if community:
@@ -174,10 +226,53 @@ async def feed_page(
         )
     if main_category_id is not None:
         stmt = stmt.where(PostCommunity.main_category_id == main_category_id)
-    if cursor is not None:
-        stmt = stmt.where(Post.id < cursor)
-    stmt = stmt.order_by(Post.id.desc()).limit(limit).distinct()
-    return list((await session.execute(stmt)).scalars().all())
+    if query:
+        solution_match = (
+            select(PostSolution.id)
+            .where(PostSolution.post_id == Post.id, _fts_match(PostSolution.text_body, query))
+            .exists()
+        )
+        stmt = stmt.where(or_(_fts_match(Post.problem_text, query), solution_match))
+    stmt = stmt.distinct()
+
+    base = stmt.subquery("feed_base")
+    outer = select(base)
+
+    if sort in ("most_votes", "most_comments"):
+        count_col = base.c.vote_count if sort == "most_votes" else base.c.comment_count
+        if cursor is not None:
+            cur_count, cur_id = _decode_feed_cursor(cursor)
+            outer = outer.where(tuple_(count_col, base.c.id) < (int(cur_count), int(cur_id)))
+        outer = outer.order_by(count_col.desc(), base.c.id.desc())
+    elif sort == "oldest":
+        if cursor is not None:
+            cur_created_at, cur_id = _decode_feed_cursor(cursor)
+            outer = outer.where(
+                tuple_(base.c.created_at, base.c.id)
+                > (datetime.fromisoformat(cur_created_at), int(cur_id))
+            )
+        outer = outer.order_by(base.c.created_at.asc(), base.c.id.asc())
+    else:
+        if cursor is not None:
+            cur_created_at, cur_id = _decode_feed_cursor(cursor)
+            outer = outer.where(
+                tuple_(base.c.created_at, base.c.id)
+                < (datetime.fromisoformat(cur_created_at), int(cur_id))
+            )
+        outer = outer.order_by(base.c.created_at.desc(), base.c.id.desc())
+
+    outer = outer.limit(limit)
+    rows = list((await session.execute(outer)).all())
+
+    next_cursor = None
+    if len(rows) == limit:
+        last = rows[-1]
+        if sort in ("most_votes", "most_comments"):
+            value = last.vote_count if sort == "most_votes" else last.comment_count
+            next_cursor = _encode_feed_cursor(value, last.id)
+        else:
+            next_cursor = _encode_feed_cursor(last.created_at.isoformat(), last.id)
+    return rows, next_cursor
 
 
 def _community_tuple_filter(keys: list[tuple[str, int]]):

@@ -1,0 +1,454 @@
+# test_dataset.yaml — TEST DATA for trying the site. Not real residents, not real opinions.
+# Written by the planning session 2026-09-19 (change/01); the director may edit freely.
+#
+# Loaded by   backend/scripts/load_test_data.py    (refuses unless ALLOW_TEST_DATA=true)
+# Removed by  rebuilding the database from empty. There is no remover: Law 6 allows no deletion of a hashed row.
+#
+# HOW TEST DATA IS IDENTIFIED — three marks, all required:
+#   1. every test account's email is <key>@test.example.com  (TEST_DATA_EMAIL_DOMAIN; signup refuses this domain)
+#   2. every test account's display name and real name start with "[TEST] "
+#   3. everything a test account authored is test data
+#
+# VOTING RULE (so this file stays short and the result is deterministic):
+#   up: N    -> the first N test accounts, in key order, that are members of that community,
+#               excluding the author, upvote the solution
+#   down: M  -> the next M accounts after those downvote it
+#
+# file_under: per governance level of the AUTHOR's home, either an existing umbrella name
+#   (recorded as author_selected) or the word  ai  (the labeler decides — exercises Ollama).
+# Posts load in file order, so the last post in this file is the newest on Home.
+# comments: target "solution" (solution 1 of the post; only used where the solution will be dominant)
+#   or target "umbrella" (the problem discussion of the umbrella the post was filed under).
+
+accounts:
+  # ---- San Jose / Santa Clara County ----
+  - {key: t01, name: "[TEST] Maria Gutierrez",  city: San Jose, county: Santa Clara}
+  - {key: t02, name: "[TEST] David Chen",       city: San Jose, county: Santa Clara}
+  - {key: t03, name: "[TEST] Priya Raman",      city: San Jose, county: Santa Clara}
+  - {key: t04, name: "[TEST] Tom Becker",       city: San Jose, county: Santa Clara}
+  - {key: t05, name: "[TEST] Linh Tran",        city: San Jose, county: Santa Clara}
+  - {key: t06, name: "[TEST] Andre Williams",   city: San Jose, county: Santa Clara}
+  - {key: t07, name: "[TEST] Sofia Morales",    city: San Jose, county: Santa Clara}
+  - {key: t08, name: "[TEST] Greg Novak",       city: San Jose, county: Santa Clara}
+  # ---- Fremont / Alameda County ----
+  - {key: t09, name: "[TEST] Anita Shah",       city: Fremont, county: Alameda}
+  - {key: t10, name: "[TEST] Kevin Liu",        city: Fremont, county: Alameda}
+  - {key: t11, name: "[TEST] Rosa Delgado",     city: Fremont, county: Alameda}
+  - {key: t12, name: "[TEST] Omar Haddad",      city: Fremont, county: Alameda}
+  - {key: t13, name: "[TEST] Emily Park",       city: Fremont, county: Alameda}
+  - {key: t14, name: "[TEST] James Okafor",     city: Fremont, county: Alameda}
+  - {key: t15, name: "[TEST] Hannah Weiss",     city: Fremont, county: Alameda}
+  - {key: t16, name: "[TEST] Raj Patel",        city: Fremont, county: Alameda}
+
+posts:
+  # =========================== San Jose (city) ===========================
+  - key: p01
+    author: t01
+    file_under: {city: "Road Damage and Pothole Repair"}
+    problem: The potholes on Story Road between King and Capitol have been reported through the city app four times since spring and are still there. Two neighbors have had tires blown out.
+    solutions:
+      - text: Publish every pothole report on a public map with the date reported and the date fixed, and commit to repairing any pothole on a major street within 14 days of the first report.
+        up: 6
+        down: 0
+      - text: Set aside a fixed share of the paving budget for a rapid-response crew that only handles reported potholes, separate from scheduled repaving.
+        up: 3
+    comments:
+      - {target: solution, by: t03, text: "A public map would also show which neighborhoods wait the longest. I'd add that to the text."}
+      - {target: solution, by: t05, text: "14 days is realistic for major streets. Residential streets probably need a longer window."}
+
+  - key: p02
+    author: t04
+    file_under: {city: "Road Damage and Pothole Repair"}
+    problem: Lane markings on Monterey Road south of Curtner are so faded that at night in the rain you cannot tell where the lanes are.
+    solutions:
+      - text: Repaint lane markings on every arterial street on a fixed three-year schedule, using reflective paint, and publish the schedule.
+        up: 4
+        down: 1
+
+  - key: p03
+    author: t02
+    file_under: {city: "Pedestrian Safety Near Schools"}
+    problem: Drivers routinely go 40 in the 25 zone in front of the elementary school on my street during drop-off. There is no crossing guard and the crosswalk paint is nearly gone.
+    solutions:
+      - text: Install raised crosswalks and flashing beacons at every elementary school entrance, starting with schools that have no crossing guard.
+        up: 7
+      - text: Fund a paid crossing guard at every elementary school for the 30 minutes before and after the school day.
+        up: 5
+        down: 1
+    comments:
+      - {target: solution, by: t01, text: "Raised crosswalks slow cars all day, not only when a guard is present. Strong support."}
+      - {target: solution, by: t06, text: "Could the text say which schools go first and how that list is decided?"}
+      - {target: umbrella, by: t07, text: "The same thing happens at the middle school on my block. It isn't only elementary schools."}
+
+  - key: p04
+    author: t06
+    file_under: {city: ai}
+    problem: Parents double-park and block the bike lane outside the middle school every afternoon, which forces kids on bikes out into traffic.
+    solutions:
+      - text: Create a marked pick-up loop on the school's side street and ticket double-parking in the bike lane during school hours.
+        up: 3
+
+  - key: p05
+    author: t05
+    file_under: {city: "Encampments Along Creeks and Trails"}
+    problem: The Guadalupe River trail near downtown has long stretches where encampments block the path, and trash is ending up in the river. People living there have nowhere else to go, and trail users have stopped using it.
+    solutions:
+      - text: Open sanctioned sites with toilets, trash pickup, and case workers near but not on the trail, and offer every person on the trail a place at one before any clearing happens.
+        up: 5
+        down: 2
+      - text: Put dumpsters and portable toilets at the largest encampments now, serviced weekly, while longer-term housing is worked out.
+        up: 4
+    comments:
+      - {target: solution, by: t08, text: "The order matters here: offer a place first, then clear. I support it as written."}
+
+  - key: p06
+    author: t08
+    file_under: {city: "Encampments Along Creeks and Trails"}
+    problem: Encampment fires along Coyote Creek have twice spread to the fence line of homes on our street this year.
+    solutions:
+      - text: Have the fire department do monthly outreach visits to creek encampments to hand out fire extinguishers and clear dry brush around cooking areas.
+        up: 2
+
+  - key: p07
+    author: t03
+    file_under: {city: "Park Maintenance and Restroom Access"}
+    problem: The restrooms at our neighborhood park have been locked for over a year. Families with small children leave after half an hour because there is nowhere to go.
+    solutions:
+      - text: Reopen every neighborhood park restroom during daylight hours with a daily cleaning visit, and post a phone number on the door for reporting problems.
+        up: 6
+    comments:
+      - {target: solution, by: t02, text: "Daily cleaning is the part that makes this work. Without it they get locked again within a month."}
+
+  - key: p08
+    author: t07
+    file_under: {city: "Park Maintenance and Restroom Access"}
+    problem: Half the swings and the only accessible play structure at Emma Prusch Park have been taped off for months.
+    solutions:
+      - text: Set a 30-day limit for repairing or replacing any playground equipment that has been closed for safety, and list every closed piece of equipment on the parks website.
+        up: 3
+        down: 0
+
+  - key: p09
+    author: t02
+    file_under: {city: ai}
+    problem: Street lights are out along three full blocks of my neighborhood and have been for two months. People avoid walking there after dark.
+    solutions:
+      - text: Let residents report a dead street light by texting the pole number, and require a repair or a posted explanation within 10 working days.
+        up: 4
+
+  - key: p10
+    author: t05
+    file_under: {city: ai}
+    problem: The city council votes on large developments at meetings that start at 1:30 on weekday afternoons, when almost nobody with a job can attend or comment.
+    solutions:
+      - text: Hold any council vote on a project above a set size at an evening session, and accept written and recorded video comments for a week beforehand.
+        up: 5
+        down: 1
+
+  # ======================= Santa Clara County ============================
+  - key: p11
+    author: t03
+    file_under: {county: "Bus and Light Rail Frequency"}
+    problem: After 8 pm the bus I take home from work runs once an hour. If I miss it by a minute I wait 59 minutes at an unlit stop.
+    solutions:
+      - text: Run the ten busiest bus routes at least every 20 minutes until 11 pm on weekdays, paid for by trimming daytime frequency on the routes with the fewest riders.
+        up: 6
+        down: 1
+      - text: Add lighting and real-time arrival signs to every stop on the ten busiest routes.
+        up: 4
+    comments:
+      - {target: solution, by: t01, text: "Which routes lose daytime service? I'd support this if the text named them or the rule for choosing them."}
+      - {target: umbrella, by: t04, text: "Weekend service is even worse than weeknights on my route."}
+
+  - key: p12
+    author: t06
+    file_under: {county: "Bus and Light Rail Frequency"}
+    problem: Light rail from south San Jose to Mountain View takes almost 90 minutes, which is slower than the same trip took ten years ago.
+    solutions:
+      - text: Give light rail signal priority at every street crossing in downtown San Jose so trains stop only at stations.
+        up: 5
+
+  - key: p13
+    author: t01
+    file_under: {county: "Affordable Housing Supply"}
+    problem: My rent has gone up 38 percent in five years and my pay has gone up 9. Teachers and nurses I work with are moving to the Central Valley and commuting two hours each way.
+    solutions:
+      - text: Require every city in the county to approve housing near rail stations and major bus lines within 90 days when the project includes at least 20 percent affordable units.
+        up: 5
+        down: 2
+      - text: Use county-owned surplus land for permanently affordable housing built by nonprofit developers, and publish the list of surplus parcels.
+        up: 6
+    comments:
+      - {target: solution, by: t07, text: "The published parcel list is the key piece. Right now nobody outside the county knows what land exists."}
+
+  - key: p14
+    author: t04
+    file_under: {county: "Affordable Housing Supply"}
+    problem: It took my neighbor 19 months to get a permit for a backyard cottage for her mother. The rules are different in every city in the county.
+    solutions:
+      - text: Adopt one countywide set of pre-approved backyard cottage plans that any city must approve within 30 days.
+        up: 4
+
+  - key: p15
+    author: t08
+    file_under: {county: "Wildfire Smoke and Air Quality Response"}
+    problem: During the last smoke event my kids' school stayed open with the windows shut and no air filters, while the district next door closed. Nobody could tell us what the rule was.
+    solutions:
+      - text: Set one countywide air quality number above which schools must move activities indoors with filtration or close, and announce it the same way everywhere.
+        up: 6
+    comments:
+      - {target: solution, by: t05, text: "One number, announced one way. This is exactly what was missing."}
+
+  - key: p16
+    author: t07
+    file_under: {county: ai}
+    problem: On bad smoke days, people without air conditioning or air purifiers have nowhere to go. The libraries near me close at 6.
+    solutions:
+      - text: Open libraries and community centers as clean-air centers with extended hours whenever the air quality index passes 150, and publish the list of locations in advance.
+        up: 5
+
+  - key: p17
+    author: t02
+    file_under: {county: ai}
+    problem: The county's public health clinics are only open on weekdays from 8 to 5, so people who work hourly jobs have to lose pay to see a doctor.
+    solutions:
+      - text: Keep at least one county clinic in each supervisorial district open two evenings a week and on Saturday mornings.
+        up: 3
+
+  # ============================ Fremont (city) ===========================
+  - key: p18
+    author: t09
+    file_under: {city: "Traffic Congestion on Commute Corridors"}
+    problem: Navigation apps send thousands of commuters through the residential streets around Mission San Jose every evening to avoid 680. It takes me 25 minutes to get out of my own neighborhood.
+    solutions:
+      - text: Restrict turns from the main corridors into the affected neighborhoods during the evening commute, with exemptions for residents, and review the results after six months.
+        up: 6
+        down: 1
+      - text: Work with the navigation companies to remove neighborhood streets from suggested commute routes during peak hours.
+        up: 3
+    comments:
+      - {target: solution, by: t11, text: "The six-month review is what makes me comfortable supporting turn restrictions."}
+      - {target: solution, by: t13, text: "How would a resident exemption be enforced? A sticker? Plate readers? The text should say."}
+
+  - key: p19
+    author: t12
+    file_under: {city: "Traffic Congestion on Commute Corridors"}
+    problem: The signals on Fremont Boulevard are not timed together. You stop at nearly every light between Stevenson and Auto Mall, even at 10 at night with no cross traffic.
+    solutions:
+      - text: Retime the signals on Fremont Boulevard, Mowry, and Stevenson as coordinated corridors and publish the before-and-after travel times.
+        up: 7
+
+  - key: p20
+    author: t10
+    file_under: {city: "Safe Routes for Walking and Biking"}
+    problem: The bike lane on Paseo Padre is a painted line next to 45 mile an hour traffic. I would never let my kids ride it, so we drive them a mile and a half to school.
+    solutions:
+      - text: Build physically protected bike lanes on Paseo Padre Parkway and Fremont Boulevard, starting with the segments closest to schools.
+        up: 6
+        down: 1
+    comments:
+      - {target: solution, by: t09, text: "Start near the schools, yes. That is where a protected lane changes the most trips."}
+
+  - key: p21
+    author: t14
+    file_under: {city: "Safe Routes for Walking and Biking"}
+    problem: There are stretches of Niles Boulevard with no sidewalk at all. People push strollers in the roadway.
+    solutions:
+      - text: Survey every street within half a mile of a school, park, or transit stop for missing sidewalk, publish the list, and fund the gaps in order of foot traffic.
+        up: 5
+
+  - key: p22
+    author: t13
+    file_under: {city: "Downtown and Small Business Vitality"}
+    problem: I tried to open a small bakery in Centerville. The permits took eleven months and four different departments, and I paid rent on an empty space the whole time.
+    solutions:
+      - text: Give small businesses a single permit coordinator and a 60-day decision deadline for standard uses in existing commercial spaces.
+        up: 7
+      - text: Waive city permit fees for the first year for a new business under ten employees that fills a storefront vacant for more than a year.
+        up: 4
+        down: 1
+    comments:
+      - {target: solution, by: t15, text: "A single coordinator would have saved my family's restaurant months."}
+      - {target: umbrella, by: t16, text: "Vacant storefronts in Irvington are the same story. Landlords would rather wait than lower the rent."}
+
+  - key: p23
+    author: t16
+    file_under: {city: "Downtown and Small Business Vitality"}
+    problem: Downtown Fremont is empty after 7 pm. There is nothing to walk to, so nobody walks.
+    solutions:
+      - text: Close one block of Capitol Avenue to cars on Friday and Saturday evenings from May to October for food vendors, music, and outdoor seating.
+        up: 5
+        down: 2
+
+  - key: p24
+    author: t11
+    file_under: {city: ai}
+    problem: Central Park's lake path floods every winter and stays closed for weeks, and the detour sends walkers along a busy road with no sidewalk.
+    solutions:
+      - text: Raise and regrade the lowest sections of the Lake Elizabeth path and add a safe, marked detour for the weeks it still has to close.
+        up: 4
+
+  - key: p25
+    author: t15
+    file_under: {city: ai}
+    problem: Fremont has one of the largest library branches in the county, and it is closed on Sundays and most evenings, which is exactly when students and working families could use it.
+    solutions:
+      - text: Open the main library on Sunday afternoons and until 9 pm on weeknights during the school year.
+        up: 6
+
+  # ========================= Alameda County ==============================
+  - key: p26
+    author: t10
+    file_under: {county: "Regional Transit Connections"}
+    problem: Getting from Fremont to a job in Hayward or Oakland by bus means two transfers and schedules that do not line up. A 20 minute drive is a 95 minute transit trip.
+    solutions:
+      - text: Time the main bus lines to meet every BART train at Fremont, Union City, and Hayward stations, and guarantee the connection by holding the bus up to three minutes.
+        up: 7
+      - text: Run an all-day express bus along the 880 corridor connecting Fremont, Union City, Hayward, San Leandro, and Oakland.
+        up: 5
+    comments:
+      - {target: solution, by: t12, text: "Holding the bus three minutes is cheap and would fix most of my missed connections."}
+      - {target: solution, by: t14, text: "Please add evenings and weekends to the text. The timed connections disappear after 7."}
+
+  - key: p27
+    author: t13
+    file_under: {county: "Regional Transit Connections"}
+    problem: There is no frequent transit at all between the Tri-Valley and southern Alameda County. If you live in Fremont and work in Pleasanton you drive, full stop.
+    solutions:
+      - text: Start a bus every 20 minutes between Fremont BART and Dublin/Pleasanton BART over the Sunol Grade during commute hours, and keep it for a two-year trial.
+        up: 4
+        down: 1
+
+  - key: p28
+    author: t09
+    file_under: {county: "Illegal Dumping"}
+    problem: Couches, mattresses, and construction debris get dumped on the frontage road near my work every week. It sits for a month before anyone picks it up.
+    solutions:
+      - text: Offer every household two free bulky-item pickups a year countywide, and publicize it, so there is a legal option that is easier than dumping.
+        up: 6
+      - text: Put cameras at the twenty most-dumped locations and publish the number of fines issued each quarter.
+        up: 3
+        down: 2
+    comments:
+      - {target: solution, by: t16, text: "Free pickups deal with the cause. Most people dumping a couch are not contractors, they just have no truck."}
+
+  - key: p29
+    author: t15
+    file_under: {county: "Illegal Dumping"}
+    problem: Alameda Creek has shopping carts, tires, and bags of trash in it within sight of the regional trail.
+    solutions:
+      - text: Fund a permanent creek cleanup crew, hired in part from people leaving homelessness, that works the county's creeks on a published rotation.
+        up: 5
+
+  - key: p30
+    author: t12
+    file_under: {county: "Homelessness Services and Shelter Capacity"}
+    problem: When someone in Fremont needs a shelter bed tonight, the nearest open bed is often in Oakland, 25 miles away, and there is no way for them to get there.
+    solutions:
+      - text: Require a minimum number of year-round shelter beds in each region of the county in proportion to its unsheltered count, and publish nightly availability.
+        up: 6
+        down: 1
+    comments:
+      - {target: solution, by: t10, text: "Published nightly availability would also help outreach workers stop calling five places every evening."}
+
+  - key: p31
+    author: t14
+    file_under: {county: "Homelessness Services and Shelter Capacity"}
+    problem: Cities in the county each run their own homelessness programs with their own forms and waiting lists. People get lost between them when they cross a city line.
+    solutions:
+      - text: Create one countywide intake and waiting list shared by every city and provider, so a person registers once.
+        up: 4
+
+  - key: p32
+    author: t11
+    file_under: {county: ai}
+    problem: The county's property tax and permit websites only work in English, in a county where a large share of households speak another language at home.
+    solutions:
+      - text: Translate the county's most-used online services into the five most spoken languages in the county, reviewed by native speakers rather than machine translation alone.
+        up: 3
+
+  # ===================== California (state) — both regions ================
+  - key: p33
+    author: t01
+    file_under: {state: "Electricity Costs and Reliability"}
+    problem: My electricity bill has doubled in four years while my usage has gone down. The utility reports record profits in the same years it asks for rate increases.
+    solutions:
+      - text: Cap the profit rate that investor-owned utilities may earn on new spending, and require the utilities commission to publish a plain-language explanation of every approved rate increase.
+        up: 11
+        down: 2
+      - text: Move the cost of wildfire-prevention work from customer bills to the state budget, where it is paid for progressively.
+        up: 6
+        down: 3
+    comments:
+      - {target: solution, by: t09, text: "The plain-language explanation requirement is overdue. Nobody can read a rate case today."}
+      - {target: solution, by: t04, text: "I support a cap, but the text should say who sets the number and how often it is reviewed."}
+      - {target: umbrella, by: t13, text: "Bills in the East Bay have gone the same way. This is statewide, not regional."}
+
+  - key: p34
+    author: t12
+    file_under: {state: "Electricity Costs and Reliability"}
+    problem: Planned safety shutoffs left my mother, who uses an oxygen concentrator, without power for 31 hours with one day's notice.
+    solutions:
+      - text: Require utilities to provide a battery backup at no cost to every registered medical-baseline customer in a shutoff zone before the next fire season.
+        up: 12
+    comments:
+      - {target: solution, by: t02, text: "This should already be the law."}
+
+  - key: p35
+    author: t06
+    file_under: {state: "Public Access to Government Records"}
+    problem: I asked a state agency for a contract that is plainly a public record. It took seven months, three reminders, and half the pages came back blacked out with no reason given.
+    solutions:
+      - text: Set a firm 30-day deadline for public records responses, require a written reason for every redaction, and let requesters appeal to an independent office without going to court.
+        up: 9
+        down: 1
+    comments:
+      - {target: solution, by: t15, text: "The appeal office is the important part. Today the only remedy is a lawsuit, which almost nobody can afford."}
+
+  - key: p36
+    author: t16
+    file_under: {state: "Public Access to Government Records"}
+    problem: Every agency publishes its spending in a different format, usually as scanned PDFs, so nobody can compare or total anything.
+    solutions:
+      - text: Require every state agency to publish its spending and contracts monthly in one standard, downloadable spreadsheet format.
+        up: 7
+
+  - key: p37
+    author: t03
+    file_under: {state: "Teacher Retention and Classroom Funding"}
+    problem: My daughter's school has lost four teachers in two years, all to districts or states where a teacher's salary can cover rent. Her math class has had three long-term substitutes since September.
+    solutions:
+      - text: Fund a housing stipend for teachers in any district where median rent is more than 40 percent of a starting teacher's salary.
+        up: 10
+        down: 2
+      - text: Build teacher housing on surplus school district land, with rents tied to salary.
+        up: 8
+        down: 1
+    comments:
+      - {target: solution, by: t10, text: "Tying it to the local rent-to-salary ratio means the money goes where the problem actually is."}
+      - {target: solution, by: t07, text: "Would classified staff be included? Bus drivers and aides are leaving for the same reason."}
+
+  - key: p38
+    author: t14
+    file_under: {state: "Teacher Retention and Classroom Funding"}
+    problem: Teachers at my school spend hundreds of dollars of their own money on basic classroom supplies every year, and the parent group fundraises for paper.
+    solutions:
+      - text: Give every classroom teacher a supply budget paid directly by the state each August, separate from the school's general funds.
+        up: 9
+
+  - key: p39
+    author: t05
+    file_under: {state: ai}
+    problem: Insurance companies are cancelling homeowner policies across whole ZIP codes because of wildfire risk, including for homes that have done all the recommended fire-hardening work.
+    solutions:
+      - text: Require insurers to offer and price coverage based on a home's verified fire-hardening work, not only its ZIP code, as a condition of doing business in the state.
+        up: 8
+        down: 1
+
+  - key: p40
+    author: t11
+    file_under: {state: ai}
+    problem: The DMV requires an in-person visit for things that could be done online, and the earliest appointment near me is nine weeks away.
+    solutions:
+      - text: Move every DMV transaction that does not legally require a photo or a test online, and publish average wait times for each office every month.
+        up: 6

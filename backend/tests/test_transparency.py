@@ -87,6 +87,34 @@ async def test_a_bad_setting_value_reads_in_plain_words(client):
     assert response.json()["message"] == "The value for jury_size must be a whole number."
 
 
+async def test_cycle_open_rule_rejects_an_unknown_rule(client):
+    """DEMOCRACY.md §10.1 — only `first_sunday_of_month` exists; a value
+    outside that set is refused rather than silently accepted, since
+    `rules.py::next_cycle_dates` only knows how to compute the rules it
+    names."""
+    director = await make_user(
+        client, email="dir3@example.com", display_name="Dir3", admin=True
+    )
+    response = await client.post(
+        "/admin/settings",
+        headers=director["headers"],
+        json={"key": "cycle_open_rule", "value": "every_full_moon", "reason": "testing"},
+    )
+    assert response.status_code == 422
+    assert response.json()["error"] == "bad_setting_value"
+
+    accepted = await client.post(
+        "/admin/settings",
+        headers=director["headers"],
+        json={
+            "key": "cycle_open_rule",
+            "value": "first_sunday_of_month",
+            "reason": "testing the known rule still works",
+        },
+    )
+    assert accepted.status_code == 200, accepted.text
+
+
 async def test_an_unknown_setting_is_refused(client):
     director = await make_user(
         client, email="dir@example.com", display_name="Dir", admin=True
@@ -176,7 +204,7 @@ async def test_the_ranking_rule_is_printed_where_it_applies(client):
 
     user = await make_user(client, email="a@example.com", display_name="Ann")
     feed = (await client.get("/feed", headers=user["headers"])).json()
-    assert feed["ranking"] == "feed-v0"
+    assert feed["ranking"] == "feed-v1"
 
 
 async def test_the_community_page_explains_who_counts_as_active(client):

@@ -77,6 +77,7 @@ async def ballot_view(session: AsyncSession, *, cycle: Cycle, viewer: User | Non
         "state": cycle.state,
         "community": community.as_dict(),
         "you_can_vote": can_vote,
+        "settings_in_force": cycle.settings_snapshot,
         "ordering": {
             "version": rules.BALLOT_ORDER_VERSION,
             "explanation": rules.BALLOT_ORDER_EXPLANATION,

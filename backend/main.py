@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     env = get_env_settings()
     app = FastAPI(
-        title="Direct Democracy Cali",
+        title="Direct Democracy CA",
         version=env.BUILD_LABEL,
         description=(
             "The people's tool. Every rule this API applies is published at "

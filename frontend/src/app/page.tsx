@@ -1,100 +1,88 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/ui";
-import { serverGet } from "@/lib/api";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+const ITEMS = [
+  {
+    title: "Today's technology, working for democracy",
+    body: "Writing to a representative used to mean one letter from one person. Here a whole community drafts a proposal, improves it, and votes on it together, and every step is on the public record.",
+  },
+  {
+    title: "More power to the people",
+    body: "Every vote counts the same. What your community passes is published as one document with a fingerprint anyone can check, so it cannot be quietly changed — and officials can be held to it.",
+  },
+  {
+    title: "Every use of AI is visible",
+    body: "AI sorts posts into topics and suggests sources. It does not write for you, vote, or decide anything. Every AI action is listed on a public page, and every post shows how much AI was involved.",
+  },
+  {
+    title: "Built for California residents",
+    body: "Every account declares a California home city and county, and every published result reports how many voters were at each verification level. Stronger proof of residency is planned; until it exists, we say so.",
+  },
+  {
+    title: "Your name is yours to show or hide",
+    body: "We ask for your real name to protect the integrity of the vote. You choose whether the public sees it or a display name, and you can delete your account and your personal information at any time.",
+  },
+];
 
 /**
- * `jury_size` decides a democratic status and so must never be a constant in
- * copy (CLAUDE.md Law 8) — it is read from the public settings, the same
- * value every other page uses, through the one module that calls `fetch`
- * (ARCHITECTURE.md §9). `null` on a fetch failure, so the sentence below can
- * fall back to wording that carries no number rather than a stale one (audit
- * demo-01 run 4, LOW).
+ * A signed-in visitor never sees the pitch — they go straight to `/home`
+ * (ARCHITECTURE.md §9). The refresh cookie is `Path=/` with no `Domain`
+ * override (backend/routers/auth.py), so it is scoped to the host name and
+ * sent to this frontend server on any port of that same host, letting a
+ * Server Component check for it without a round trip to the API.
  */
-async function citizensDrawnForJury(): Promise<number | null> {
-  const body = await serverGet<{ settings: { key: string; value: unknown }[] }>("/settings");
-  const row = body?.settings.find((setting) => setting.key === "jury_size");
-  return typeof row?.value === "number" ? row.value : null;
-}
+export default async function LandingPage() {
+  const cookieStore = await cookies();
+  if (cookieStore.get("refresh_token")) {
+    redirect("/home");
+  }
 
-export default async function Home() {
-  const jurySize = await citizensDrawnForJury();
   return (
     <>
-      <PageHeader
-        title="The tools that only well-funded political organisations have had"
-        lead="Write down a problem in your community. Propose what should be done about it. Work on it with your neighbours, vote on it, and send the result to the people who represent you — in a form they cannot dispute."
-      />
+      <header className="page-header">
+        <div className="mx-auto max-w-2xl px-4 py-8 text-center sm:py-12">
+          <h1 className="text-2xl font-bold sm:text-3xl">
+            Your community decides. Your representatives hear it.
+          </h1>
+          <p className="mt-3 text-base text-[var(--muted)] sm:text-lg">
+            Direct Democracy CA is a free public tool for California
+            residents. Write down a problem, work out the fix with your
+            neighbors, vote on it, and send the result to the people who
+            represent you.
+          </p>
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <Link
+              href="/signup"
+              className="btn btn-primary px-10 py-3 text-lg no-underline"
+            >
+              Join
+            </Link>
+            <Link href="/home" className="text-sm no-underline">
+              See what people are working on
+            </Link>
+          </div>
+        </div>
+      </header>
       <div className="mx-auto max-w-4xl px-4 py-8">
         <ol className="grid gap-4 sm:grid-cols-2">
-          {[
-            {
-              step: "1",
-              title: "Say what is wrong, and what to do",
-              body: "Nothing can be posted here without at least one proposed solution. This is not a place to complain.",
-            },
-            {
-              step: "2",
-              title: "Work on it together",
-              body: "Solutions that enough neighbours support become open to amendment. Anyone can propose a better wording; enough support and it becomes the text.",
-            },
-            {
-              step: "3",
-              title:
-                jurySize !== null
-                  ? `${jurySize} neighbours check it over`
-                  : "Neighbours check it over",
-              body:
-                jurySize !== null
-                  ? `Before a ballot, ${jurySize} residents drawn at random look at what qualified. They cannot change anything. They can hold something back, in public, with a reason.`
-                  : "Before a ballot, residents drawn at random — see the settings page for how many — look at what qualified. They cannot change anything. They can hold something back, in public, with a reason.",
-            },
-            {
-              step: "4",
-              title: "The community votes, and the result is published",
-              body: "One vote each, counted the same. The result is a public page with a fingerprint anyone can check, and one button that emails it to your representatives from your own address.",
-            },
-          ].map((item) => (
-            <li key={item.step} className="card p-4">
-              <p className="text-sm font-bold text-[var(--accent)]">Step {item.step}</p>
+          {ITEMS.map((item, index) => (
+            <li key={item.title} className="card p-4">
+              <p className="text-sm font-bold text-[var(--accent)]">
+                {index + 1}
+              </p>
               <h2 className="mt-1 font-bold">{item.title}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">{item.body}</p>
             </li>
           ))}
         </ol>
 
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/signup" className="btn btn-primary no-underline">
-            Join your community
-          </Link>
-          <Link href="/feed" className="btn no-underline">
-            See what people are working on
-          </Link>
-        </div>
-
-        <section className="mt-10">
-          <h2 className="text-xl font-bold">What we promise, and what we cannot</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            <li>
-              <strong>Every rule is public.</strong> Every number that decides an
-              outcome is on the <Link href="/settings">settings page</Link>, with
-              what it means and when it last changed.
-            </li>
-            <li>
-              <strong>AI never decides anything.</strong> It sorts and suggests,
-              it is labelled every time, and every action it takes is in the{" "}
-              <Link href="/ai/actions">public log</Link>. You can correct it.
-            </li>
-            <li>
-              <strong>Your ballot vote is yours alone.</strong> Not other voters,
-              not administrators. Everyone else sees totals.
-            </li>
-            <li>
-              <strong>We cannot check that you live where you say.</strong> Every
-              published result says so, plainly, so nobody is misled about what
-              the numbers mean.
-            </li>
-          </ul>
-        </section>
+        <p className="mt-10 text-sm text-[var(--muted)]">
+          The rules, the settings, and every administrator action are public.{" "}
+          <Link href="/settings">Settings</Link> ·{" "}
+          <Link href="/ai/actions">AI actions</Link> ·{" "}
+          <Link href="/admin/log">Administrator log</Link>
+        </p>
       </div>
     </>
   );

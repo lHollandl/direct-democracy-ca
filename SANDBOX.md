@@ -148,18 +148,18 @@ it deliberately.
 
 ## 6. Per-Trial Procedure
 
-### 6.1 Create the trial branch (host)
+### 6.1 Create the change branch (host)
 
 ```
 cd ~/direct-democracy-ca
-git fetch origin
-git switch -c demo/01 origin/main
-git push -u origin demo/01
-git switch main
+git switch main && git pull
+git switch -c change/NN-short-name
+# add the brief (and any files it ships with), then:
+git add -A && git commit -m "change/NN brief" && git push -u origin change/NN-short-name
 ```
 
-The host checkout stays on `main`. The sandbox will work on `demo/01`
-in its own clone.
+The sandbox is started from this branch (§6.2); switch the host back to
+`main` afterwards.
 
 ### 6.2 Start the build sandbox (verified command form)
 
@@ -171,9 +171,13 @@ with `demo/01` at `main` and had to fast-forward itself):
 ```
 cd ~/direct-democracy-ca
 git fetch origin
-git switch demo/01 && git pull && git switch main
-sbx run --clone --name ddc-demo-01 claude . -- "$(cat briefs/demo-01.md)"
+git switch change/NN-short-name && git pull
+sbx run --clone --name ddc-change-NN claude . -- "$(cat briefs/change-NN.md)"
 ```
+
+Keep `sbx run` on **one line**. The prompt argument often does not
+arrive and the window opens empty; the director then **types**: "your
+brief is briefs/change-NN.md, follow it exactly".
 
 `--clone` gives the sandbox its own git clone; the host working tree is
 untouched. The brief is passed as the prompt. Claude Code starts with
@@ -231,15 +235,31 @@ in §9.
 
 ### 6.6 Finish or discard
 
-- **Foundation:** Foundation changes reach `main` by pull request after
-  a clean audit. (`demo/01` merged whole as the one-time exception
-  recorded in PROJECT.md.)
-- **Iteration:** leave `demo/01` as a branch. Start `demo/02` from
-  `main`.
+- **Accepted:** change audit (AUDIT.md §2), then `gh pr create --base
+  main --head change/NN-short-name --fill`, merge in the browser, then
+  on the host `git switch main && git pull && git push origin --delete
+  change/NN-short-name`. At a demo: `git tag demo-N && git push origin
+  demo-N`.
+- **Rejected:** `git push origin --delete change/NN-short-name`. The
+  code and the document edits go together.
 - Remove the sandbox: `sbx rm ddc-demo-01` (**confirmed**; `sbx ls`
   lists, `sbx stop` pauses without removing, `sbx prune` clears stopped
   ones). The branch and the remote fetch survive; the VM, its database,
   and its Docker state do not.
+
+### 6.7 Start the site to use it (verified 2026-09-19)
+
+In a fresh sandbox on the branch to be used, ask Claude Code to: create
+`.env` from `.env.example` **with `OLLAMA_BASE_URL` set to the host LAN
+address (§5) and `ALLOW_TEST_DATA=true`**; start Postgres and Redis;
+run both migration chains and the seed; start the backend on
+`0.0.0.0:8000` and the frontend on `0.0.0.0:3000` with the root `.env`
+exported; optionally run `backend/scripts/load_test_data.py --apply`.
+Then on the host: `sbx ports <name> --publish 3000:3000 --publish
+8000:8000` and browse to `http://localhost:3000` (browser VPN off). Make
+an administrator with `backend/scripts/grant_admin.py <email> --apply`,
+then sign out and in. Leaving the placeholder Ollama address in `.env`
+leaves every post "not filed yet".
 
 ---
 

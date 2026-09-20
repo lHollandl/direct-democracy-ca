@@ -65,6 +65,15 @@ async def signup(
 
     security.validate_password(password)
 
+    env = get_env_settings()
+    test_domain = env.TEST_DATA_EMAIL_DOMAIN.lower()
+    if not env.ALLOW_TEST_DATA and email.lower().rsplit("@", 1)[-1] == test_domain:
+        raise ValidationFailed(
+            f"Email addresses at {env.TEST_DATA_EMAIL_DOMAIN} are reserved for test "
+            "data on this platform and cannot be used to sign up.",
+            code="test_domain_reserved",
+        )
+
     if await users_repo.by_email(session, email) is not None:
         raise Conflict(
             "An account already exists with that email address.", code="email_taken"
@@ -124,7 +133,7 @@ async def signup(
     )
     await email_client.send(
         to=user.email,
-        subject="Confirm your email address — Direct Democracy Cali",
+        subject="Confirm your email address — Direct Democracy CA",
         text_body=(
             f"Welcome, {user.display_name}.\n\n"
             "Confirm your email address to start posting, voting and commenting:\n\n"
@@ -282,7 +291,7 @@ async def forgot_password(session: AsyncSession, email: str) -> str | None:
     )
     await email_client.send(
         to=user.email,
-        subject="Reset your password — Direct Democracy Cali",
+        subject="Reset your password — Direct Democracy CA",
         text_body=(
             f"Someone asked to reset the password for this account.\n\n"
             f"{_frontend_origin()}/reset-password?token={token}\n\n"

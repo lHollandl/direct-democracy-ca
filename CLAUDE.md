@@ -1,4 +1,4 @@
-# CLAUDE.md — Direct Democracy Cali Constitution
+# CLAUDE.md — Direct Democracy CA Constitution
 
 > This document is the constitution. It holds the principles and universal
 > laws that govern every design decision and every line of code.
@@ -15,7 +15,7 @@
 
 ## The Mission
 
-Direct Democracy Cali is a civic engagement platform that gives ordinary
+Direct Democracy CA is a civic engagement platform that gives ordinary
 California citizens the tools that only well-funded political
 organizations currently have. Citizens document problems in their
 communities, workshop solutions together, vote on the solutions that
@@ -159,13 +159,13 @@ pre-checks before every edit, evidence pasted for every claim.
 
 **Iteration** is the civic machinery — posts, umbrellas, the workshop,
 the jury, the ballot, the summary document, and all of their UI. It is
-revised freely, demo after demo, and the documents — not the previous
-demo — are always the truth: each demo's brief names what changed in the
-documents since the last one, and Claude Code rebuilds those parts, while
-the Iteration **schema and data** are regenerated fresh for each demo.
-Audited code that the documents still describe is carried forward, not
-rewritten to prove a point. When a demo build becomes worth keeping, the
-director declares it the **keeper**, and from that build onward Iteration
+improved continuously, never rebuilt: every change starts from `main`,
+is built on its own short-lived branch, and returns to `main` together
+with the documents that describe it, so the documents and the code
+beside them always agree. Until the keeper, Iteration **data** is
+disposable: the Iteration schema and database may be regenerated
+whenever a change needs it. When the data becomes worth keeping, the
+director declares the **keeper**, and from that point onward Iteration
 is under the same rigor as Foundation.
 
 The boundary rule: Iteration code may read Foundation tables but never

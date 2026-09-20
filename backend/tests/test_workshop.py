@@ -895,7 +895,7 @@ async def test_the_feed_states_its_ordering_rule(client, world):
     )
     await _post(client, world["ann"])
     feed = (await client.get("/feed", headers=world["ben"]["headers"])).json()
-    assert feed["ranking"] == "feed-v0"
+    assert feed["ranking"] == "feed-v1"
     assert "Newest first" in feed["explanation"]
 
 

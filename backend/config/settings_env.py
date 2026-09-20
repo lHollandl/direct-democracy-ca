@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     # --- Platform --------------------------------------------------------
     OFFICIALS_TEST_EMAIL: str
     BUILD_LABEL: str
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     # Salts terms_acceptances.ip_hash (DATABASE.md §3.5) so a stored hash
     # cannot be reversed by enumerating the IPv4 space (audit demo-01 run 5,
     # LOW: an unsalted SHA-256 of the address was reversible in seconds).
@@ -92,6 +92,15 @@ class Settings(BaseSettings):
     PUBLIC_BASE_URL: str
     RATE_LIMIT_WRITE_PER_MINUTE: int = 30
     LOG_LEVEL: str = "INFO"
+
+    # --- Test data (ARCHITECTURE.md §3; change/01, C1-14; fix-1, FX-01) ----
+    # `true` only in a demo environment. Enables load_test_data.py and lets
+    # signup accept TEST_DATA_EMAIL_DOMAIN; when `false` the loader refuses
+    # to run and signup refuses that domain. There is no remover — test data
+    # is cleared by rebuilding the database from empty (Law 6).
+    ALLOW_TEST_DATA: bool = False
+    TEST_DATA_EMAIL_DOMAIN: str = "test.example.com"
+    TEST_DATA_PASSWORD: str = "Str0ngPassword!"
 
     # --- Docker Compose only (infra/docker-compose.yml --env-file .env) ---
     # Added by the demo-01 build: ARCHITECTURE.md §3 says one root .env is

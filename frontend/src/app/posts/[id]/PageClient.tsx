@@ -25,6 +25,7 @@ type Post = {
     umbrella_name: string | null;
     main_category: string | null;
     label_status: string;
+    has_active_umbrella: boolean;
     label_shown_as: string | null;
     confidence: number | null;
     solution_ids: number[];
@@ -102,7 +103,7 @@ export default function PostPage() {
           <Loading what="this post" />
         ) : (
           <>
-        <BackLink href="/feed">Back to the feed</BackLink>
+        <BackLink href="/home">Back to Home</BackLink>
         {message ? <div className="mt-3"><Notice kind="good">{message}</Notice></div> : null}
         {error ? <div className="mt-3"><Notice kind="bad">{error}</Notice></div> : null}
 
@@ -168,7 +169,7 @@ export default function PostPage() {
                     </p>
                   ) : null}
 
-                  {isAuthor ? (
+                  {isAuthor && row.has_active_umbrella ? (
                     <div className="mt-3 border-t border-[var(--line)] pt-3">
                       <p className="text-sm font-medium">Is that the right place?</p>
                       <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -205,6 +206,13 @@ export default function PostPage() {
                           </select>
                         </div>
                       </div>
+                    </div>
+                  ) : isAuthor && !row.umbrella_id ? (
+                    <div className="mt-3 border-t border-[var(--line)] pt-3">
+                      <p className="text-sm text-[var(--muted)]">
+                        There are no umbrellas in {row.community.label} yet. Proposing
+                        a new umbrella is planned.
+                      </p>
                     </div>
                   ) : null}
                 </li>

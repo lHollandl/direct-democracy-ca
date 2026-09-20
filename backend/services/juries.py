@@ -15,6 +15,7 @@ reproducible draws are parked (PROJECT.md).
 from __future__ import annotations
 
 import logging
+import random
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -81,11 +82,17 @@ async def eligible_pool(
 async def draw(
     session: AsyncSession, *, cycle: Cycle, solution_ids: list[int], reason: str | None = None
 ) -> Jury:
-    """Draw `jury_size` jurors with the platform's cryptographic random source."""
+    """Draw `jury_size` jurors, replayably (DEMOCRACY.md §8.1; TODO D2-00,
+    audit-6 MEDIUM). 32 bytes from the platform's cryptographic random source
+    are logged and **seed** the sampler — `random.Random` seeded from the
+    bytes, sampling the pool sorted by id — so anyone with the logged pool
+    and the logged bytes can reproduce the exact drawn ids. Demo 1 logged the
+    bytes without using them to drive the draw; `secrets.SystemRandom()` drew
+    from true randomness the log could never replay."""
     size = int(await settings_service.get(session, "jury_size"))
     pool = await eligible_pool(session, cycle=cycle, solution_ids=solution_ids)
     random_bytes = secrets.token_hex(32)
-    rng = secrets.SystemRandom()
+    rng = random.Random(int(random_bytes, 16))
     drawn = rng.sample(pool, min(size, len(pool)))
 
     jury = await cycles_repo.add_jury(

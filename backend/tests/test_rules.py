@@ -7,7 +7,7 @@ side of the rounding.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -228,5 +228,59 @@ def test_on_track_is_a_hint_not_the_decision():
 
 def test_rules_version_is_printed_somewhere():
     assert rules.RULES_VERSION
-    assert rules.FEED_VERSION == "feed-v0"
-    assert "Newest first" in rules.FEED_EXPLANATION
+    assert rules.FEED_VERSION == "feed-v1"
+    assert set(rules.FEED_SORTS) == {"newest", "oldest", "most_votes", "most_comments"}
+    assert "Newest first" in rules.FEED_SORTS["newest"]
+    assert "Most votes" in rules.FEED_SORTS["most_votes"]
+    assert "Most comments" in rules.FEED_SORTS["most_comments"]
+    assert rules.DEFAULT_FEED_SORT == "newest"
+
+
+# --------------------------------------------------------------------------
+# The rhythm (DEMOCRACY.md §10.1) — next_cycle_dates
+# --------------------------------------------------------------------------
+
+
+def test_a_month_whose_1st_is_a_sunday():
+    # 2026-03-01 is itself a Sunday.
+    ballot, jury_draw = rules.next_cycle_dates(date(2026, 3, 1), "first_sunday_of_month", 2, [])
+    assert ballot == date(2026, 3, 1)
+    assert jury_draw == date(2026, 2, 27)
+
+
+def test_today_is_the_first_sunday_and_no_cycle_has_opened():
+    ballot, _ = rules.next_cycle_dates(date(2026, 3, 1), "first_sunday_of_month", 2, [])
+    assert ballot == date(2026, 3, 1), "today qualifies — it has not been opened yet"
+
+
+def test_today_is_the_first_sunday_and_one_already_opened():
+    # This month's rule date is already spent, so the next expectation is
+    # next month's first Sunday, not today.
+    ballot, jury_draw = rules.next_cycle_dates(
+        date(2026, 3, 1), "first_sunday_of_month", 2, [date(2026, 3, 1)]
+    )
+    assert ballot == date(2026, 4, 5)
+    assert jury_draw == date(2026, 4, 3)
+
+
+def test_december_rolls_into_january():
+    ballot, _ = rules.next_cycle_dates(date(2026, 12, 15), "first_sunday_of_month", 2, [])
+    assert ballot == date(2027, 1, 3), "December's own first Sunday has already passed"
+
+
+def test_pacific_time_day_boundary():
+    # 06:00 UTC on 2026-03-02 is still 22:00 on 2026-03-01 in Pacific time
+    # (PST, UTC-8 — DST starts 2026-03-08), so the two must not agree.
+    early_utc = datetime(2026, 3, 2, 6, 0, tzinfo=timezone.utc)
+    assert rules.pacific_today(early_utc) == date(2026, 3, 1)
+
+    late_utc = datetime(2026, 3, 2, 20, 0, tzinfo=timezone.utc)
+    assert rules.pacific_today(late_utc) == date(2026, 3, 2)
+
+    with pytest.raises(ValueError):
+        rules.pacific_today(datetime(2026, 3, 2, 6, 0))
+
+
+def test_an_unknown_cycle_open_rule_is_refused():
+    with pytest.raises(ValueError):
+        rules.next_cycle_dates(date(2026, 3, 1), "every_full_moon", 2, [])

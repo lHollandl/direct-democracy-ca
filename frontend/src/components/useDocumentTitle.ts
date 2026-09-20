@@ -15,6 +15,6 @@ import { useEffect } from "react";
  */
 export function useDocumentTitle(title: string) {
   useEffect(() => {
-    document.title = `${title} · Direct Democracy Cali`;
+    document.title = `${title} · Direct Democracy CA`;
   }, [title]);
 }
