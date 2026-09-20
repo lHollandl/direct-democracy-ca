@@ -208,6 +208,14 @@ def upgrade() -> None:
     op.create_index('ix_posts_author_id', 'posts', ['author_id'], unique=False)
     op.create_index('ix_posts_created_at', 'posts', ['created_at'], unique=False)
     op.create_index('ix_posts_label_status', 'posts', ['label_status'], unique=False)
+    # GIN index on to_tsvector('english', problem_text) — Home search (DEMOCRACY §12.1, DATABASE §4.3).
+    op.create_index(
+        'ix_posts_problem_text_fts',
+        'posts',
+        [sa.text("to_tsvector('english', problem_text)")],
+        unique=False,
+        postgresql_using='gin',
+    )
     op.create_table('votes',
     sa.Column('id', sa.Integer(), sa.Identity(always=True), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -275,6 +283,14 @@ def upgrade() -> None:
     sa.UniqueConstraint('post_id', 'position', name='uq_post_solutions_post_position')
     )
     op.create_index('ix_post_solutions_post_id', 'post_solutions', ['post_id'], unique=False)
+    # GIN index on to_tsvector('english', text) — Home search (DEMOCRACY §12.1, DATABASE §4.4).
+    op.create_index(
+        'ix_post_solutions_text_fts',
+        'post_solutions',
+        [sa.text("to_tsvector('english', text)")],
+        unique=False,
+        postgresql_using='gin',
+    )
     op.create_table('umbrella_references',
     sa.Column('id', sa.Integer(), sa.Identity(always=True), nullable=False),
     sa.Column('umbrella_id', sa.Integer(), nullable=False),

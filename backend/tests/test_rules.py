@@ -228,5 +228,9 @@ def test_on_track_is_a_hint_not_the_decision():
 
 def test_rules_version_is_printed_somewhere():
     assert rules.RULES_VERSION
-    assert rules.FEED_VERSION == "feed-v0"
-    assert "Newest first" in rules.FEED_EXPLANATION
+    assert rules.FEED_VERSION == "feed-v1"
+    assert set(rules.FEED_SORTS) == {"newest", "oldest", "most_votes", "most_comments"}
+    assert "Newest first" in rules.FEED_SORTS["newest"]
+    assert "Most votes" in rules.FEED_SORTS["most_votes"]
+    assert "Most comments" in rules.FEED_SORTS["most_comments"]
+    assert rules.DEFAULT_FEED_SORT == "newest"

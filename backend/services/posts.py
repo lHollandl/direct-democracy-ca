@@ -420,48 +420,55 @@ async def feed(
     session: AsyncSession,
     *,
     viewer: User | None,
+    scope: str | None,
     community: str | None,
     category: str | None,
-    cursor: int | None,
+    q: str | None,
+    sort: str,
+    cursor: str | None,
     limit: int,
 ) -> dict:
-    """`GET /feed` — feed-v0, newest first (DEMOCRACY.md §12)."""
+    """`GET /feed` — feed-v1 (DEMOCRACY.md §12.1)."""
     community_filter = None
     if community:
         level, _, raw_id = community.partition(":")
         resolved = await community_service.resolve(session, level, int(raw_id))
         community_filter = (resolved.level, resolved.entity_id)
 
+    home_keys = None
+    if community_filter is None and scope != "all" and viewer is not None:
+        home_keys = [c.key for c in await community_service.home_communities(session, viewer)]
+
     category_id = None
     if category:
         row = await umbrellas_repo.category_by_slug(session, category)
         category_id = row.id if row else -1
 
-    home_keys = None
-    if community_filter is None and viewer is not None:
-        home_keys = [c.key for c in await community_service.home_communities(session, viewer)]
-
-    rows = await posts_repo.feed_page(
+    rows, next_cursor = await posts_repo.feed_page(
         session,
+        sort=sort,
         cursor=cursor,
         limit=limit,
         community=community_filter,
         main_category_id=category_id,
         community_keys=home_keys,
+        query=q,
     )
-    displays = await author_displays(session, [p.author_id for p in rows])
+    displays = await author_displays(session, [row.author_id for row in rows])
     items = []
-    for post in rows:
-        communities = await posts_repo.communities(session, post.id)
+    for row in rows:
+        communities = await posts_repo.communities(session, row.id)
         items.append(
             {
-                "id": post.id,
-                "title": derive_title(post.problem_text),
-                "problem_text": post.problem_text,
-                "author": displays.get(post.author_id, "Former Community Member"),
-                "created_at": post.created_at,
-                "label_status": post.label_status,
-                "ai_influence": ai_log.influence(post.ai_contribution_percentage),
+                "id": row.id,
+                "title": derive_title(row.problem_text),
+                "problem_text": row.problem_text,
+                "author": displays.get(row.author_id, "Former Community Member"),
+                "created_at": row.created_at,
+                "label_status": row.label_status,
+                "ai_influence": ai_log.influence(row.ai_contribution_percentage),
+                "vote_count": row.vote_count,
+                "comment_count": row.comment_count,
                 "communities": [
                     {
                         "level": c.community_level,
@@ -474,13 +481,13 @@ async def feed(
         )
     return {
         "items": items,
-        "next_cursor": rows[-1].id if len(rows) == limit else None,
+        "next_cursor": next_cursor,
         "filters": {
             "community": community,
             "category": category,
-            "default": (
-                "your home communities" if home_keys else "everything, newest first"
-            ),
+            "q": q,
+            "scope": "all" if home_keys is None else "home",
+            "default": "your home communities" if home_keys else "all of California",
         },
     }
 

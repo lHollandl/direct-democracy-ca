@@ -176,7 +176,7 @@ async def test_the_ranking_rule_is_printed_where_it_applies(client):
 
     user = await make_user(client, email="a@example.com", display_name="Ann")
     feed = (await client.get("/feed", headers=user["headers"])).json()
-    assert feed["ranking"] == "feed-v0"
+    assert feed["ranking"] == "feed-v1"
 
 
 async def test_the_community_page_explains_who_counts_as_active(client):

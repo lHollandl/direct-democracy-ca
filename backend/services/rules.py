@@ -77,12 +77,25 @@ RULES_VERSION = "rules-v1"
 SOLUTION_ORDER_VERSION = "solutions-v0"
 COMMENT_ORDER_VERSION = "comments-v0"
 BALLOT_ORDER_VERSION = "ballot-order-v0"
-FEED_VERSION = "feed-v0"
+FEED_VERSION = "feed-v1"
 
-FEED_EXPLANATION = (
-    "Newest first. No ranking. Every reader of the same filters sees the same "
-    "posts in the same order."
-)
+#: DEMOCRACY.md §12.1 — each Home sort is a plain count or a date, never a
+#: blended score, and identical for every viewer who chooses it (CLAUDE.md
+#: §3). `most_votes` and `most_comments` count up- and down-votes alike, so a
+#: downvoted post is never pushed down by its downvotes (§14, Small Voice).
+FEED_SORTS = {
+    "newest": "Newest first.",
+    "oldest": "Oldest first.",
+    "most_votes": (
+        "Most votes first — the number of up and down votes on each post's "
+        "solutions. Nothing else affects the order."
+    ),
+    "most_comments": (
+        "Most comments first — the number of comments on each post's "
+        "solutions. Nothing else affects the order."
+    ),
+}
+DEFAULT_FEED_SORT = "newest"
 
 SOLUTION_ORDER_EXPLANATION = (
     "Highest net score first; where two solutions have the same score, the "
