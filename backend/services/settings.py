@@ -136,6 +136,12 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("min_signup_age", "int",
                     "The youngest someone may be, in years, on the day they sign up.",
                     "DEMOCRACY.md §2.3"),
+        SettingSpec("home_change_cooldown_days", "int",
+                    "How many days must pass between changes of home county or city.",
+                    "DEMOCRACY.md §2.3"),
+        SettingSpec("label_preview_max_per_hour", "int",
+                    "How many AI suggestions on a draft one person may ask for in an hour.",
+                    "DEMOCRACY.md §9.1"),
     ]
 }
 

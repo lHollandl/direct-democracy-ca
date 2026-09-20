@@ -114,8 +114,9 @@ class User(Base):
     county_id: Mapped[int] = mapped_column(
         ForeignKey("counties.id", ondelete="RESTRICT"), nullable=False
     )
-    city_id: Mapped[int] = mapped_column(
-        ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False
+    #: NULL = unincorporated resident of `county_id` (DEMOCRACY.md §2.3).
+    city_id: Mapped[int | None] = mapped_column(
+        ForeignKey("cities.id", ondelete="RESTRICT"), nullable=True
     )
     verification_level: Mapped[str] = mapped_column(
         verification_level_enum, nullable=False, server_default=text("'unverified'")
@@ -459,6 +460,52 @@ class DataExport(Base):
     )
 
 
+class UserHomeChange(Base):
+    """DATABASE.md §3.12. Insert-only; the source for the cooldown and for
+    ballot eligibility (DEMOCRACY.md §2.3, §10.3). Deleted in the
+    anonymization transaction — past addresses are not part of the civic
+    record (CLAUDE.md §6)."""
+
+    __tablename__ = "user_home_changes"
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    from_county_id: Mapped[int] = mapped_column(ForeignKey("counties.id"), nullable=False)
+    from_city_id: Mapped[int | None] = mapped_column(ForeignKey("cities.id"), nullable=True)
+    to_county_id: Mapped[int] = mapped_column(ForeignKey("counties.id"), nullable=False)
+    to_city_id: Mapped[int | None] = mapped_column(ForeignKey("cities.id"), nullable=True)
+    changed_at: Mapped[datetime] = _ts(nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_user_home_changes_user_changed", "user_id", "changed_at"),
+        Index("ix_user_home_changes_from_county_id", "from_county_id"),
+        Index("ix_user_home_changes_from_city_id", "from_city_id"),
+        Index("ix_user_home_changes_to_county_id", "to_county_id"),
+        Index("ix_user_home_changes_to_city_id", "to_city_id"),
+    )
+
+
+class EmailChangeRequest(Base):
+    """DATABASE.md §3.13. Single use; a newer request voids older unused ones.
+    Deleted in the anonymization transaction."""
+
+    __tablename__ = "email_change_requests"
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    new_email: Mapped[str] = mapped_column(CITEXT, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = _ts(nullable=False)
+    used_at: Mapped[datetime | None] = _ts(nullable=True)
+    created_at: Mapped[datetime] = _ts(nullable=False, server_default=func.now())
+
+    __table_args__ = (Index("ix_email_change_requests_user_id", "user_id"),)
+
+
 # ==========================================================================
 # ITERATION
 # ==========================================================================
@@ -528,7 +575,8 @@ class Post(Base):
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     problem_text: Mapped[str] = mapped_column(Text, nullable=False)
     category_choice: Mapped[str] = mapped_column(
-        _enum("ai", "author_selected", name="posts_category_choice_enum"), nullable=False
+        _enum("ai", "author_selected", "preview", name="posts_category_choice_enum"),
+        nullable=False,
     )
     label_status: Mapped[str] = mapped_column(
         _enum(
@@ -1221,6 +1269,32 @@ class Summary(Base):
     __table_args__ = (Index("ix_summaries_published_at", "published_at"),)
 
 
+class LabelPreview(Base):
+    """DATABASE.md §4.19. One row per suggestion asked for on a draft
+    (DEMOCRACY.md §9.1). No draft text is stored — only its hash."""
+
+    __tablename__ = "label_previews"
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    communities: Mapped[list] = mapped_column(JSONB, nullable=False)
+    ai_action_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ai_actions.id"), nullable=True
+    )
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    consumed_post_id: Mapped[int | None] = mapped_column(
+        ForeignKey("posts.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = _ts(nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_label_previews_user_created", "user_id", "created_at"),
+        Index("ix_label_previews_ai_action_id", "ai_action_id"),
+        Index("ix_label_previews_consumed_post_id", "consumed_post_id"),
+    )
+
+
 #: Tables owned by each half (DATABASE.md §2). The schema verifier and the
 #: migration chains use these lists, so the split is data, not a comment.
 FOUNDATION_TABLES = (
@@ -1239,6 +1313,8 @@ FOUNDATION_TABLES = (
     "admin_actions",
     "ai_actions",
     "data_exports",
+    "user_home_changes",
+    "email_change_requests",
 )
 
 ITERATION_TABLES = (
@@ -1265,4 +1341,5 @@ ITERATION_TABLES = (
     "jurors",
     "jury_holdbacks",
     "summaries",
+    "label_previews",
 )

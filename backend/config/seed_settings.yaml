@@ -29,3 +29,6 @@ settings:
   # recorded in HISTORY.md. min_signup_age is read by Foundation signup.
   reference_reject_min: "2"
   min_signup_age: "17"
+  # Added by change/02 (DEMOCRACY.md §2.3, §9.1).
+  home_change_cooldown_days: "90"
+  label_preview_max_per_hour: "20"
