@@ -61,7 +61,7 @@ still present" for anything silently dropped.
 2. `ls audits/` — your report is `audits/change-NN-audit-K.md`, K one more than the highest existing K for this change (1 if none).
 3. Write-protection check: `touch backend/AUDIT_WRITE_TEST && echo WRITABLE || echo READ-ONLY`. If `WRITABLE`, delete it at once, note it in the report, and rely on your own discipline — the closing diff must show nothing outside `audits/` and `HISTORY.md`.
 4. `.env` from `.env.example` with `OLLAMA_BASE_URL` at the host LAN address (SANDBOX.md §5); `docker compose --env-file .env -f infra/docker-compose.yml up -d`; `alembic upgrade foundation@head && alembic upgrade iteration@head` from an **empty** database — you build your own; seed.
-5. `curl -sS $OLLAMA_BASE_URL/api/tags` — if unreachable, run with the mocked client and say so.
+5. `curl -sS $OLLAMA_BASE_URL/api/tags`. The only address the sandbox policy allows is the one SANDBOX.md §5 records as the host's LAN address — read it there and use it; do not guess gateways or `host.docker.internal` (change-01 audit 1 did, and audited without Ollama). Only if that exact address fails, run with the mocked client, say so, and list what could not be exercised.
 
 ## What you do (AUDIT.md §4)
 
