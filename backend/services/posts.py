@@ -489,7 +489,7 @@ async def view(session: AsyncSession, post: Post) -> dict:
                 ),
                 "has_active_umbrella": has_active_umbrella,
                 "label_outcome": label.outcome if label else None,
-                "label_shown_as": _label_words(label),
+                "label_shown_as": _label_words(label, category_choice=post.category_choice),
                 "confidence": float(label.confidence) if label and label.confidence else None,
                 "solution_ids": solutions_by_umbrella.get(row.umbrella_id or -1, []),
             }
@@ -558,9 +558,19 @@ def _label_status_words(
     return status
 
 
-def _label_words(label) -> str | None:
+def _label_words(label, *, category_choice: str) -> str | None:
     if label is None:
         return None
+    if category_choice == "preview":
+        # DEMOCRACY.md §9.1 — the author reviewed the suggestion before
+        # posting, so the wording says so rather than reusing the
+        # background-labeling sentence (audit-visible distinction between
+        # the two AI-filing paths).
+        return {
+            "unreviewed": "AI-suggested, not yet reviewed by the author",
+            "confirmed_by_author": "AI-suggested, kept by author",
+            "corrected_by_author": "AI-suggested, changed by author",
+        }.get(label.outcome, label.outcome)
     return {
         "unreviewed": "AI-labeled, not yet reviewed by the author",
         "confirmed_by_author": "AI-labeled, confirmed by author",

@@ -321,9 +321,9 @@ async def test_a_changed_umbrella_is_corrected_and_none_of_these_fit_is_needs_re
     post = (await client.get(f"/posts/{created.json()['id']}")).json()
     by_level = {c["community"]["level"]: c for c in post["communities"]}
     assert by_level["city"]["label_status"] == "Filed"
-    assert by_level["city"]["label_shown_as"] == "AI-labeled, corrected by author"
+    assert by_level["city"]["label_shown_as"] == "AI-suggested, changed by author"
     assert "Not filed" in by_level["county"]["label_status"]
-    assert by_level["county"]["label_shown_as"] == "AI-labeled, corrected by author"
+    assert by_level["county"]["label_shown_as"] == "AI-suggested, changed by author"
 
     log = (await client.get("/ai/actions")).json()
     row = next(r for r in log["items"] if r["subject_type"] == "label_preview")

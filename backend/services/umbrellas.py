@@ -155,7 +155,7 @@ async def _problem_reports(session: AsyncSession, umbrella: Umbrella) -> list[di
             "author": displays.get(post.author_id, "Former Community Member"),
             "created_at": post.created_at,
             "content_hash": post.content_hash,
-            "label_shown_as": posts_service._label_words(label),
+            "label_shown_as": posts_service._label_words(label, category_choice=post.category_choice),
             "ai_influence": ai_log.influence(post.ai_contribution_percentage),
         }
         for post, label in posts

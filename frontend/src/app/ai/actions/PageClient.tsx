@@ -53,7 +53,8 @@ export default function AiActionsPage() {
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <span className="badge">{action.action_type}</span>
                   <span className="text-sm">
-                    on {action.subject_type} #{action.subject_id}
+                    on {action.subject_type === "label_preview" ? "a draft" : action.subject_type}
+                    {" "}#{action.subject_id}
                   </span>
                   <span className="ml-auto text-xs text-[var(--muted)]">
                     {new Date(action.created_at).toLocaleString()}
@@ -68,7 +69,11 @@ export default function AiActionsPage() {
                   </div>
                   <div>
                     <dt className="inline font-medium">What happened next: </dt>
-                    <dd className="inline">{OUTCOMES[action.human_outcome] ?? action.human_outcome}</dd>
+                    <dd className="inline">
+                      {action.subject_type === "label_preview" && action.human_outcome === "unreviewed"
+                        ? "Suggestion on a draft — not posted"
+                        : OUTCOMES[action.human_outcome] ?? action.human_outcome}
+                    </dd>
                   </div>
                 </dl>
                 <details className="mt-2 text-sm">
