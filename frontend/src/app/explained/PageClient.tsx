@@ -105,8 +105,8 @@ export default function ExplainedPage() {
 
         <Section title="Where AI is, and is not" description="CLAUDE.md §5.">
           <p className="text-sm">
-            AI sorts posts into topics, suggests reference sources, and
-            summarizes discussion. It never decides anything: it never
+            AI sorts posts into topics and suggests reference sources.
+            It never decides anything: it never
             creates an umbrella, never casts or weights a vote, never
             advances a solution through any threshold, and never takes an
             action that changes the democratic weight of anything. Every AI
