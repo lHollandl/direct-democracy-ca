@@ -26,6 +26,10 @@ SIGNED_IN_ONLY = [
         "communities": [{"level": "city", "entity_id": 1}],
         "category_choice": "ai",
     }),
+    ("POST", "/posts/label-preview", {
+        "problem_text": "A problem long enough to be accepted by the validator here.",
+        "communities": [{"level": "city", "entity_id": 1}],
+    }),
     ("POST", "/posts/1/label/confirm", None),
     ("POST", "/posts/1/label/correct", {"level": "city", "entity_id": 1, "umbrella_id": 1}),
     ("POST", "/umbrellas/1/solutions", {"text": "A solution long enough to be accepted here."}),
@@ -130,6 +134,7 @@ SIGNED_IN_WRITE_PATHS = {
     ("POST", "/me/export"),
     ("DELETE", "/me"),
     ("POST", "/posts"),
+    ("POST", "/posts/label-preview"),
     ("POST", "/posts/{post_id}/label/confirm"),
     ("POST", "/posts/{post_id}/label/correct"),
     ("POST", "/umbrellas/{umbrella_id}/solutions"),

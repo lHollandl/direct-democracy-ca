@@ -165,3 +165,16 @@ def comment_revision_content_hash(
 def summary_hash(data: dict) -> str:
     """DEMOCRACY.md §11.3 — SHA-256 of the canonical JSON of the document data."""
     return hash_payload(data)
+
+
+def label_preview_input_hash(
+    *, problem_text: str, communities: list[tuple[str, int]]
+) -> str:
+    """DATABASE.md §4.19 — SHA-256 of canonical JSON `{problem_text,
+    communities}` with `communities` sorted, so the same draft always hashes
+    the same way regardless of the order the author picked them in."""
+    sorted_communities = sorted(
+        ({"level": level, "entity_id": entity_id} for level, entity_id in communities),
+        key=lambda c: (c["level"], c["entity_id"]),
+    )
+    return hash_payload({"problem_text": problem_text, "communities": sorted_communities})

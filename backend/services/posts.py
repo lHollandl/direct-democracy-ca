@@ -18,7 +18,8 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.errors import Conflict, Forbidden, NotFound, ValidationFailed
-from backend.models import Post, User
+from backend.models import LabelPreview, Post, User
+from backend.repositories import label_previews as label_previews_repo
 from backend.repositories import posts as posts_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
@@ -55,7 +56,9 @@ async def create(
     solution_texts: list[str],
     communities: list[tuple[str, int]],
     category_choice: str,
-    chosen_umbrellas: dict[tuple[str, int], int] | None = None,
+    chosen_umbrellas: dict[tuple[str, int], int | None] | None = None,
+    preview_id: int | None = None,
+    main_category_id: int | None = None,
 ) -> Post:
     """One transaction: `posts` + `post_solutions` + `post_communities` (Law 5)."""
     problem = problem_text.strip()
@@ -76,9 +79,10 @@ async def create(
             "Choose at least one of your communities to post this in.",
             code="no_community",
         )
-    if category_choice not in ("ai", "author_selected"):
+    if category_choice not in ("ai", "author_selected", "preview"):
         raise ValidationFailed(
-            "Choose whether the platform files this for you or you pick the umbrella.",
+            "Choose whether the platform files this for you, you pick the "
+            "umbrella, or you review its suggestion.",
             code="bad_category_choice",
         )
 
@@ -97,6 +101,32 @@ async def create(
                 "Pick an umbrella for every community you selected, or let the "
                 "platform file it for you.",
                 code="umbrella_not_chosen",
+            )
+
+    preview_row: LabelPreview | None = None
+    if category_choice == "preview":
+        if preview_id is None or main_category_id is None:
+            raise ValidationFailed(
+                "A reviewed suggestion needs its preview id and main category.",
+                code="preview_required",
+            )
+        preview_row = await label_previews_repo.get(session, preview_id)
+        if preview_row is None:
+            raise NotFound("That suggestion does not exist.", code="preview_not_found")
+        if preview_row.user_id != author.id:
+            raise Forbidden(
+                "That suggestion belongs to someone else.", code="preview_not_yours"
+            )
+        if preview_row.consumed_post_id is not None:
+            raise Conflict(
+                "That suggestion has already been used.", code="preview_already_used"
+            )
+        expected_hash = hashing.label_preview_input_hash(
+            problem_text=problem, communities=communities
+        )
+        if preview_row.input_hash != expected_hash:
+            raise Conflict(
+                "Your text changed — run the suggestion again.", code="preview_stale"
             )
 
     now = datetime.now(timezone.utc)
@@ -139,6 +169,16 @@ async def create(
 
     if category_choice == "author_selected":
         await _apply_author_choice(session, post=post, chosen=chosen_umbrellas)
+    elif category_choice == "preview":
+        await _apply_preview_choice(
+            session,
+            post=post,
+            author=author,
+            communities=communities,
+            chosen=chosen_umbrellas,
+            preview=preview_row,
+            main_category_id=main_category_id,
+        )
     else:
         _schedule_labeling(session, post.id)
 
@@ -204,6 +244,79 @@ async def _apply_author_choice(
             session, post=post, umbrella=umbrella
         )
     await posts_repo.set_label_status(session, post.id, "labeled")
+    await session.flush()
+
+
+async def _apply_preview_choice(
+    session: AsyncSession,
+    *,
+    post: Post,
+    author: User,
+    communities: list[tuple[str, int]],
+    chosen: dict[tuple[str, int], int | None],
+    preview: LabelPreview,
+    main_category_id: int,
+) -> None:
+    """The author reviewed the AI's suggestion on the draft before posting
+    (DEMOCRACY.md §4.1, §9.1). Every community gets a label row pointing at
+    the preview's `ai_action_id`; the outcome is `confirmed_by_author` when
+    the author kept the suggestion, `corrected_by_author` otherwise —
+    including a community left at "none of these fit" when the AI had
+    suggested an umbrella. Solutions are created in this same transaction
+    for every community the author gave an umbrella to."""
+    suggested_by_key = {
+        (c["level"], c["entity_id"]): c["umbrella_id"]
+        for c in (preview.result or {}).get("communities", [])
+    }
+    preview_confidence = (preview.result or {}).get("confidence")
+    all_confirmed = True
+    for level, entity_id in communities:
+        key = (level, entity_id)
+        umbrella_id = chosen.get(key)
+        umbrella = None
+        if umbrella_id is not None:
+            umbrella = await umbrellas_repo.get(session, umbrella_id)
+            if umbrella is None or umbrella.status != "active":
+                raise NotFound(
+                    "That umbrella is not available to post in.", code="umbrella_not_found"
+                )
+            if (umbrella.community_level, umbrella.community_entity_id) != (level, entity_id):
+                raise ValidationFailed(
+                    "That umbrella belongs to a different community.",
+                    code="umbrella_wrong_community",
+                )
+        kept = umbrella_id == suggested_by_key.get(key)
+        outcome = "confirmed_by_author" if kept else "corrected_by_author"
+        all_confirmed = all_confirmed and kept
+
+        row = await posts_repo.community(session, post.id, level, entity_id)
+        row.main_category_id = main_category_id
+        await posts_repo.add_label(
+            session,
+            post_id=post.id,
+            community_level=level,
+            community_entity_id=entity_id,
+            ai_action_id=preview.ai_action_id,
+            main_category_id=main_category_id,
+            umbrella_id=umbrella.id if umbrella else None,
+            confidence=preview_confidence,
+            outcome=outcome,
+        )
+        if umbrella is not None:
+            row.umbrella_id = umbrella.id
+            await session.flush()
+            await solutions_service.create_from_post_community(
+                session, post=post, umbrella=umbrella
+            )
+
+    await _refresh_label_status(session, post)
+    await label_previews_repo.mark_consumed(session, preview.id, post.id)
+    await ai_log.record_outcome(
+        session,
+        action_id=preview.ai_action_id,
+        outcome="confirmed" if all_confirmed else "corrected",
+        user_id=author.id,
+    )
     await session.flush()
 
 

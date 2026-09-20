@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from backend.deps import SessionDep, VerifiedUser
 from backend.routers.common import Message
+from backend.services import labeling as labels_service
 from backend.services import posts as posts_service
 
 router = APIRouter(prefix="/posts", tags=["posts"])
@@ -15,6 +16,8 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 class CommunityIn(BaseModel):
     level: str
     entity_id: int
+    #: Kept, changed, or left `null` for "none of these fit" — only
+    #: meaningful once `category_choice` is `author_selected` or `preview`.
     umbrella_id: int | None = None
 
 
@@ -22,7 +25,10 @@ class PostIn(BaseModel):
     problem_text: str = Field(min_length=20, max_length=5000)
     solutions: list[str] = Field(min_length=1)
     communities: list[CommunityIn] = Field(min_length=1)
-    category_choice: str = Field(pattern="^(ai|author_selected)$")
+    category_choice: str = Field(pattern="^(ai|author_selected|preview)$")
+    #: `preview` only.
+    preview_id: int | None = None
+    main_category_id: int | None = None
 
     @field_validator("solutions")
     @classmethod
@@ -42,6 +48,14 @@ class PostCreatedOut(BaseModel):
 async def create_post(
     body: PostIn, user: VerifiedUser, session: SessionDep
 ) -> PostCreatedOut:
+    if body.category_choice == "preview":
+        chosen_umbrellas = {(c.level, c.entity_id): c.umbrella_id for c in body.communities}
+    else:
+        chosen_umbrellas = {
+            (c.level, c.entity_id): c.umbrella_id
+            for c in body.communities
+            if c.umbrella_id is not None
+        }
     post = await posts_service.create(
         session,
         author=user,
@@ -49,11 +63,9 @@ async def create_post(
         solution_texts=body.solutions,
         communities=[(c.level, c.entity_id) for c in body.communities],
         category_choice=body.category_choice,
-        chosen_umbrellas={
-            (c.level, c.entity_id): c.umbrella_id
-            for c in body.communities
-            if c.umbrella_id is not None
-        },
+        chosen_umbrellas=chosen_umbrellas,
+        preview_id=body.preview_id,
+        main_category_id=body.main_category_id,
     )
     return PostCreatedOut(
         id=post.id,
@@ -65,6 +77,41 @@ async def create_post(
             else "Posted and filed."
         ),
     )
+
+
+class LabelPreviewIn(BaseModel):
+    problem_text: str = Field(min_length=20, max_length=5000)
+    communities: list[CommunityIn] = Field(min_length=1)
+
+
+class LabelPreviewCommunityOut(BaseModel):
+    level: str
+    entity_id: int
+    umbrella_id: int | None
+    umbrella_name: str | None
+    active_umbrellas: list[dict]
+
+
+class LabelPreviewOut(BaseModel):
+    preview_id: int
+    main_category_id: int | None
+    main_category: str
+    confidence: float | None
+    communities: list[LabelPreviewCommunityOut]
+    repeated_or_unlisted_communities: list[dict]
+
+
+@router.post("/label-preview", response_model=LabelPreviewOut)
+async def label_preview(
+    body: LabelPreviewIn, user: VerifiedUser, session: SessionDep
+) -> LabelPreviewOut:
+    result = await labels_service.preview(
+        session,
+        user=user,
+        problem_text=body.problem_text,
+        communities=[(c.level, c.entity_id) for c in body.communities],
+    )
+    return LabelPreviewOut(**result)
 
 
 @router.get("/{post_id}")
