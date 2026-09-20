@@ -7,7 +7,19 @@
  * refresh and one retry; a second failure signs the person out.
  */
 
-const API_BASE =
+// Browser-only: the address the page itself was loaded from, port 8000.
+// Never a literal host — a hardcoded 127.0.0.1 here is cross-site to a page
+// served from localhost, and the SameSite=Strict refresh cookie is then
+// silently dropped, signing the user out on every reload (ARCHITECTURE.md §3,
+// found by the director 2026-09-19).
+function browserApiBase(): string {
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (configured) return configured;
+  return `${window.location.protocol}//${window.location.hostname}:8000`;
+}
+
+// Server-only default (Server Components have no `window`); ARCHITECTURE.md §3.
+const SERVER_API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 let accessToken: string | null = null;
@@ -66,7 +78,7 @@ async function raw(
   const headers = new Headers(rest.headers);
   if (json !== undefined) headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-  return fetch(`${API_BASE}${path}`, {
+  return fetch(`${browserApiBase()}${path}`, {
     ...rest,
     headers,
     credentials: "include",
@@ -77,7 +89,7 @@ async function raw(
 async function refreshOnce(): Promise<boolean> {
   if (!refreshing) {
     refreshing = (async () => {
-      const response = await fetch(`${API_BASE}/auth/refresh`, {
+      const response = await fetch(`${browserApiBase()}/auth/refresh`, {
         method: "POST",
         credentials: "include",
       });
@@ -158,7 +170,7 @@ export async function restoreSession(): Promise<boolean> {
 }
 
 export function apiBase(): string {
-  return API_BASE;
+  return browserApiBase();
 }
 
 /**
@@ -172,7 +184,7 @@ export function apiBase(): string {
  */
 export async function serverGet<T = unknown>(path: string): Promise<T | null> {
   try {
-    const response = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    const response = await fetch(`${SERVER_API_BASE}${path}`, { cache: "no-store" });
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {

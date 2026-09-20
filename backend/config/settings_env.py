@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     # --- Platform --------------------------------------------------------
     OFFICIALS_TEST_EMAIL: str
     BUILD_LABEL: str
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     # Salts terms_acceptances.ip_hash (DATABASE.md §3.5) so a stored hash
     # cannot be reversed by enumerating the IPv4 space (audit demo-01 run 5,
     # LOW: an unsalted SHA-256 of the address was reversible in seconds).

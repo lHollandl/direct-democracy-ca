@@ -440,6 +440,28 @@ def test_frontend_calls_fetch_only_from_api_ts():
     assert not violations, "Layering violations in frontend/src/:\n" + "\n".join(violations)
 
 
+#: A literal host name — a hardcoded API base makes a page loaded from a
+#: different host name cross-site to the API, so the SameSite=Strict refresh
+#: cookie is silently dropped and the user is signed out on every reload
+#: (change/01, C1-01; found by the director 2026-09-19).
+_HOST_LITERAL = re.compile(r"127\.0\.0\.1|localhost")
+
+
+def test_api_ts_browser_path_has_no_hostname_literal():
+    """ARCHITECTURE.md §3, C1-01. The browser resolves its API base from
+    `NEXT_PUBLIC_API_BASE_URL` or the page's own `window.location`, never a
+    hardcoded host — the server-only default (`SERVER_API_BASE`, used by
+    `serverGet` for Server Components, which have no `window`) is exempt."""
+    source = API_TS_PATH.read_text(encoding="utf-8")
+    start = source.index("function browserApiBase")
+    end = source.index("\n}", start) + 2
+    body = source[start:end]
+    assert not _HOST_LITERAL.search(body), (
+        "frontend/src/lib/api.ts::browserApiBase contains a literal host name:\n"
+        + body
+    )
+
+
 def test_no_endpoint_calls_more_than_one_service_function_or_does_threshold_arithmetic():
     """Audit demo-01 run 2, MEDIUM: `get_solution` assembled its response from
     ten service calls across five modules and computed thresholds inline
