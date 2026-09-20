@@ -45,7 +45,7 @@ async def signup(
     gender: str,
     political_party: str,
     county_id: int,
-    city_id: int,
+    city_id: int | None,
     terms_version: str,
     ip_address: str,
 ) -> tuple[User, str]:
@@ -84,16 +84,17 @@ async def signup(
             code="display_name_taken",
         )
 
-    city = await geo_repo.get_city(session, city_id)
-    if city is None:
-        raise NotFound("That city is not in the list.", code="city_not_found")
-    if city.county_id != county_id:
-        raise ValidationFailed(
-            "That city is not in the county you chose.", code="city_county_mismatch"
-        )
     county = await geo_repo.get_county(session, county_id)
     if county is None:
         raise NotFound("That county is not in the list.", code="county_not_found")
+    if city_id is not None:
+        city = await geo_repo.get_city(session, city_id)
+        if city is None:
+            raise NotFound("That city is not in the list.", code="city_not_found")
+        if city.county_id != county_id:
+            raise ValidationFailed(
+                "That city is not in the county you chose.", code="city_county_mismatch"
+            )
 
     terms = await users_repo.terms_by_version(session, terms_version)
     if terms is None:
@@ -323,7 +324,7 @@ async def reset_password(session: AsyncSession, *, token: str, new_password: str
 
 
 async def me_view(session: AsyncSession, user: User) -> dict:
-    from backend.services import community as community_service
+    from backend.services import communities as community_service
 
     display = await users_repo.display_settings(session, user.id)
     communities = await community_service.home_communities(session, user)

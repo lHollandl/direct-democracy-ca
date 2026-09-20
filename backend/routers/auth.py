@@ -45,7 +45,8 @@ class SignupIn(BaseModel):
     gender: str
     political_party: str
     county_id: int
-    city_id: int
+    #: NULL = "Unincorporated — no city" (DEMOCRACY.md §2.3).
+    city_id: int | None = None
     terms_version: str
     agreed_to_terms: bool
 

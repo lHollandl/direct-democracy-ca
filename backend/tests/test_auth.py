@@ -54,6 +54,28 @@ async def test_the_reserved_test_domain_is_accepted_when_test_data_is_allowed(
     assert response.status_code == 201, response.text
 
 
+async def test_signup_accepts_a_null_city_id_for_an_unincorporated_resident(client):
+    """DEMOCRACY.md §2.3, C2-03: "Unincorporated — no city" — `city_id` is
+    optional, and NULL is a valid, permanent choice, not a placeholder."""
+    payload = _signup_payload("uninc-signup@example.com")
+    payload["city_id"] = None
+    response = await client.post("/auth/signup", json=payload)
+    assert response.status_code == 201, response.text
+    async with session_scope() as session:
+        user = await users_repo.by_email(session, "uninc-signup@example.com")
+        assert user.city_id is None
+        assert user.county_id == 1
+
+
+async def test_signup_refuses_a_city_outside_the_chosen_county(client):
+    payload = _signup_payload("mismatch@example.com")
+    payload["county_id"] = 2  # Solano
+    payload["city_id"] = 1  # San Jose, in Santa Clara
+    response = await client.post("/auth/signup", json=payload)
+    assert response.status_code == 422
+    assert response.json()["error"] == "city_county_mismatch"
+
+
 async def test_signup_refuses_an_under_age_applicant_and_stores_nothing(client):
     response = await client.post(
         "/auth/signup",

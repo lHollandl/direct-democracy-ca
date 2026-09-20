@@ -10,6 +10,8 @@ import { useDocumentTitle } from "@/components/useDocumentTitle";
 type County = { id: number; name: string };
 type City = { id: number; name: string };
 
+const UNINCORPORATED = "unincorporated";
+
 const GENDERS = [
   ["woman", "Woman"],
   ["man", "Man"],
@@ -71,7 +73,7 @@ export default function SignupPage() {
         gender: form.get("gender"),
         political_party: form.get("political_party"),
         county_id: Number(form.get("county_id")),
-        city_id: Number(form.get("city_id")),
+        city_id: form.get("city_id") === UNINCORPORATED ? null : Number(form.get("city_id")),
         terms_version: termsVersion,
         agreed_to_terms: form.get("agreed") === "on",
       });
@@ -226,6 +228,9 @@ export default function SignupPage() {
                 <option value="">
                   {countyId ? "Choose a city" : "Choose a county first"}
                 </option>
+                {cities.length ? (
+                  <option value={UNINCORPORATED}>Unincorporated — no city</option>
+                ) : null}
                 {cities.map((city) => (
                   <option key={city.id} value={city.id}>{city.name}</option>
                 ))}
@@ -234,9 +239,11 @@ export default function SignupPage() {
             </div>
           </div>
           <p className="text-sm text-[var(--muted)]">
-            Your city and county decide which three communities you belong to:
-            your city, your county, and California. You can read anywhere, and
-            post and vote in those three.
+            Your county decides which communities you belong to. Choose a city
+            and you belong to three: your city, your county, and California.
+            Choose &ldquo;Unincorporated — no city&rdquo; and you belong to
+            two: your county and California. You can read anywhere, and post
+            and vote in your own communities.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
