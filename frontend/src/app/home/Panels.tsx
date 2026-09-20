@@ -47,6 +47,10 @@ export function BallotPanel({ entries }: { entries: CycleEntry[] }) {
             <span className="font-medium">{entry.community.label}:</span>{" "}
             {entry.cycle && entry.cycle.state === "open" ? (
               <>Open — expected to close {formatDate(entry.cycle.expected_close)}</>
+            ) : entry.cycle && entry.cycle.state === "prepared" ? (
+              // DEMOCRACY.md §10.2 — a cycle is only ever observed `prepared`
+              // when it qualified nothing; it goes straight to `published`.
+              <>Nothing qualified this cycle — next ballot expected {formatDate(entry.next_ballot_expected)}</>
             ) : (
               <>
                 Next ballot expected {formatDate(entry.next_ballot_expected)}

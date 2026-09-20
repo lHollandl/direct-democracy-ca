@@ -590,3 +590,41 @@ async def test_a_tie_fails_and_the_quorum_is_respected(client, town):
         f"/admin/cycles/{cycle_id}/close", headers=town["director"]["headers"]
     )
     assert closed.json()["results"][0]["result"] == "failed", "a tie fails, and quorum was 3"
+
+
+async def test_a_zero_item_cycle_carries_its_settings_snapshot_for_the_pages(client, town):
+    """FX-02 (change/01 fix run 1): the ballot page, the cycle page, and the
+    Home panel each say why an empty ballot is empty, with the numbers from
+    that cycle's own settings_snapshot — never the live settings (DEMOCRACY
+    §10.2, CLAUDE Law 8). No solution was proposed, so prepare qualifies
+    nothing."""
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    assert prepared.status_code == 200, prepared.text
+    assert prepared.json()["items"] == []
+    assert prepared.json()["state"] == "prepared"
+    cycle_id = prepared.json()["cycle_id"]
+
+    ballot = await client.get(f"/cycles/{cycle_id}/ballot")
+    assert ballot.status_code == 200
+    assert ballot.json()["items"] == []
+    ballot_snapshot = ballot.json()["settings_in_force"]
+    for key in ("ballot_min_dominant_days", "ballot_pct", "ballot_min"):
+        assert key in ballot_snapshot, f"the page needs {key} to explain an empty ballot"
+
+    cycle = await client.get(f"/cycles/{cycle_id}")
+    assert cycle.status_code == 200
+    assert cycle.json()["item_count"] == 0
+    assert cycle.json()["settings_in_force"] == ballot_snapshot, (
+        "the ballot page and the cycle page must agree on the rule that judged this cycle"
+    )
+
+    async with session_scope() as session:
+        stored = await cycles_repo.get(session, cycle_id)
+    assert stored.settings_snapshot == ballot_snapshot, (
+        "the page reads exactly what was recorded on the cycle at prepare time, "
+        "not the live settings table"
+    )

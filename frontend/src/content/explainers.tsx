@@ -32,6 +32,22 @@ function plural(n: number | string, word: string): string {
   return `${n} ${word}${Number(n) === 1 ? "" : "s"}`;
 }
 
+/**
+ * DEMOCRACY.md §10.2 — a cycle with zero ballot items says why, in plain
+ * words, using the thresholds recorded on that cycle at prepare time (its
+ * `settings_snapshot`) rather than the live settings — the rule that judged
+ * it is the one in force when it was prepared, not the one in force now
+ * (CLAUDE.md Law 8: never typed into the text).
+ */
+export function zeroItemBallotSentence(snapshot: SettingsMap): string {
+  return (
+    `Nothing qualified for this ballot. To reach a ballot, a solution must ` +
+    `stay dominant for ${plural(snapshot.ballot_min_dominant_days, "day")} and ` +
+    `reach the support threshold — ${snapshot.ballot_pct}% of the community's ` +
+    `active users, or ${plural(snapshot.ballot_min, "supporter")} if that is fewer.`
+  );
+}
+
 export function BallotExplainer({ settings }: { settings: SettingsMap }) {
   return (
     <div className="space-y-3">

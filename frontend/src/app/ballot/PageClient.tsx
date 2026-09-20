@@ -7,7 +7,7 @@ import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
 import { Badge, Empty, Explainer, Loading, Notice, PageHeader, Section } from "@/components/ui";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
-import { BallotExplainer, useSettingsMap } from "@/content/explainers";
+import { BallotExplainer, useSettingsMap, zeroItemBallotSentence } from "@/content/explainers";
 
 type BallotItem = {
   ballot_item_id: number;
@@ -32,6 +32,7 @@ type Ballot = {
   state: string;
   community: { label: string };
   you_can_vote: boolean;
+  settings_in_force: Record<string, number | string>;
   ordering: { version: string; explanation: string };
   privacy_note: string;
   items: BallotItem[];
@@ -111,57 +112,61 @@ export default function BallotPage() {
               description={`This ballot is ${STATE_WORDS[ballot.state] ?? ballot.state}. ${ballot.ordering.explanation}`}
             >
               <Notice>{ballot.privacy_note}</Notice>
-              <ol className="mt-3 space-y-3">
-                {ballot.items.map((item) => (
-                  <li key={item.ballot_item_id} className="card p-4">
-                    <p className="text-sm font-medium">
-                      {item.position}. {item.umbrella}
-                      {item.held_back ? <> · <Badge>held back by the jury</Badge></> : null}
-                      {item.result ? <> · <Badge>{item.result.replace("_", " ")}</Badge></> : null}
-                    </p>
-                    <p className="mt-1 whitespace-pre-line">{item.frozen_text}</p>
-                    <p className="mt-1 break-all text-xs text-[var(--muted)]">
-                      Version {item.frozen_version} · fingerprint {item.frozen_hash}
-                    </p>
-                    {item.yes_count !== null ? (
-                      <p className="mt-2 text-sm font-bold">
-                        {item.yes_count} yes · {item.no_count} no
+              {ballot.items.length === 0 ? (
+                <Empty>{zeroItemBallotSentence(ballot.settings_in_force)}</Empty>
+              ) : (
+                <ol className="mt-3 space-y-3">
+                  {ballot.items.map((item) => (
+                    <li key={item.ballot_item_id} className="card p-4">
+                      <p className="text-sm font-medium">
+                        {item.position}. {item.umbrella}
+                        {item.held_back ? <> · <Badge>held back by the jury</Badge></> : null}
+                        {item.result ? <> · <Badge>{item.result.replace("_", " ")}</Badge></> : null}
                       </p>
-                    ) : null}
-                    {item.votable && ballot.you_can_vote ? (
-                      <div className="mt-3 flex items-center gap-2">
-                        {(["yes", "no"] as const).map((choice) => (
-                          <button
-                            key={choice}
-                            type="button"
-                            className={`btn ${item.my_vote === choice ? "btn-primary" : ""}`}
-                            aria-pressed={item.my_vote === choice}
-                            onClick={() => void vote(ballot.cycle_id, item.ballot_item_id, choice)}
-                          >
-                            {choice === "yes" ? "Yes" : "No"}
-                          </button>
-                        ))}
-                        <span className="text-sm text-[var(--muted)]">
-                          {item.my_vote
-                            ? `You voted ${item.my_vote}. You can change it until the ballot closes.`
-                            : "You have not voted on this yet."}
-                        </span>
-                      </div>
-                    ) : item.held_back ? (
-                      <p className="mt-2 text-sm text-[var(--muted)]">
-                        The jury held this back, so the community is not voting on
-                        it this cycle. Their written reasons are published with the
-                        results.
+                      <p className="mt-1 whitespace-pre-line">{item.frozen_text}</p>
+                      <p className="mt-1 break-all text-xs text-[var(--muted)]">
+                        Version {item.frozen_version} · fingerprint {item.frozen_hash}
                       </p>
-                    ) : null}
-                    <p className="mt-2 text-sm">
-                      <Link href={`/solutions/${item.solution_id}`}>
-                        See this solution in the workshop
-                      </Link>
-                    </p>
-                  </li>
-                ))}
-              </ol>
+                      {item.yes_count !== null ? (
+                        <p className="mt-2 text-sm font-bold">
+                          {item.yes_count} yes · {item.no_count} no
+                        </p>
+                      ) : null}
+                      {item.votable && ballot.you_can_vote ? (
+                        <div className="mt-3 flex items-center gap-2">
+                          {(["yes", "no"] as const).map((choice) => (
+                            <button
+                              key={choice}
+                              type="button"
+                              className={`btn ${item.my_vote === choice ? "btn-primary" : ""}`}
+                              aria-pressed={item.my_vote === choice}
+                              onClick={() => void vote(ballot.cycle_id, item.ballot_item_id, choice)}
+                            >
+                              {choice === "yes" ? "Yes" : "No"}
+                            </button>
+                          ))}
+                          <span className="text-sm text-[var(--muted)]">
+                            {item.my_vote
+                              ? `You voted ${item.my_vote}. You can change it until the ballot closes.`
+                              : "You have not voted on this yet."}
+                          </span>
+                        </div>
+                      ) : item.held_back ? (
+                        <p className="mt-2 text-sm text-[var(--muted)]">
+                          The jury held this back, so the community is not voting on
+                          it this cycle. Their written reasons are published with the
+                          results.
+                        </p>
+                      ) : null}
+                      <p className="mt-2 text-sm">
+                        <Link href={`/solutions/${item.solution_id}`}>
+                          See this solution in the workshop
+                        </Link>
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </Section>
           ))
         )}

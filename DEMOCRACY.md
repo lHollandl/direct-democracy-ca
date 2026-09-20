@@ -715,6 +715,12 @@ zero items and no jury is drawn. The only transition available from
 publishes an empty summary ("No solutions reached the ballot this
 cycle") whenever ready, and the next cycle can then be prepared. A
 zero-item cycle never enters `jury_review`, `open`, or `closed`.
+
+Wherever a zero-item cycle is shown — the ballot page, the cycle page,
+the Home panel — the page says that nothing qualified and states the
+rule in plain words with the numbers from that cycle's settings
+snapshot, so an empty ballot never looks like a broken page (CLAUDE §2).
+
 Because prepare continues to `jury_review` in the same action whenever
 any item qualifies, a cycle is only ever *observed* in `prepared` when it
 is empty; the code's guard against publishing a non-empty `prepared`
