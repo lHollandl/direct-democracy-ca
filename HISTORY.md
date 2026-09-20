@@ -3516,3 +3516,123 @@ unsupported AI-capability claim ("summarizes discussion") on the new
 `/explained` page. The director's named question — San Jose's "0 eligible
 jurors" — is answered with a live reproduction as correct, documented
 behavior, not a bug. Findings live in the report, not here.
+
+## 2026-09-20 — Session 2 (Claude.ai planning session — change/01 audit 1 review)
+
+**Completed:**
+- Reviewed `audits/change-01-audit-1.md`: CRITICAL 0 · HIGH 1 · MEDIUM 2 · NOTE 2 — FIX REQUIRED. FX-01…FX-03 verified by the auditor. Fix brief `briefs/change-01-fix-2.md` written; `briefs/audit.md` Step 0.5 tightened.
+
+**Decisions made:**
+1. HIGH (open redirect through `/\evil.example`) stands and is fixed by letting the URL parser decide, not by adding one more string check — the brief's three test cases were the planning session's and were too few. ARCHITECTURE §9 now states the rule the way a browser reads it.
+2. MEDIUM (old name in `package.json` and the data-export filename) fixed; the proof grep is widened to hyphen, underscore, and dot spellings.
+3. MEDIUM ("summarizes discussion" on `/explained`) — the sentence is removed; no summarizing AI exists or is planned for this change. Every AI-capability sentence on the new pages is now traced to DEMOCRACY §9.
+4. Audit ambiguity 1 adopted as a fix: the words for the ballot rhythm come from the live `cycle_open_rule`, so a second rule can never leave a stale sentence (Law 8 in spirit).
+5. Audit ambiguity 2 adopted as built: a Home card uses one short line per filing state; DEMOCRACY §4.1 now says so.
+6. Named question closed: "0 eligible jurors" in San Jose is correct — in a nine-person community every resident authored a qualifying solution, and §8.1 excludes authors. Already recorded as Technical Debt (tiny communities) and DEMOCRACY §15 Open Question 3. No change.
+
+**Issues encountered:**
+- Audit 1 ran **without Ollama**: the auditor guessed gateway addresses instead of reading SANDBOX.md §5, so labeling and the real-Ollama walkthrough were not exercised. **Put to the re-auditor by name:** reach Ollama at the address SANDBOX.md §5 records; load the test data; confirm the ten `file_under: ai` posts are labeled, and paste each one's umbrella.
+
+**Director verified in the browser:** as in Session 1 of this date. Still to clear before merging: session survives a reload; phone width; landing redirect when signed in; search, sorts, and "All of California"; the ballot switch after a reload; explainers by keyboard.
+
+## 2026-09-20 — Session 7 (Claude Code build — change/01-site-shell, fix run 2)
+
+Fix run 2 of `change/01-site-shell`, per `briefs/change-01-fix-2.md`, closing
+`audits/change-01-audit-1.md`'s HIGH 1 · MEDIUM 2 and its two document
+ambiguities. Pre-checks: branch `change/01-site-shell` at `329531e` ("change/01
+fix-2 brief"); environment built from empty per SANDBOX.md §6.7 (`.env`
+generated, `OLLAMA_BASE_URL` set to the host LAN address SANDBOX.md §5
+records); full backend suite and `npm test` green before any change (257→
+after correcting for the pre-check's own environment: an initial run with
+`ALLOW_TEST_DATA=true` left over from environment setup produced 2 failures in
+`test_auth.py` that were test-environment artifacts, not code bugs —
+`ALLOW_TEST_DATA` reset to `false` and the shell's exported `.env` variables
+unset so `Settings(_env_file=None, ...)` in
+`test_ip_hash_is_salted_and_the_secret_is_required` wasn't shadowed by leaked
+process environment — after which the suite reproduced the audit's own
+256/2 exactly).
+
+**Completed:**
+- **FX-05** [HIGH]: `frontend/src/lib/nextPath.ts::safeNextPath` rewritten to
+  resolve `next` through `new URL(next, "http://placeholder.invalid")` and
+  accept only when the origin matches the placeholder's, the raw value has no
+  backslash, and no ASCII control character — returning the parsed
+  `pathname+search+hash`, never the raw string. `frontend/src/lib/nextPath.test.ts`
+  covers all 14 brief-specified cases individually (4 previously-passing
+  bypasses now rejected: `/\evil.example`, `/\\evil.example`, a real tab, a
+  real newline; 5 accepted paths return their parsed form). Confirmed the old
+  code passed all four bypasses through unchanged (evidence: the pre-fix
+  module returned each bypass string as "safe"). `ARCHITECTURE.md` §9 restated
+  verbatim per the brief.
+- **FX-06** [MEDIUM]: `frontend/package.json`'s `name` →
+  `direct-democracy-ca-frontend` (`package-lock.json` regenerated via
+  `npm install --package-lock-only`); `backend/routers/me.py::download_export`'s
+  filename prefix → `direct-democracy-ca-export-`, with a new assertion in
+  `backend/tests/test_account_rights.py` on the `Content-Disposition` header.
+  Widened proof grep `democracy[-_ .]*cali` also matches `CLAUDE.md` and
+  `PROJECT.md`, but only for the literal filename
+  `DirectDemocracyCali_ProjectSummary_v2.md` in the document map's
+  not-yet-absorbed list (§"The Document Map") — a historical filename, not a
+  live branding string, and outside this brief's authorization to edit either
+  document. Left untouched; residue named here and in TODO.md.
+- **FX-07** [MEDIUM]: dropped "and summarizes discussion" from
+  `frontend/src/app/explained/PageClient.tsx`'s AI section. Traced every
+  AI-capability sentence on `/explained`, the landing page
+  (`frontend/src/app/page.tsx`), and `frontend/src/content/explainers.tsx`
+  (no AI sentence present there) to its DEMOCRACY §9 subsection — table in the
+  session's own evidence, all matching; the landing page's own AI sentence was
+  already accurate and needed no change.
+- **FX-08** [audit ambiguity 1]: added `CYCLE_RULE_WORDS` to
+  `frontend/src/content/explainers.tsx`, keyed by `cycle_open_rule`, with a
+  JSX form (`CycleRuleWords`, links to Settings on an unknown rule) and a
+  plain-text form (`cycleRuleWords`, for the SVG `<desc>` and diagram step
+  text that can't hold a link). Wired into `BallotExplainer`, `/explained`'s
+  "Two clocks" paragraph, and both halves of `Diagrams.tsx`'s Diagram 2 (the
+  "Ballot open" step and the `<desc>`). `backend/tests/test_layering.py::test_cycle_rule_words_map_covers_every_cycle_open_rule`
+  reads `explainers.tsx` as text and asserts every
+  `rules.py::CYCLE_OPEN_RULES` key appears in the map; confirmed it actually
+  catches drift by temporarily adding a second fake rule to
+  `CYCLE_OPEN_RULES` (test failed, naming exactly that rule) and reverting
+  (test passed again).
+- **FX-09** [audit ambiguity 2]: `DEMOCRACY.md` §4.1 — added the verbatim
+  sentence recording the Home-card decision (one short line per filing state
+  present; the full per-community sentence is the post page's). Document only.
+- **FX-10**: full backend suite 257 passed, 2 deselected (256 baseline + the
+  new FX-08 test); `npm test` 15/15; `npm run build` — 25 routes, clean;
+  `verify_schema.py` — no drift, 38 tables, 15 Foundation/23 Iteration, no
+  overlap, every foreign key indexed; both proof greps (`democracy cali` and
+  the widened `democracy[-_ .]*cali`) run and recorded; `git diff --stat
+  8206625...HEAD` shows only `ARCHITECTURE.md`, `DEMOCRACY.md`,
+  `backend/routers/me.py`, `backend/tests/test_account_rights.py`,
+  `backend/tests/test_layering.py`, `frontend/package.json`,
+  `frontend/package-lock.json`, `frontend/src/app/explained/Diagrams.tsx`,
+  `frontend/src/app/explained/PageClient.tsx`,
+  `frontend/src/content/explainers.tsx`, `frontend/src/lib/nextPath.ts`,
+  `frontend/src/lib/nextPath.test.ts`, plus the director's own brief commit
+  (`briefs/audit.md`, `briefs/change-01-fix-2.md`).
+
+**Decisions made:**
+- FX-06's widened grep hits in `CLAUDE.md`/`PROJECT.md` are a historical
+  filename reference, not a branding occurrence, and both documents are
+  outside this brief's editing authorization (CLAUDE.md requires director
+  approval for anything beyond a typo fix; PROJECT.md likewise). Left as
+  residue rather than edited — see FX-06 above and TODO.md.
+
+**Issues encountered:**
+- The pre-check test suite initially showed 2 failures purely from this
+  session's own environment setup (`ALLOW_TEST_DATA=true` left set from
+  following SANDBOX.md §6.7's site-startup instructions, and `.env` values
+  exported into the shell that shadowed `Settings(_env_file=None, ...)` in one
+  test). Neither was a code defect; both resolved by correcting the
+  environment before any code change, and the corrected suite reproduced the
+  audit's own 256/2 exactly.
+
+**Notes:**
+- Backend (`uvicorn`, port 8000) and frontend (`next dev`, port 3000) were
+  left running in this sandbox for evidence collection (rendered HTML,
+  server-rendered component proofs for FX-08). Database holds only the Demo 1
+  seed (16 umbrellas, 10 main categories); no test data loaded
+  (`ALLOW_TEST_DATA=false`).
+
+**Document changes flagged:**
+- None beyond FX-06/FX-07/FX-08/FX-09's own verbatim or brief-directed wording.

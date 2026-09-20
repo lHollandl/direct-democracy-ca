@@ -46,7 +46,7 @@ first page of the lists they show, with a `next_cursor`, per ARCHITECTURE
 §6's now-explicit rule. Full evidence in HISTORY.md's latest build entry.
 `demo/01` merged to `main` 2026-09-19 and tagged `demo-1`; work proceeds by
 `change/NN` branches. Phase 0 remains complete except the optional search
-provider. change/01 fix run 1 done; change audit next.*
+provider. change/01 fix run 2 done; re-audit next.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -547,6 +547,12 @@ director's test, then a change audit before its PR to `main`.
 - [x] **FX-02** An empty ballot says why it is empty, with that cycle's own settings-snapshot numbers, on `/ballot`, `/cycles/[id]`, and the Home panel
 - [x] **FX-03** `AUDIT.md` §6 names change reports (`audits/change-NN-audit-K.md`)
 - [x] **FX-04** Fix-run-1 evidence — full suite, `verify_schema.py`, seed dry-run, `load_test_data.py --apply`, a zero-item and a non-empty cycle, `reconcile.py --dry-run`, `npm run build`/`test`, `git status`
+- [x] **FX-05** [HIGH, audit run 1] `safeNextPath` resolves `next` through the browser's own URL parser instead of matching strings — closes the `/\evil.example` backslash open-redirect bypass; `ARCHITECTURE.md` §9 restated to match
+- [x] **FX-06** [MEDIUM, audit run 1] The old name in `frontend/package.json`, `package-lock.json`, and the data-export filename (`backend/routers/me.py`) — spellings the audit's own space-separated proof grep missed. `CLAUDE.md`/`PROJECT.md` still cite the historical filename `DirectDemocracyCali_ProjectSummary_v2.md` in the document map's not-yet-absorbed list; left untouched (not a live branding string; both documents are outside this brief's authorization)
+- [x] **FX-07** [MEDIUM, audit run 1] `/explained` no longer claims AI "summarizes discussion" — no such feature exists or is planned; every AI-capability sentence on `/explained`, the landing page, and `explainers.tsx` traced to `DEMOCRACY.md` §9
+- [x] **FX-08** [audit ambiguity 1] The ballot rhythm's words come from `CYCLE_RULE_WORDS` in `frontend/src/content/explainers.tsx`, keyed by the live `cycle_open_rule` setting, everywhere it's said (`explainers.tsx`, `/explained` "Two clocks" and Diagram 2) — an unknown rule links to Settings instead of a stale sentence; `backend/tests/test_layering.py` asserts every `rules.py::CYCLE_OPEN_RULES` key has an entry
+- [x] **FX-09** [audit ambiguity 2] `DEMOCRACY.md` §4.1 records the Home-card decision (one short line per filing state present; the full per-community sentence is the post page's) — document only, no code change
+- [x] **FX-10** Fix-run-2 evidence — full suite (257/2), `npm test` (15/15), `npm run build` (25 routes), `verify_schema.py` (no drift), both proof greps, `git diff --stat`
 
 ---
 
