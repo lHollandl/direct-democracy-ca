@@ -3636,3 +3636,15 @@ process environment — after which the suite reproduced the audit's own
 
 **Document changes flagged:**
 - None beyond FX-06/FX-07/FX-08/FX-09's own verbatim or brief-directed wording.
+
+## 2026-09-20 — Session 3 (Claude.ai planning session — change/01 browser checks; re-audit questions)
+
+**Completed:**
+- Reviewed the fix run 2 entry: FX-05…FX-10 done; the diff stays inside the files the brief named. Re-audit next.
+
+**Director verified in the browser (2026-09-20, sandbox `ddc-change-01` at the fix-run code):** signed in, reloaded, still signed in; typed `/admin` while signed out, signed in, landed on `/admin`; the landing page redirects to Home when signed in; search, each of the four sorts, and "All of California" on Home; the "Show ballot items here" switch is remembered after a reload; the three tabs, Home panels, and footer at phone width; both "How it works" buttons open and close by keyboard. All seven browser-only checks pass.
+
+**Put to the re-auditor by name:**
+1. Reach Ollama at the address SANDBOX.md §5 records; load the test data; confirm the ten `file_under: ai` posts are labeled, and paste each one's umbrella (carried over from Session 2 — audit 1 ran without Ollama).
+2. Fix run 2 reports the backend suite as "257 passed, 2 deselected". Which two tests, why are they deselected, and do they pass when selected in a clean shell? A test that is skipped to make a suite green is a finding.
+3. Fix run 2 saw two tests fail when `ALLOW_TEST_DATA=true` and the `.env` values were exported in the shell. Should the suite be isolated from the process environment? Severity is the auditor's call.
