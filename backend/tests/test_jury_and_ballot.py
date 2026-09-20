@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 import pytest
 
 from backend.db import session_scope
@@ -59,6 +61,31 @@ async def test_the_draw_excludes_authors_and_administrators_and_is_logged(client
         assert jury.size_requested == 3
         assert len(jurors) == 3
         assert {j.user_id for j in jurors} <= pool
+
+
+async def test_the_draw_is_replayable_from_its_logged_pool_and_bytes(client, town):
+    """DEMOCRACY.md §8.1, TODO D2-00 (audit-6 MEDIUM): the sampler is seeded
+    from the logged bytes, so the logged pool plus the logged bytes reproduce
+    the drawn ids exactly."""
+    author = town["people"][0]
+    solution_id = await _dominant_solution(client, author, town["people"][1:], town["umbrella"])
+
+    prepared = await client.post(
+        "/admin/cycles/prepare",
+        headers=town["director"]["headers"],
+        json={"level": "city", "entity_id": 1},
+    )
+    assert prepared.status_code == 200
+    cycle_id = prepared.json()["cycle_id"]
+
+    async with session_scope() as session:
+        jury = await cycles_repo.jury_for_cycle(session, cycle_id)
+        jurors = await cycles_repo.jurors(session, jury.id)
+        drawn_ids = [j.user_id for j in sorted(jurors, key=lambda j: j.seat)]
+        pool, random_bytes, size = jury.eligible_pool, jury.random_bytes, jury.size_requested
+
+    replayed = random.Random(int(random_bytes, 16)).sample(pool, min(size, len(pool)))
+    assert replayed == drawn_ids
 
 
 async def test_declining_draws_a_replacement_immediately(client, town):
