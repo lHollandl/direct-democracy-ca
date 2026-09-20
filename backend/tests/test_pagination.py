@@ -83,6 +83,7 @@ DETAIL_ENDPOINTS = {
     "/admin/users/{user_id}",
     "/auth/me",
     "/communities/{level}/{entity_id}",
+    "/cycles/mine",
     "/cycles/{cycle_id}",
     "/cycles/{cycle_id}/ballot",
     "/health",

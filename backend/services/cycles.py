@@ -418,6 +418,75 @@ async def for_community(
     }
 
 
+async def mine(session: AsyncSession, *, viewer: User) -> list[dict]:
+    """`GET /cycles/mine` (ARCHITECTURE.md §6, DEMOCRACY.md §12.2).
+
+    One entry per home community: its current cycle (if any is not yet
+    published), when its ballot last closed, the next-ballot and
+    next-jury-draw *expectations* from the rhythm (§10.1), and the viewer's
+    own jury status — from the current, not-superseded jury only, and only
+    the viewer's own status: juror identities stay non-public (§8.5).
+    """
+    communities = await community_service.home_communities(session, viewer)
+    cycle_open_rule = await settings_service.get(session, "cycle_open_rule")
+    jury_review_days = int(await settings_service.get(session, "jury_review_days"))
+    ballot_window_days = int(await settings_service.get(session, "ballot_window_days"))
+    today = rules.pacific_today()
+
+    out = []
+    for community in communities:
+        level, entity_id = community.key
+        cycles = await cycles_repo.for_community(session, level, entity_id)
+        current = next((c for c in cycles if c.state != "published"), None)
+        last_closed_at = next((c.closed_at for c in cycles if c.closed_at is not None), None)
+        opened_dates = {
+            rules.pacific_today(c.opened_at) for c in cycles if c.opened_at is not None
+        }
+        next_ballot_expected, next_jury_draw_expected = rules.next_cycle_dates(
+            today, cycle_open_rule, jury_review_days, opened_dates
+        )
+        last_jury_drawn_at = await cycles_repo.most_recent_jury_drawn_at(session, level, entity_id)
+
+        my_jury_status = "none"
+        respond_by = None
+        if current is not None:
+            jury = await cycles_repo.jury_for_cycle(session, current.id)
+            if jury is not None:
+                juror = await cycles_repo.juror_for_user(session, jury.id, viewer.id)
+                if juror is not None:
+                    my_jury_status = juror.status
+                    if juror.status == "drawn" and jury.drawn_at is not None:
+                        respond_by = jury.drawn_at + timedelta(days=jury_review_days)
+
+        out.append(
+            {
+                "community": community.as_dict(),
+                "cycle": (
+                    {
+                        "id": current.id,
+                        "number": current.number,
+                        "state": current.state,
+                        "opened_at": current.opened_at,
+                        "expected_close": (
+                            current.opened_at + timedelta(days=ballot_window_days)
+                            if current.opened_at is not None
+                            else None
+                        ),
+                    }
+                    if current is not None
+                    else None
+                ),
+                "last_closed_at": last_closed_at,
+                "next_ballot_expected": next_ballot_expected,
+                "last_jury_drawn_at": last_jury_drawn_at,
+                "next_jury_draw_expected": next_jury_draw_expected,
+                "my_jury_status": my_jury_status,
+                "respond_by": respond_by,
+            }
+        )
+    return out
+
+
 async def require_cycle(session: AsyncSession, cycle_id: int) -> Cycle:
     cycle = await cycles_repo.get(session, cycle_id)
     if cycle is None:
