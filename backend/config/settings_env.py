@@ -93,6 +93,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_WRITE_PER_MINUTE: int = 30
     LOG_LEVEL: str = "INFO"
 
+    # --- Test data (ARCHITECTURE.md §3; change/01, C1-14) -----------------
+    # `true` only in a demo environment. Enables load_test_data.py /
+    # remove_test_data.py and lets signup accept TEST_DATA_EMAIL_DOMAIN; when
+    # `false` both scripts refuse to run and signup refuses that domain.
+    ALLOW_TEST_DATA: bool = False
+    TEST_DATA_EMAIL_DOMAIN: str = "test.example.com"
+    TEST_DATA_PASSWORD: str = "Str0ngPassword!"
+
     # --- Docker Compose only (infra/docker-compose.yml --env-file .env) ---
     # Added by the demo-01 build: ARCHITECTURE.md §3 says one root .env is
     # passed to Compose with --env-file, and Compose needs these three.

@@ -65,6 +65,15 @@ async def signup(
 
     security.validate_password(password)
 
+    env = get_env_settings()
+    test_domain = env.TEST_DATA_EMAIL_DOMAIN.lower()
+    if not env.ALLOW_TEST_DATA and email.lower().rsplit("@", 1)[-1] == test_domain:
+        raise ValidationFailed(
+            f"Email addresses at {env.TEST_DATA_EMAIL_DOMAIN} are reserved for test "
+            "data on this platform and cannot be used to sign up.",
+            code="test_domain_reserved",
+        )
+
     if await users_repo.by_email(session, email) is not None:
         raise Conflict(
             "An account already exists with that email address.", code="email_taken"
