@@ -3120,3 +3120,252 @@ in the report, not here.
 **Document changes flagged:**
 - The Demo 2 brief waits on the director's use notes (D2-09).
 - P0-13 (search provider) still open; reference recommendation returns 503 until set.
+
+## 2026-09-19 — Session 2 (Claude.ai planning session — the change method; Demo 1 use notes, part 1)
+
+**Completed:**
+- `demo/01` merged to `main` by PR #5 (squash, commit `1167888`), tagged `demo-1`; `demo/01` and two stale `docs/` branches deleted. `main` is the only branch.
+- The iteration method redesigned with the director and written into CLAUDE.md (The Two Halves), PROJECT.md (two Working Principles), AUDIT.md §2, SANDBOX.md §6 — wording approved by the director in this session; applied by the change/01 run from `briefs/change-01.md`.
+- The director used Demo 1 from a fresh sandbox and sent eleven annotated notes. They are split into change/01 (site shell, Home, explainers, fixes, test data — this brief), change/02 (who you are and where you post), and change/03 (propose a new umbrella).
+- Written for change/01: six more seed umbrellas (Fremont ×3, Alameda County ×3) and `backend/config/test_dataset.yaml` (16 test accounts, 40 posts).
+
+**Decisions made (director unless marked):**
+1. `main` is the only long-lived branch; every change is a `change/NN` branch that merges after its audit or is deleted; a demo is a tag. Iteration code is improved, never rebuilt; Iteration data stays disposable until the keeper. This supersedes the 09-19 Session 1 decision that only the keeper merges.
+2. Documents are edited in the same run as the code, from wording carried in the brief; CLAUDE.md wording is approved by the director before it enters a brief.
+3. The director tests a change before its audit; a scoped change audit gates the PR; full audits at demo tags and before the keeper. Zero CRITICAL / zero HIGH applies to every PR to `main`.
+4. The Claude.ai project-knowledge copies of the documents are retired; the planning session clones the repository and states the commit it read.
+5. The name is "Direct Democracy CA".
+6. Three tabs only — Direct Democracy Explained, Home, New post. Ballot and jury live on Home as panels; each has a "How it works" explainer; ballot items can appear pinned on Home, a user-owned switch, on by default.
+7. Ballots are expected on the first Sunday of each month (`cycle_open_rule`, a setting); still opened by hand during the demo.
+8. Home sorts are plain counts and dates — newest, oldest, most votes, most comments — never a blended score; keyword search filters and never orders. Planning session's reading, put to the director: a user-chosen count sort does not yet owe the Small Voice rule because the default view ranks nothing (DEMOCRACY §14).
+9. The landing page sells what the platform offers; it may only claim what is true today. Residency is self-declared and verification is reported in aggregate, so the page says exactly that.
+10. "Propose a new umbrella" leaves the parking lot (change/03); the dead end it fixes was found by the director's first post from Fremont.
+11. Unincorporated residents: "Unincorporated — no city" at signup, county and state communities only (closes Director Decision #9; change/02).
+12. Changing home city or county: once per a public number of days (default 90), and a move never lets a user vote in a ballot already under way (change/02). Flagging accounts was rejected: nobody holds the role of judging misuse.
+13. Federal: a greyed-out checkbox, "planned", on the post form (change/02).
+14. AI labeling moves onto the post form — suggest, accept or change, submit; background labeling stays as the fallback (change/02).
+15. Test data is marked three ways (reserved email domain, "[TEST]" names, authorship) and has a loader and a remover that run only when `ALLOW_TEST_DATA=true`.
+
+**Issues encountered:**
+- TODO.md and PROJECT.md on `demo/01` said the branch had merged before it had; `main` sat 71 commits stale for a day. The documents now change in the run that makes them true.
+- Starting the site from `.env.example` left the placeholder Ollama address, so every post sat "waiting to be filed"; the same sentence was shown for "AI unreachable" and "no umbrella here". SANDBOX.md §6.7 and DEMOCRACY §4.1 amended.
+- **Every page load signed the director out**: the browser reached the API on `127.0.0.1` from a page on `localhost`, so the `SameSite=Strict` refresh cookie was never sent. Six audits could not see it — the auditor has no browser. AUDIT.md §2 now requires a director-verified list of browser-only checks per change.
+- A `demo-1` tag was first placed on the unmerged `main`; moved after the merge.
+
+**Queued for change/02:** unincorporated option at signup; account page edits (name, email with re-confirmation, party, gender, home city/county under decision 12); post form — no city pre-selected, no "(city)" suffix, no city box for unincorporated users, Federal greyed out, AI label suggestion on the form.
+**Queued for change/03:** propose a new umbrella — design session first; the parked Proposal-system design in PROJECT.md is the starting point.
+
+## 2026-09-20 — Session 4 (Claude Code build — change/01-site-shell)
+
+Built from `briefs/change-01.md` on `change/01-site-shell` (newest commit at
+start: `0149c9a`). Pre-checks all passed: seed files present, 16 communities
+in `seed_umbrellas.yaml`; `.env` built with `OLLAMA_BASE_URL` at the host LAN
+address (`192.168.1.165`, per SANDBOX.md §5) — `llama3.2` and
+`nomic-embed-text` both present; Docker Compose up; full suite green (231
+passed, 2 deselected) before any change.
+
+**Completed:**
+- **Part A**, one commit ("change/01 documents"): the name changed to
+  "Direct Democracy CA" everywhere outside the four historical exceptions
+  (`git grep -il 'democracy cali'` lists only `HISTORY.md`, `archive/`,
+  `audits/`, `briefs/`); CLAUDE.md, PROJECT.md, DEMOCRACY.md, DATABASE.md,
+  ARCHITECTURE.md, AUDIT.md, SANDBOX.md edited exactly as the brief's
+  verbatim wording specified.
+- **C1-01** — `frontend/src/lib/api.ts` splits `browserApiBase()` (the
+  page's own `window.location`, or `NEXT_PUBLIC_API_BASE_URL`) from a
+  server-only `SERVER_API_BASE` for `serverGet`; fixes the `SameSite=Strict`
+  refresh cookie being dropped when the browser called a literal
+  `127.0.0.1:8000` from a page on `localhost:3000`. `test_layering.py` gained
+  `test_api_ts_browser_path_has_no_hostname_literal` (confirmed failing
+  against the pre-fix file, passing after). `.env.example` gained
+  `NEXT_PUBLIC_API_BASE_URL`; `CORS_ORIGINS` default widened.
+- **C1-02** — `/login` accepts `next` (validated: exactly one leading `/`,
+  rejecting `//…` and `https://…`) and redirects there after sign-in, else
+  `/home`. `components/Session.tsx` gained `useRequireAuth`, distinguishing
+  never-signed-in (redirects to `/login?next=`) from a session that ended
+  while the page was open (shows "You have been signed out."), wired into
+  `/admin`. `frontend/src/lib/nextPath.ts` + a `node:test` unit test run via
+  `tsx` (added as a dev dependency; `npm test` script added).
+- **C1-03** — covered by Part A's name change; no separate commit needed.
+- **C1-04** — `SiteNav.tsx` down to the three tabs (Direct Democracy
+  Explained, Home, New post) plus Admin; footer gained Results and Summary
+  fingerprints. `SessionContext` exported so the nav's signed-out,
+  signed-in, and administrator states could be verified by
+  `renderToStaticMarkup` against real component code (the auditor has no
+  browser, and this is a client-fetched component).
+- **C1-05** — the landing page rewritten to the verbatim copy; a signed-in
+  visitor (refresh cookie present, `Path=/`, no `Domain` override so it
+  reaches the frontend server on any port of the same host) is redirected
+  to `/home` server-side, confirmed with a real cookie (307 to `/home`).
+- **C1-06** — `/explained`: the four former landing-page steps (jury size
+  still live), two inline SVG diagrams (`app/explained/Diagrams.tsx`) each
+  with `<title>`/`<desc>` and a full-text ordered list beneath, "Where AI
+  is, and is not", "What is public", and the two explainers reused from
+  C1-11.
+- **C1-07** — feed-v1: `GET /feed` gains `scope`, `q` (full-text search via
+  `websearch_to_tsquery`, GIN-indexed), and `sort` (newest/oldest/most_votes/
+  most_comments), each with its explanation beside `rules.py::FEED_SORTS`.
+  `vote_count`/`comment_count` computed per post and shown on every card.
+  Opaque base64 cursor, keyset on `(created_at, id)` or `(count, id)`. The
+  single Iteration migration regenerated with the two GIN indexes; database
+  rebuilt from empty; `verify_schema.py` clean. `backend/tests/test_feed.py`
+  added (5 tests): each sort's order, downvote-counts-the-same-as-upvote,
+  search matching both text sources without reordering, `scope=all`,
+  two-page pagination for a date sort and a count sort.
+- **C1-08** — the rhythm: `cycle_open_rule` (seeded `first_sunday_of_month`)
+  and `rules.py::next_cycle_dates`/`pacific_today`; `SettingSpec` gained a
+  `choices` set so an unknown rule is refused. 7 new `test_rules.py` cases
+  plus a settings-level accept/reject test.
+- **C1-12** (built before C1-11, which depends on it being true) — the jury
+  draw now seeds `random.Random` from the logged bytes instead of
+  `secrets.SystemRandom()`, sampling the pool sorted by id — the audit-6
+  MEDIUM (TODO D2-00). Test: the logged pool plus the logged bytes reproduce
+  the drawn ids exactly.
+- **C1-09** — `GET /cycles/mine`: one entry per home community — current
+  cycle, `last_closed_at`, `next_ballot_expected`/`next_jury_draw_expected`
+  (via C1-08's rhythm), and the viewer's own jury status from the current,
+  not-superseded jury only. Registered before `/cycles/{cycle_id}` so
+  "mine" is never parsed as an id. `backend/tests/test_cycles_mine.py`
+  covers every status, no cycle yet, auth, and no cross-juror leakage.
+- **C1-11** — `frontend/src/content/explainers.tsx`: `BallotExplainer`/
+  `JuryExplainer`, driven entirely by a live settings map, wired onto
+  `/ballot` and `/jury` as a `<details>` disclosure (native keyboard
+  support) whose trigger renders in the server-rendered HTML immediately,
+  content filling in once settings load. Grep-confirmed: no digit in the
+  source is a setting's value.
+- **C1-10** — `/home`: the Ballot and Jury panels (`app/home/Panels.tsx`),
+  a pinned "On your ballot now" block behind a `ddca.home.showBallot`
+  localStorage switch (default on, wrapped in try/catch), then the feed
+  with search, sort, a community filter widening to "All of California",
+  category filter, and both counts on every card. `/feed` now redirects to
+  `/home`; its old page retired.
+- **C1-13** — the three filing states get their exact wording in
+  `posts.py::_label_status_words` (now taking `community_label`,
+  `main_category_name`, `retry_minutes`, `has_active_umbrella`), plus a
+  fourth: no active umbrella in the community at all. The post page's
+  correction control is gated on the new `has_active_umbrella` API field,
+  not a frontend heuristic. Home's card labels get the same three states in
+  compact, aggregate form. `backend/tests/test_filing_messages.py` covers
+  all four states at the API level plus a same-4-sentences-never-share test.
+- **C1-14** — `ALLOW_TEST_DATA`/`TEST_DATA_EMAIL_DOMAIN`/
+  `TEST_DATA_PASSWORD` in `settings_env.py`; signup refuses the reserved
+  domain unless allowed (tested both ways). `backend/scripts/
+  load_test_data.py` loads `test_dataset.yaml` through the live HTTP API —
+  signup/verify/login/post/vote/comment, exactly like
+  `walkthrough_extended.py` — honoring the write rate limit's `Retry-After`;
+  re-running adds nothing (accounts by sign-in, posts by an exact
+  `problem_text` match on feed-v1 search, comments by an existing
+  (author, text) pair). `backend/services/test_data.py` +
+  `backend/repositories/test_data.py` is the only hard-delete path in the
+  codebase (real accounts are anonymized, never erased — CLAUDE §6); it
+  detects and refuses on rows a real account authored that would be deleted
+  or orphaned, unless `--force`; jury participation and a solution that
+  reached a ballot item are hard, unconditional blocks, found live while
+  gathering C1-16 evidence. `backend/scripts/remove_test_data.py` is the
+  CLI. Verified end to end against the real server and real Ollama three
+  times over (see Issues encountered).
+- **C1-15** — the admin page: a plain-language sentence above every
+  control (what it does, when to use it, that it is logged), a new "Run a
+  cycle" section with the five-step numbered path and the
+  `ballot_min_dominant_days → 0` same-day-cycle note.
+- **C1-16** — full evidence set, below.
+
+**Decisions made (documents silent):**
+1. Reordered Part B's build sequence for real dependencies the brief's own
+   numbering doesn't reflect: C1-12 (jury replayability) before C1-11 (the
+   jury explainer's text claims it), and C1-07/C1-08/C1-09 (feed, rhythm,
+   cycles/mine) before C1-11/C1-06/C1-10, which all consume them. Every
+   item still landed as its own commit, named for its own id.
+2. `GET /cycles/mine` returns `{"communities": [...]}`, matching the
+   envelope convention every other list-shaped endpoint in this codebase
+   uses, rather than a bare array.
+3. Home's card labels use the compact, aggregate wording for the three
+   filing states (no community/category name) since one card can span
+   several communities in different states at once; the full per-community
+   sentence — with the community and category named — is the post page's
+   job, which already lists communities one row at a time.
+4. `/explained`'s two diagrams use short one- or two-word SVG labels with
+   the full sentence in an adjoining ordered list, rather than trying to fit
+   full sentences inside the diagram — the stated 320px/images-off
+   readability bar is met by the list; the diagram stays legible at that
+   width only because it isn't carrying the prose too.
+5. A test solution that reached a ballot item is treated as a hard,
+   non-`--force`-able block in `remove_test_data.py`, the same tier as jury
+   participation — `ballot_items.solution_id` isn't documented as an
+   exception to Law 6's "content_hash is permanent," and a published
+   summary's shape depends on it, so the tool refuses rather than picking a
+   side on a question CLAUDE.md doesn't answer.
+6. HISTORY.md's own session numbering isn't strictly monotonic across the
+   planning/build split already visible in this file (a "Session 1" entry
+   follows a "Session 3" one above it); this entry is numbered 4, the next
+   integer after the highest number visible in the file, since the brief
+   names no rule for resolving the sequence.
+
+**Issues encountered:**
+- Sourcing `.env` into the shell to run Alembic/seed leaked its values into
+  the real OS environment; `test_ip_hash_is_salted_and_the_secret_is_
+  required` failed because `Settings` (a `pydantic-settings` `BaseSettings`)
+  falls back to `os.environ` even when constructed with `_env_file=None`.
+  Fixed by not exporting `.env` into the shell for later commands —
+  `Settings` already reads the file directly.
+- `load_test_data.py`'s first `--apply` run hit `RATE_LIMIT_WRITE_PER_MINUTE`
+  partway through account creation (signup/verify/login all count as
+  writes, all keyed by the same caller IP since these calls are
+  unauthenticated) and crashed on an unhandled 429. Fixed with a
+  `Retry-After`-aware retry wrapper around every mutating call. The crash
+  had also left one account signed up but unverified; a re-run's
+  sign-in-based existence check couldn't tell, so two posts failed
+  `email_not_verified` until the loader was taught to check
+  `email_verified` via `/auth/me` and re-verify from the log's start if not.
+  A third run added zero new accounts, posts, or comments (votes were
+  re-sent — harmless, `PUT /votes` is itself idempotent — but now reported
+  as "confirmed" rather than "created").
+- `remove_test_data.py --apply` hit a real Postgres `ForeignKeyViolationError`
+  deleting a test-authored solution that C1-16's own full-cycle exercise had
+  frozen onto a ballot item (`ballot_items.solution_id` has no `ON DELETE
+  CASCADE`). `session_scope()`'s transaction rolled back cleanly with no
+  partial deletion; see Decision 5 for the fix.
+- `ALLOW_TEST_DATA` had to be flipped `true`/`false` around test-data-script
+  runs versus the full suite, since `Settings` reads the one real `.env`
+  directly with no separate test override; a `true` left over from manual
+  testing failed `test_the_reserved_test_domain_is_refused_when_test_data_
+  is_not_allowed` twice before it was caught. `.env` is left at
+  `ALLOW_TEST_DATA=false` (the documented default) at the end of this run.
+
+**Notes:**
+- C1-16 evidence, full: backend suite 259 passed, 2 deselected (231 before
+  any change, growing item by item); `verify_schema.py` — no drift, 38
+  tables (15 Foundation, 23 Iteration), every foreign key indexed; seed
+  `--dry-run` — 0 pending writes, 16 umbrellas, `cycle_open_rule` present;
+  `load_test_data.py --apply` against real Ollama — 16 accounts, 40 posts,
+  310 votes, 27 comments, 0 skipped on the clean run; `GET /feed` exercised
+  for all four sorts against the loaded data with correct ordering; one
+  full cycle run through the API in San Jose (`ballot_min_dominant_days`
+  set to 0 with a reason and back afterward, per C1-15's own note) —
+  prepare → jury_review (0 eligible jurors, correctly small) → open → four
+  votes → close → publish, summary hash `75512f0…`; `reconcile.py --dry-run`
+  clean after the cycle (`corrected: false`, all four drift/orphan/mismatch
+  lists empty); `git grep -il 'democracy cali'` — only the four historical
+  exceptions; `grep -c 'community:' backend/config/seed_umbrellas.yaml` — 16;
+  the explainer digit grep — every match is a doc-section reference, a CSS
+  class, or grammar logic, never a setting's value; `npm audit
+  --audit-level=high` — 0 vulnerabilities; `npm run build` — 25 routes,
+  clean; `npm test` — 4/4; `git status` — clean, 15 commits ahead of
+  `origin/change/01-site-shell`. Database rebuilt from empty and reseeded
+  after the evidence run, for a clean handoff.
+- Left for the director's attention rather than decided here: "A name for
+  posts" (PROJECT.md parking lot) is unchanged — still "New post".
+
+**Document changes flagged:**
+- None beyond Part A's own verbatim wording. No new ambiguity in CLAUDE.md,
+  DEMOCRACY.md, DATABASE.md, or ARCHITECTURE.md surfaced building this that
+  isn't already covered by a "Decisions made" entry above.
+
+**Director to verify (browser-only checks; the auditor has none):**
+- Sign in, reload the page, still signed in.
+- Type `/admin` while signed out, sign in, land on `/admin`.
+- The three tabs and the footer on a phone-width window.
+- The landing page redirects to Home when signed in.
+- Search, each sort, and "All of California" on Home.
+- The ballot switch is remembered after a reload.
+- Both "How it works" buttons open and close by keyboard.

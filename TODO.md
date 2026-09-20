@@ -13,7 +13,9 @@
 
 ## Current Status Snapshot
 
-*As of 2026-09-19. Demo 1 is built on `demo/01`: both halves, front to back,
+*As of 2026-09-20, branch `change/01-site-shell`: change/01 built; awaiting
+the director's test, then a change audit. Demo 1 was built on `demo/01`:
+both halves, front to back,
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
 in `briefs/evidence/demo-01/`. Audit run 1 returned FIX REQUIRED (one HIGH,
@@ -42,8 +44,9 @@ sweep; the `mailto:` body is composed in the service, not the router; and
 `GET /umbrellas/{id}`, `GET /results`, `GET /solutions/{id}` embed only the
 first page of the lists they show, with a `next_cursor`, per ARCHITECTURE
 §6's now-explicit rule. Full evidence in HISTORY.md's latest build entry.
-Nothing has been merged to `main`; the next step is audit run 6. Phase 0
-remains complete except the optional search provider.*
+`demo/01` merged to `main` 2026-09-19 and tagged `demo-1`; work proceeds by
+`change/NN` branches. Phase 0 remains complete except the optional search
+provider.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -505,8 +508,8 @@ evidence in HISTORY.md's latest build entry.
 
 Not scheduled. Pulled forward by the director after Demo 1 is used.
 
-- [ ] **D2-00** Jury draw seeded from the logged bytes (DEMOCRACY §8.1; audit-6 MEDIUM); test that pool + bytes replay the draw
-- [ ] **D2-09** Director's use notes from Demo 1 folded into the documents (the input to the Demo 2 brief)
+- [x] **D2-00** Jury draw seeded from the logged bytes (DEMOCRACY §8.1; audit-6 MEDIUM); test that pool + bytes replay the draw — done by change/01 C1-12
+- [x] **D2-09** Director's use notes from Demo 1 folded into the documents (the input to the Demo 2 brief) — done: the eleven notes split into change/01 (this brief), change/02, change/03 (HISTORY.md, Session 2)
 - [ ] **D2-10** California photography for page headers — director supplies images; ARCHITECTURE §9 — or the style brief drops it
 - [ ] **D2-01** Proposal system (PROJECT.md parking lot) — "propose a new umbrella" in the post form; proposal tables; thresholds; dormancy; similarity grouping
 - [ ] **D2-02** Comment moderation (needed before the friends beta)
@@ -516,6 +519,57 @@ Not scheduled. Pulled forward by the director after Demo 1 is used.
 - [ ] **D2-06** Email notifications for jury duty and ballot open
 - [ ] **D2-07** Timers firing for jury review and ballot window (replacing director controls)
 - [ ] **D2-08** Deployment for the friends beta; HTTPS; invite gate; final legal text
+
+---
+
+## Change 01 — site shell
+
+Built on `change/01-site-shell` from `briefs/change-01.md`. Awaiting the
+director's test, then a change audit before its PR to `main`.
+
+- [x] **C1-01** Browser API base tracks the page's own host, not a literal `127.0.0.1` — fixes the sign-out-on-reload bug
+- [x] **C1-02** Sign-in returns you to where you were (`next`, validated); a session that ends mid-page says so
+- [x] **C1-03** The name — Direct Democracy CA, everywhere outside historical records
+- [x] **C1-04** Navigation and footer — three tabs, Admin, the full transparency footer
+- [x] **C1-05** Landing page rewrite — verbatim copy, one Join button, signed-in redirect to `/home`
+- [x] **C1-06** `/explained` — Direct Democracy Explained, two diagrams, both explainers
+- [x] **C1-07** feed-v1 — search plus newest/oldest/most_votes/most_comments
+- [x] **C1-08** The rhythm — `cycle_open_rule`, `next_cycle_dates`
+- [x] **C1-09** `GET /cycles/mine`
+- [x] **C1-10** `/home` — ballot and jury panels, pinned ballot items, the feed
+- [x] **C1-11** "How the ballot works" / "How the jury works" explainers
+- [x] **C1-12** Jury draw replayable (closes D2-00)
+- [x] **C1-13** Three honest filing messages, and the no-umbrellas case
+- [x] **C1-14** Test data: `load_test_data.py` / `remove_test_data.py`, `ALLOW_TEST_DATA`
+- [x] **C1-15** The admin page explains itself
+- [x] **C1-16** Evidence — full suite, `verify_schema.py`, seed dry-run, a loaded test dataset against real Ollama, one full cycle through the API, `reconcile.py --dry-run`, the greps, `npm audit`/`build`/`test`, `git status`
+
+---
+
+## Change 02 — who you are and where you post
+
+Not started. Queued from the director's Demo 1 use notes (HISTORY.md,
+Session 2).
+
+- [ ] Unincorporated option at signup: "Unincorporated — no city"; county and state communities only (closes Director Decision #9)
+- [ ] Account page edits: name, email (with re-confirmation), party, gender
+- [ ] Home city/county change: once per a public number of days (default 90); never lets a user vote in a ballot already under way
+- [ ] Post form: no city pre-selected, no "(city)" suffix, no city box for unincorporated users
+- [ ] Federal governance level: a greyed-out "planned" checkbox on the post form
+- [ ] AI label suggestion on the post form (suggest, accept or change, submit); background labeling stays as the fallback
+
+---
+
+## Change 03 — propose a new umbrella
+
+Not started. A design session first; the parked Proposal system design in
+PROJECT.md is the starting point.
+
+- [ ] Design session: thresholds, dormancy, similarity grouping, what happens to posts under a rejected umbrella
+- [ ] "Propose a new umbrella" option in the post form
+- [ ] Proposal tables and migration
+- [ ] AI similarity check against pending proposals; human-confirmed merges
+- [ ] The labeler starts routing to an approved umbrella
 
 ---
 
@@ -532,10 +586,11 @@ Questions the documents flag; Demo 1 proceeds with the stated default.
 | 5 | "Strong" votes anywhere | no | DEMOCRACY §15 |
 | 7 | Web search provider | unchosen; 503 until set | ARCHITECTURE §8.2 |
 | 8 | Hosting for friends beta | local only | PROJECT.md parking lot |
-| 9 | Residents of unincorporated areas have no city to select at signup (~10% of Californians) | blocked at signup | proposed: selectable "Unincorporated [County] County" → county + state communities only; decide before friends beta |
-| 10 | Keeper: is Demo 1 the keeper, or does Demo 2 become it? | Demo 2 | AUDIT.md §7 |
+| 10 | When to declare the keeper and freeze the Iteration schema | not yet | AUDIT.md §7 |
 
 Resolved 2026-09-13 (see HISTORY): #6 keep home city/county — now CLAUDE §6.
+Resolved 2026-09-19 (see HISTORY, Session 2): #9 — "Unincorporated — no
+city" at signup; county and state communities only; builds in change/02.
 
 ---
 
@@ -550,7 +605,7 @@ What makes it bite, not only what it is.
 - **`console` email backend** means no real verification email; Demo 1 reads links from the log. Bites at the friends beta — SMTP must be configured and tested first.
 - **Redis loss fails rate-limiting open.** Acceptable locally; must be revisited before deployment.
 - **Iteration ids restart per demo**; `ai_actions.demo_build` disambiguates but nothing else does. Bites if any Foundation table ever stores an Iteration id without the build label — the audit checks for this.
-- **Iteration code on `main` is Demo 1's.** Any session reading `main` must treat it as the previous demo; the documents are the truth (CLAUDE.md, The Two Halves). Bites if a brief says "match the existing code".
+- **Home preferences (`ddca.home.showBallot`) live in the browser, not the account.** A user who switches devices or clears site data loses the setting; there is no server-side record of it. Bites if a future change assumes a signed-in user's Home preferences follow them anywhere.
 
 ### Found by the Demo 1 build run (2026-09-14)
 
