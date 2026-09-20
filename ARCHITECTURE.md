@@ -191,12 +191,16 @@ endpoint. Nothing embeds an unbounded list.
 ### Auth and account (F)
 | | |
 |---|---|
-| `POST /auth/signup` | body per DATABASE §3.1; returns user id |
+| `POST /auth/signup` | body per DATABASE §3.1; `city_id` may be null (unincorporated); returns user id |
 | `POST /auth/verify-email` | token |
 | `POST /auth/login`, `/auth/refresh`, `/auth/logout` | |
 | `POST /auth/forgot-password`, `/auth/reset-password` | |
 | `GET /auth/me` | user, display settings, home communities with names, verification level — the one read; `/me/*` below are the writes |
 | `PATCH /me/display` | `public_name_mode` |
+| `PATCH /me/profile` | any of `real_name`, `display_name` (unique among live users), `gender`, `political_party`. Date of birth is never editable |
+| `POST /me/email` | `new_email`, `password`. Sends a confirmation link to the new address and a notice to the old one; nothing changes until `POST /auth/confirm-email-change` (token) — which also revokes every other refresh token |
+| `GET /me/home` | current home, the date the next change is allowed, and any reason a change is refused now |
+| `POST /me/home` | `county_id`, `city_id` or null. DEMOCRACY §2.3 rules 1–3; one transaction: `users` row and `user_home_changes` row |
 | `POST /me/export` → `GET /me/export/{id}` | async export |
 | `DELETE /me` | password confirm; runs anonymization |
 
@@ -212,7 +216,8 @@ officials list), `GET /communities/{level}/{id}/officials`.
 ### Posts and labels (I)
 | | |
 |---|---|
-| `POST /posts` | problem, solutions[] (≥1), communities[], category_choice, optional umbrella per community; writes `posts` + `post_solutions` + `post_communities` in one transaction; workshop solutions are created when each community gets its umbrella (DATABASE §4.7) |
+| `POST /posts/label-preview` | auth, verified. `problem_text`, `communities[]`, validated as for a post. Rate-limited by `label_preview_max_per_hour` (429, plain message). Writes `label_previews`, then the `ai_actions` row, then calls the model; returns `preview_id`, main category, per community the suggested umbrella or null with confidence, and each community's active umbrellas for the chooser. AI unreachable → 503 with the three choices the form offers. One service call: `labels_service.preview` |
+| `POST /posts` | problem, solutions[] (≥1), communities[], `category_choice`, per community `umbrella_id` or null, and with `preview` a `preview_id` and `main_category_id`. `preview`: the preview must be the caller's, unconsumed, and its `input_hash` must match the submitted text and communities (409 "Your text changed — run the suggestion again" otherwise); label rows are written with the preview's `ai_action_id` and outcome `confirmed_by_author` or `corrected_by_author` per community; the action's human outcome is set once; solutions are created in the same transaction. `ai`: as before, background. One transaction |
 | `GET /posts/{id}` | includes each community's label status and, once filed, links to the created solutions |
 | *(no `PATCH`/`DELETE /posts`)* | posts are immutable in Demo 1 (DEMOCRACY §4.1) |
 | `GET /feed?scope=&community=&category=&q=&sort=&cursor=` | DEMOCRACY §12.1. `scope=all` widens a signed-in viewer to every community; `q` 2–100 chars; `sort` ∈ `newest` (default), `oldest`, `most_votes`, `most_comments`. Each item carries `vote_count` and `comment_count`. `cursor` is opaque: keyset on (`created_at`, `id`) for the date sorts and on (count, `id`) for the count sorts. Response includes `ranking: "feed-v1"`, the `sort` in force, and its `explanation` |
@@ -337,11 +342,11 @@ Next.js App Router, TypeScript, Tailwind. `frontend/src/app/` routes:
 | Route | Page |
 |---|---|
 | `/signup`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password` | Foundation |
-| `/me` (display settings, export, delete), `/legal/privacy`, `/legal/terms`, `/legal/cookies` | Foundation |
+| `/me` — the account page: profile (name, display name, gender, party), email change, home change with the DEMOCRACY §2.3 warning and the next-allowed date, display settings, export, delete; `/confirm-email-change` (consumes the token); `/legal/privacy`, `/legal/terms`, `/legal/cookies` | Foundation |
 | `/settings` (public), `/ai/actions` (public), `/admin/log` (public), `/admin` (settings change only) | Foundation — the transparency pages ship with the tables they display; the cycle controls on `/admin` are Iteration |
 | `/home` | DEMOCRACY §12: the ballot and jury panels, ballot items pinned, then feed-v1 with search, sort, community and category filters. `/feed` redirects here |
 | `/explained` | "Direct Democracy Explained" — how the platform works, in plain terms with diagrams; public |
-| `/posts/new` | DEMOCRACY §4.1; three sections: problem, solutions, communities; category: AI or pick |
+| `/posts/new` | DEMOCRACY §4.1; one page, four steps: problem, solutions, communities, "Where it goes" — the AI's suggestion on the draft, kept or changed by the author before posting |
 | `/umbrellas/[id]` | the umbrella page, DEMOCRACY §3.3 |
 | `/solutions/[id]` | full solution with versions, amendments, discussion |
 | `/ballot` | current cycle for each home community |

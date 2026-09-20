@@ -30,7 +30,7 @@ the trial read-only except for `audits/`, where it writes its report.
 | After a change run the director has tested and accepted, before its PR to `main` | **Change audit:** every file the run touched and every document section its brief named. Any Foundation file in the diff → Foundation audit, full. A diff that strays outside what the brief named → full pass on that half |
 | At each demo tag | Both halves, full |
 | Before declaring a keeper | Both halves, full, plus the keeper checklist (§7) |
-| After a fix run | Re-audit of the previously reported items only, then a full pass if the fix run touched more than the reported items |
+| After a fix run | Re-audit of the previously reported items only. A Foundation file in the fix run's diff does **not** by itself widen the re-audit when a reported finding named that file; any file no finding named — Foundation or Iteration — widens it to a full pass on that half |
 
 The director tests a change before it is audited; the sandbox and its
 disposable database make that safe. Nothing reaches `main` untested or

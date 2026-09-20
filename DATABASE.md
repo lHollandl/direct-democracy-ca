@@ -82,7 +82,7 @@ Law 8) that must survive a demo teardown.
 | `gender` | enum `users_gender_enum` (`woman`, `man`, `nonbinary`, `other`, `prefer_not_to_say`) NOT NULL | aggregate reporting only; erased on deletion |
 | `political_party` | enum `users_political_party_enum` (`democratic`, `republican`, `green`, `libertarian`, `american_independent`, `peace_and_freedom`, `no_party_preference`, `other`, `prefer_not_to_say`) NOT NULL | California's qualified parties; aggregate only; erased on deletion |
 | `county_id` | int FK `counties` NOT NULL | home county; **kept** on deletion (CLAUDE §6) |
-| `city_id` | int FK `cities` NOT NULL | home city; must belong to `county_id` (checked in application); **kept** on deletion (CLAUDE §6) |
+| `city_id` | int FK `cities` NULL | home city; NULL = unincorporated resident of `county_id` (DEMOCRACY §2.3); when set, must belong to `county_id` (checked in application); **kept** on deletion (CLAUDE §6) |
 | `verification_level` | enum `verification_level_enum` (shared, §1) NOT NULL DEFAULT `unverified` | disclosed in aggregate; never weights a vote |
 | `email_verified_at` | timestamptz NULL | write actions require non-null |
 | `is_admin` | bool NOT NULL DEFAULT false | |
@@ -228,13 +228,16 @@ across demos. Column `demo_build` text NOT NULL (e.g. `demo-01`, from
 configuration `BUILD_LABEL`) disambiguates; the keeper build's label is
 frozen thereafter.
 
+A suggestion on a draft (DEMOCRACY §9.1) has subject_type `label_preview`
+and subject_id = `label_previews.id` (§4.19).
+
 ### 3.11 `data_exports`
 
 `id`, `user_id` FK, `requested_at`, `completed_at` NULL, `file_path`
 text NULL, `expires_at` (= `completed_at` + `EXPORT_FILE_HOURS`,
 configuration, Demo 1: 48 — the window a person has to collect their
 own data). Export JSON contains three things: the user's
-Foundation rows (user, display settings, terms acceptances); their jury
+Foundation rows (user, display settings, terms acceptances, home changes, pending email changes); their jury
 service; and every Iteration row they authored or voted on, including
 their own ballot votes.
 
@@ -245,6 +248,24 @@ dict` that Iteration registers at startup
 (`backend/services/export_iteration.py::contribute`). Foundation code
 never names an Iteration table; when no contributor is registered the
 export contains only Foundation data and says so.
+
+### 3.12 `user_home_changes`
+
+`id`, `user_id` FK `users` NOT NULL, `from_county_id` FK, `from_city_id`
+FK NULL, `to_county_id` FK, `to_city_id` FK NULL, `changed_at`
+timestamptz NOT NULL. Index `(user_id, changed_at)`. Insert-only. The
+source for the cooldown and for ballot eligibility (DEMOCRACY §2.3,
+§10.3). In the user's data export; **deleted** in the anonymization
+transaction — a former member's past addresses are not part of the
+civic record, their current community is.
+
+### 3.13 `email_change_requests`
+
+Same shape as §3.4 plus `new_email` citext NOT NULL: `id`, `user_id` FK,
+`new_email`, `token_hash` UNIQUE, `expires_at` (`EMAIL_VERIFY_HOURS`),
+`used_at` NULL, `created_at`. Single use; a newer request voids older
+unused ones. `users.email` changes only when the token is used.
+Deleted in the anonymization transaction.
 
 ---
 
@@ -279,7 +300,7 @@ Index on the community pair.
 | `id` | int PK | |
 | `author_id` | int FK `users` NOT NULL | |
 | `problem_text` | text NOT NULL | 20–5,000 chars |
-| `category_choice` | enum (`ai`, `author_selected`) NOT NULL | |
+| `category_choice` | enum (`ai`, `author_selected`, `preview`) NOT NULL | `preview` = filed from a suggestion the author reviewed (DEMOCRACY §4.1); `ai` = "Post now, file later" |
 | `label_status` | enum (`pending`, `labeled`, `needs_review`, `unlabeled`) NOT NULL DEFAULT `pending` | |
 | `ai_contribution_percentage` | smallint NOT NULL DEFAULT 0 | Law: every post records it |
 | `content_hash` | char(64) NOT NULL | SHA-256 of canonical JSON `{problem_text, author_id, created_at, ai_contribution_percentage}`; immutable |
@@ -532,6 +553,18 @@ records `seated_count` int (set at open) so the summary can print
 `id`, `cycle_id` FK UNIQUE, `data` jsonb NOT NULL (the canonical
 document data, DEMOCRACY §11.2), `summary_hash` char(64) NOT NULL,
 `published_at`, `pdf_path` text NULL. Immutable after publish.
+
+### 4.19 `label_previews`
+
+One row per suggestion asked for on a draft. `id`, `user_id` FK `users`
+NOT NULL, `input_hash` char(64) NOT NULL (SHA-256 of canonical JSON
+`{problem_text, communities}` with communities sorted), `communities`
+jsonb NOT NULL, `ai_action_id` FK `ai_actions` NULL (set as soon as the
+action row exists), `result` jsonb NULL (main category, umbrella id or
+null per community, confidence), `consumed_post_id` FK `posts` NULL,
+`created_at`. Index `(user_id, created_at)` — the rate limit's query.
+**No draft text is stored.** Not a hashed record: `ai_action_id`,
+`result`, and `consumed_post_id` are each set once.
 
 ---
 

@@ -76,11 +76,17 @@ community.
 
 ### 2.3 Home communities
 
-Every user has exactly one home city and one home county, set at signup
-from the geography tables, and is therefore a member of exactly three
-communities: their city, their county, and California. Membership
-determines what a user may vote on in a ballot and where their posts
-are eligible to appear.
+Every user has one home county and, unless they live in an
+unincorporated area, one home city in that county, chosen at signup from
+the geography tables: county first, then the city list for that county,
+whose first choice is "Unincorporated — no city". A user with a city is
+a member of three communities — city, county, California; an
+unincorporated resident is a member of two — county and California —
+and every page that lists "your communities" shows two and says why.
+Membership determines what a user may vote on in a ballot and where
+their posts are eligible to appear. One function answers "which
+communities is this user a member of", and nothing else derives it:
+`backend/services/communities.py::home_communities`.
 
 Users may *read* any community. Users may *post, comment, vote, and
 serve on juries* only in their home communities.
@@ -90,6 +96,30 @@ serve on juries* only in their home communities.
 date of birth. Younger applicants are refused at signup with a plain
 message; nothing is stored. The age is checked once, at signup; a user
 who was old enough then is a full member.
+
+**Changing home.** A user may change their home county and city from
+the account page. The rules, each a plain refusal with its reason:
+
+1. After a change, the next is allowed `home_change_cooldown_days`
+   (Demo 1: 90) later. The first change after signup is always allowed —
+   a wrong pick at signup is not penalised.
+2. A user who is drawn or seated on a jury whose cycle is not yet
+   published finishes that service first.
+3. **A move never carries a vote into a ballot already under way.** A
+   user may vote in a cycle only if their membership of that community
+   began before the cycle was prepared (§10.3). Having left, they are no
+   longer a member of the old community either, so a move during a
+   ballot sits that ballot out in both places. California is unaffected;
+   the county is unaffected by a move within it. The account page says
+   all of this before the user confirms.
+
+Workshop participation — posting, commenting, voting on solutions —
+follows the new home at once. Everything already posted, said, or voted
+stays where it was made (Law 6; CLAUDE §6). Every change is a row in
+`user_home_changes` (DATABASE §3.12), which is the source for rules 1
+and 3, belongs to the user's data export, and is deleted with the
+account. Nobody reviews or flags accounts for moving: the rule is the
+same for everyone and needs no judge (CLAUDE §3).
 
 ### 2.4 Active users
 
@@ -169,17 +199,37 @@ or more solutions (each 20–5,000 chars), the governance levels the
 author selects (one or more of the author's home communities), and the
 category choice:
 
-- **Let AI decide** (default) — the labeler assigns a main category and,
-  for each selected community, the closest active umbrella. If a
-  community has no umbrella under that main category, the post is
-  assigned to the main category only and flagged `needs_review`.
-- **Pick an existing umbrella** — the author browses active umbrellas
-  for their selected communities and chooses. Recorded as
-  `author_selected`.
-- **Propose a new umbrella** — parked. Demo 1 does not show this option.
+- **The AI suggests, the author decides — before anything is posted**
+  (default). When the author has written the problem and at least one
+  solution and chosen their communities, they continue to "Where it
+  goes" and the labeler runs at once on the draft (§9.1). For each
+  chosen community the form shows the suggested umbrella — or "none of
+  these fit" — and the author keeps it, changes it to another active
+  umbrella, or chooses "None of these fit". Only then can they post.
+  Editing the problem text or the communities afterwards marks the
+  suggestion out of date, and it runs again. A community left at "none
+  of these fit" is saved under the main category and is `needs_review`.
+- **Choose myself** — the author skips the suggestion and browses the
+  active umbrellas for their communities. Recorded as `author_selected`.
+- **Post now, file later** — offered only when the AI cannot be reached:
+  the post is saved and the background labeler files it when the AI is
+  back, exactly as before this change.
+- **Propose a new umbrella** — planned as its own change; it will sit
+  beside "None of these fit".
 
-A post is saved immediately. Labeling runs in the background; until it
-completes the post shows "Being filed — the AI is reading this now" and
+**Governance levels on the form.** No community is pre-selected. A city
+is shown by its name, a county as "<name> County", the state as
+"California". An unincorporated author sees no city choice and the
+note "You live in an unincorporated area, so you have no city
+community. Your posts go to your county and California." A fourth
+choice, "Federal — planned, not yet available", is shown disabled and
+is never submitted.
+
+A post made from a suggestion or from the author's own choice is filed
+the moment it is saved: its solutions are created in the same
+transaction (below). A post made with "Post now, file later" is saved
+immediately and labeled in the background; until that completes
+the post shows "Being filed — the AI is reading this now" and
 appears in no umbrella. If labeling fails, the post is marked
 `unlabeled`, shows "Not filed yet — the AI could not be reached. The
 platform tries again every N minutes" (N = `label_retry_minutes`, Demo
@@ -449,6 +499,8 @@ the values that were in force for that cycle.
 | `comment_max_depth` | §6 | 3 |
 | `comment_edit_minutes` | §6 | 15 |
 | `label_retry_minutes` | §4.1 | 10 |
+| `home_change_cooldown_days` | §2.3 — days between changes of home county or city | 90 |
+| `label_preview_max_per_hour` | §9.1 — suggestions one user may ask for in an hour; an abuse limit, public like every other number | 20 |
 | `references_ai_max_per_umbrella` | §9.4 | 5 |
 | `reference_reject_min` | §9.4 — Not-useful presses that reject a reference | 2 |
 | `min_signup_age` | §2.3 — minimum age at signup, in years | 17 |
@@ -560,13 +612,27 @@ all are logged, none decides anything (CLAUDE §5).
 
 ### 9.1 The labeler
 
-Assigns a post to a main category and, per selected community, to the
-closest active umbrella. Runs on Ollama, on the host GPU, after the
-post is saved. Its prompt is a file: `ai/prompts/labeler.md`. Its
-input is the post's problem text, the fixed category list, and the
-umbrella names and statements for the relevant communities. Its output
-is a main category, an umbrella id per community (or none), and a
-confidence in [0, 1].
+Assigns a problem to a main category and, per selected community, to the
+closest active umbrella — or to none, which is a correct answer
+when no umbrella covers the problem, and the prompt says so. It runs on
+Ollama, on the host GPU, in two places: on a **draft**, when the author
+reaches "Where it goes" (§4.1), and in the background for a post saved
+with "Post now, file later". Its prompt is a file:
+`ai/prompts/labeler.md`. Its input is the problem text, the fixed
+category list, and the umbrella names and statements for the relevant
+communities. Its output is a main category, an umbrella id per
+community (or none), and a confidence in [0, 1].
+
+**A suggestion on a draft is an AI action like any other** (Law 7): the
+row is written before the suggestion is shown, with subject
+`label_preview`. The platform keeps the hash of the draft's problem
+text and communities, never the text: a draft that is never posted
+leaves no words behind, only the public fact that a suggestion was made
+and not used. When the author posts, the label rows point at that same
+action, and its human outcome is set once — `confirmed` if every
+suggestion was kept, `corrected` otherwise. A user may ask for
+`label_preview_max_per_hour` suggestions an hour; past that the form
+says so and offers "Choose myself".
 
 **Reading the answer.** Small models repeat communities or echo ones from
 the prompt's example. For each selected community the labeler keeps the
@@ -738,8 +804,11 @@ members of the community see the ballot tab. On close: no further
 ballot votes are accepted; results are computed.
 
 **Ballot vote:** `yes` / `no`, one per member per item, changeable
-until close. Eligibility: the voter's home community equals the cycle's
-community. Each vote row records the voter's verification level at the
+until close. Eligibility: the voter is a member of the cycle's community **and
+their membership of it began before the cycle's `prepared_at`** —
+membership begins at signup, or at the user's latest home change that
+changed that level's community (§2.3). A refused voter is told why in
+one sentence. Each vote row records the voter's verification level at the
 time of voting.
 
 ### 10.4 Result
@@ -955,6 +1024,7 @@ this document satisfies it.
 | §2 transparency about weakness | §11.2 item 1 verification sentence |
 | §3 equal vote weight | §10.3 one vote per member; verification recorded, never weighted |
 | §3 identical ranking | §3.3 item 4 ordering; §12.1 feed-v1 — four sorts, each a plain count or a date, identical for every viewer who chooses it |
+| §3 one vote, one community at a time | §2.3 Changing home: a public cooldown, and no vote in a ballot already under way; no account is judged or flagged |
 | §4 downvotes never hide | §3.3 item 4; §6 |
 | §4 minimum visibility for minority views | The default view of Home is newest-first, which ranks nothing out of sight, and §3.3 item 4 shows every solution. `most_votes` and `most_comments` are views a user chooses for themselves and leaves with one click; they count up and down votes alike, so a downvoted post is not pushed down by its downvotes. The visibility rule and its §7.4 setting are owed the day the platform — rather than the user — chooses any ranking (PROJECT.md parking lot, Small Voice). Director's reading, 2026-09-19 |
 | §6 nothing personal in the permanent record | §11.1; §11.2 item 2; §8.5 |
