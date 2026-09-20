@@ -1,6 +1,6 @@
 ---
 name: labeler
-version: 4
+version: 5
 purpose: >
   Assign a citizen's problem report to one main category, and to the closest
   active umbrella in each community the author selected.
@@ -65,9 +65,16 @@ Each community below lists its umbrellas, one per line, as:
 
 For each community, choose the one umbrella whose statement best matches the
 problem report, and answer with that umbrella's **id number** — the number on
-the left of the line, not its name. If no umbrella in that community is about
-this problem, answer `null` for that community: a wrong file is worse than
-none, because a person then has to undo it.
+the left of the line, not its name.
+
+**`null` is a correct answer, not a fallback.** If no umbrella in that
+community is really about this problem, answer `null` for that community.
+Do not pick the closest-sounding umbrella just because one exists — a
+mismatched umbrella is a worse answer than `null`, because a person then has
+to notice the mistake and undo it, while `null` is filed openly as "no
+umbrella covers this yet" and can be corrected by a person just as easily.
+Only choose an umbrella id when its statement genuinely describes this
+problem.
 
 {{communities}}
 
