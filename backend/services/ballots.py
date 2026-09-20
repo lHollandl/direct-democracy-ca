@@ -17,12 +17,49 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.errors import Conflict, Forbidden, NotFound
 from backend.models import Cycle, User
 from backend.repositories import cycles as cycles_repo
+from backend.repositories import home_changes as home_changes_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
 from backend.services import communities as community_service
 from backend.services import rules
 
 log = logging.getLogger(__name__)
+
+
+async def _eligible(
+    session: AsyncSession, voter: User, cycle: Cycle
+) -> tuple[bool, str | None, str | None]:
+    """DEMOCRACY.md §10.3 — a member of the cycle's community whose
+    membership of it began before the cycle was prepared. A move never
+    carries a vote into a ballot already under way."""
+    if not await community_service.is_member(
+        session, voter, cycle.community_level, cycle.community_entity_id
+    ):
+        community = await community_service.resolve(
+            session, cycle.community_level, cycle.community_entity_id
+        )
+        return (
+            False,
+            f"You can read this ballot, but only residents of {community.label} vote on it.",
+            "not_a_member",
+        )
+    if cycle.prepared_at is not None:
+        member_since = await home_changes_repo.earliest_membership_start(
+            session,
+            voter.id,
+            signup_at=voter.created_at,
+            level=cycle.community_level,
+            entity_id=cycle.community_entity_id,
+        )
+        if member_since >= cycle.prepared_at:
+            return (
+                False,
+                "You moved into this community after this ballot was already "
+                "prepared, so you sit this one out — your vote will count in "
+                "the next one.",
+                "joined_after_prepare",
+            )
+    return True, None, None
 
 
 async def ballot_view(session: AsyncSession, *, cycle: Cycle, viewer: User | None) -> dict:
@@ -38,13 +75,10 @@ async def ballot_view(session: AsyncSession, *, cycle: Cycle, viewer: User | Non
         if viewer
         else {}
     )
-    can_vote = bool(
-        viewer
-        and cycle.state == "open"
-        and await community_service.is_member(
-            session, viewer, cycle.community_level, cycle.community_entity_id
-        )
-    )
+    can_vote = False
+    cannot_vote_reason = None
+    if viewer and cycle.state == "open":
+        can_vote, cannot_vote_reason, _code = await _eligible(session, viewer, cycle)
 
     shaped = []
     for item in items:
@@ -77,6 +111,7 @@ async def ballot_view(session: AsyncSession, *, cycle: Cycle, viewer: User | Non
         "state": cycle.state,
         "community": community.as_dict(),
         "you_can_vote": can_vote,
+        "cannot_vote_reason": cannot_vote_reason,
         "settings_in_force": cycle.settings_snapshot,
         "ordering": {
             "version": rules.BALLOT_ORDER_VERSION,
@@ -99,16 +134,9 @@ async def cast(
         )
     if choice not in ("yes", "no"):
         raise Conflict("A ballot vote is yes or no.", code="bad_choice")
-    if not await community_service.is_member(
-        session, voter, cycle.community_level, cycle.community_entity_id
-    ):
-        community = await community_service.resolve(
-            session, cycle.community_level, cycle.community_entity_id
-        )
-        raise Forbidden(
-            f"You can read this ballot, but only residents of {community.label} vote on it.",
-            code="not_a_member",
-        )
+    eligible, reason, code = await _eligible(session, voter, cycle)
+    if not eligible:
+        raise Forbidden(reason, code=code)
     item = await cycles_repo.get_item(session, item_id)
     if item is None or item.cycle_id != cycle.id:
         raise NotFound("That item is not on this ballot.", code="ballot_item_not_found")

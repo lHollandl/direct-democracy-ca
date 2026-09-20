@@ -93,6 +93,7 @@ DETAIL_ENDPOINTS = {
     "/legal/privacy",
     "/legal/terms",
     "/me/export/{export_id}",
+    "/me/home",
     "/posts/{post_id}",
     "/results",
     "/solutions/{solution_id}",

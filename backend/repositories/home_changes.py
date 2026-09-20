@@ -65,13 +65,13 @@ async def earliest_membership_start(
     changes = await for_user(session, user_id)
     started = signup_at
     for change in changes:
-        if level == "county" and change.to_county_id == entity_id:
-            started = change.changed_at
-        elif level == "city" and change.to_city_id == entity_id:
-            started = change.changed_at
-        elif level == "state":
-            # A move within California never changes state membership.
-            continue
+        if level == "county":
+            if change.to_county_id == entity_id and change.from_county_id != change.to_county_id:
+                started = change.changed_at
+        elif level == "city":
+            if change.to_city_id == entity_id and change.from_city_id != change.to_city_id:
+                started = change.changed_at
+        # A move within California never changes state membership.
     return started
 
 

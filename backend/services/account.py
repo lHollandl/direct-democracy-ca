@@ -19,10 +19,13 @@ from backend.clients import email as email_client
 from backend.config.settings_env import get_env_settings
 from backend.errors import Conflict, NotFound, Unauthorized, ValidationFailed
 from backend.models import User
+from backend.repositories import cycles as cycles_repo
 from backend.repositories import email_changes as email_changes_repo
+from backend.repositories import geography as geo_repo
 from backend.repositories import home_changes as home_changes_repo
 from backend.repositories import users as users_repo
 from backend.services import security
+from backend.services import settings as settings_service
 from backend.services.display import FORMER_MEMBER
 
 log = logging.getLogger(__name__)
@@ -105,6 +108,110 @@ async def update_profile(
     updated = await users_repo.update_profile(session, user.id, **fields)
     log.info("profile_updated", extra={"user_id": user.id, "fields": sorted(fields)})
     return updated
+
+
+async def _active_jury_duties(session: AsyncSession, user_id: int) -> list:
+    """A jury the user is drawn or seated on whose cycle is not yet
+    published — a redrawn (superseded) jury does not count."""
+    duties = await cycles_repo.jury_duties_for_user(session, user_id)
+    return [
+        (juror, jury, cycle)
+        for juror, jury, cycle in duties
+        if jury.superseded_at is None
+        and juror.status in ("drawn", "accepted")
+        and cycle.state != "published"
+    ]
+
+
+async def _home_change_refusal(session: AsyncSession, user: User) -> tuple[str | None, datetime | None]:
+    """The one-sentence reason a home change is refused right now, and the
+    date the cooldown lifts (DEMOCRACY.md §2.3 rules 1-2). Both `None` when
+    a change is allowed."""
+    cooldown_days = int(await settings_service.get(session, "home_change_cooldown_days"))
+    last_change = await home_changes_repo.latest_for_user(session, user.id)
+    next_allowed_at = (
+        last_change.changed_at + timedelta(days=cooldown_days) if last_change else None
+    )
+    if next_allowed_at is not None and datetime.now(timezone.utc) < next_allowed_at:
+        return (
+            f"You can change your home community again on "
+            f"{next_allowed_at.date().isoformat()}. The first change after signup is "
+            f"always free; after that it is once every {cooldown_days} days.",
+            next_allowed_at,
+        )
+    if await _active_jury_duties(session, user.id):
+        return (
+            "You are serving on a jury that has not finished yet. You can change "
+            "your home community once that cycle is published.",
+            next_allowed_at,
+        )
+    return None, next_allowed_at
+
+
+async def home_status(session: AsyncSession, user: User) -> dict:
+    """`GET /me/home` (ARCHITECTURE.md §6) — current home, the date the next
+    change is allowed, and any reason a change is refused now."""
+    refusal, next_allowed_at = await _home_change_refusal(session, user)
+    county = await geo_repo.get_county(session, user.county_id)
+    city = await geo_repo.get_city(session, user.city_id) if user.city_id is not None else None
+    return {
+        "county": {"id": county.id, "name": county.name} if county else None,
+        "city": {"id": city.id, "name": city.name} if city else None,
+        "next_change_allowed_at": next_allowed_at,
+        "refused_now_reason": refusal,
+    }
+
+
+async def change_home(
+    session: AsyncSession, user: User, *, county_id: int, city_id: int | None
+) -> dict:
+    """`POST /me/home` (DEMOCRACY.md §2.3 "Changing home", rules 1-3).
+
+    Rule 3 — never letting the move carry a vote into a ballot already under
+    way — is not enforced here: it falls out of `user_home_changes` being the
+    source ballot eligibility reads (DEMOCRACY.md §10.3,
+    `services/ballots.py::_eligible`), so nothing here needs to know about
+    cycles.
+    """
+    county = await geo_repo.get_county(session, county_id)
+    if county is None:
+        raise NotFound("That county is not in the list.", code="county_not_found")
+    if city_id is not None:
+        city = await geo_repo.get_city(session, city_id)
+        if city is None:
+            raise NotFound("That city is not in the list.", code="city_not_found")
+        if city.county_id != county_id:
+            raise ValidationFailed(
+                "That city is not in the county you chose.", code="city_county_mismatch"
+            )
+
+    if county_id == user.county_id and city_id == user.city_id:
+        raise ValidationFailed("That is already your home community.", code="home_unchanged")
+
+    refusal, _next_allowed_at = await _home_change_refusal(session, user)
+    if refusal is not None:
+        raise Conflict(refusal, code="home_change_refused")
+
+    await home_changes_repo.add(
+        session,
+        user_id=user.id,
+        from_county_id=user.county_id,
+        from_city_id=user.city_id,
+        to_county_id=county_id,
+        to_city_id=city_id,
+    )
+    await users_repo.update_profile(session, user.id, county_id=county_id, city_id=city_id)
+    log.info("home_changed", extra={"user_id": user.id})
+    return {
+        "county_id": county_id,
+        "city_id": city_id,
+        "message": (
+            "Your home community is updated. Posting, commenting and voting in "
+            "the workshop follow your new home right away. A vote already under "
+            "way in your old or new community sits this one out. Everything you "
+            "already posted, said or voted stays where it was made."
+        ),
+    }
 
 
 async def request_email_change(

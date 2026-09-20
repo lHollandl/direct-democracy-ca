@@ -116,15 +116,17 @@ PUBLIC_WRITE_PATHS = {
 
 #: Every write that needs a signed-in caller but not a verified or admin one
 #: — including the own-account endpoints (`PATCH /me/display`, `PATCH
-#: /me/profile`, `POST /me/email`, `POST /me/export`, `DELETE /me`)
-#: ARCHITECTURE.md §4 exempts from the verified-email gate by design: a
-#: person's rights over their own data cannot depend on our verification
-#: email having arrived (audit demo-01 run 4, document ambiguity 3) — and a
-#: mistyped signup email must be fixable even though it can never verify.
+#: /me/profile`, `POST /me/email`, `POST /me/home`, `POST /me/export`,
+#: `DELETE /me`) ARCHITECTURE.md §4 exempts from the verified-email gate by
+#: design: a person's rights over their own data cannot depend on our
+#: verification email having arrived (audit demo-01 run 4, document
+#: ambiguity 3) — and a mistyped signup email must be fixable even though it
+#: can never verify.
 SIGNED_IN_WRITE_PATHS = {
     ("PATCH", "/me/display"),
     ("PATCH", "/me/profile"),
     ("POST", "/me/email"),
+    ("POST", "/me/home"),
     ("POST", "/me/export"),
     ("DELETE", "/me"),
     ("POST", "/posts"),

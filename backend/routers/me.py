@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -60,6 +62,43 @@ async def update_profile(body: ProfileIn, user: CurrentUser, session: SessionDep
         gender=updated.gender,
         political_party=updated.political_party,
     )
+
+
+class PlaceOut(BaseModel):
+    id: int
+    name: str
+
+
+class HomeStatusOut(BaseModel):
+    county: PlaceOut | None
+    city: PlaceOut | None
+    next_change_allowed_at: datetime | None = None
+    refused_now_reason: str | None = None
+
+
+@router.get("/home", response_model=HomeStatusOut)
+async def home_status(user: CurrentUser, session: SessionDep) -> HomeStatusOut:
+    return HomeStatusOut(**await account_service.home_status(session, user))
+
+
+class HomeChangeIn(BaseModel):
+    county_id: int
+    #: NULL = "Unincorporated — no city" (DEMOCRACY.md §2.3).
+    city_id: int | None = None
+
+
+class HomeChangeOut(BaseModel):
+    county_id: int
+    city_id: int | None
+    message: str
+
+
+@router.post("/home", response_model=HomeChangeOut)
+async def change_home(body: HomeChangeIn, user: CurrentUser, session: SessionDep) -> HomeChangeOut:
+    result = await account_service.change_home(
+        session, user, county_id=body.county_id, city_id=body.city_id
+    )
+    return HomeChangeOut(**result)
 
 
 class EmailChangeIn(BaseModel):
