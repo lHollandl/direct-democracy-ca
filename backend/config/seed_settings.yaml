@@ -16,6 +16,7 @@ settings:
   jury_no_repeat_cycles: "0"
   jury_review_days: "2"
   ballot_window_days: "7"
+  cycle_open_rule: "first_sunday_of_month"
   ballot_pass_rule: "simple_majority"
   ballot_quorum_min: "1"
   comment_max_depth: "3"

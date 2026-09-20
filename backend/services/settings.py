@@ -28,24 +28,38 @@ CACHE_TTL_SECONDS = 60
 class SettingSpec:
     """One setting: how to parse it and how to explain it in plain language."""
 
-    def __init__(self, key: str, kind: str, meaning: str, where: str):
+    def __init__(
+        self, key: str, kind: str, meaning: str, where: str, choices: tuple[str, ...] | None = None
+    ):
         self.key = key
         self.kind = kind
         self.meaning = meaning
         self.where = where
+        #: A fixed set of known values (e.g. `cycle_open_rule`'s calendar
+        #: rules) — a value outside it is refused rather than silently
+        #: accepted, since downstream code (e.g. `rules.py::next_cycle_dates`)
+        #: only knows how to compute the rules it names.
+        self.choices = choices
 
     def parse(self, raw: str) -> Any:
         try:
             if self.kind == "int":
-                return int(raw)
-            if self.kind == "decimal":
-                return float(Decimal(raw))
-            return raw
+                value = int(raw)
+            elif self.kind == "decimal":
+                value = float(Decimal(raw))
+            else:
+                value = raw
         except (ValueError, ArithmeticError) as exc:
             words = {"int": "a whole number", "decimal": "a number"}.get(self.kind, "text")
             raise ValidationFailed(
                 f"The value for {self.key} must be {words}.", code="bad_setting_value"
             ) from exc
+        if self.choices is not None and value not in self.choices:
+            raise ValidationFailed(
+                f"The value for {self.key} must be one of: {', '.join(self.choices)}.",
+                code="bad_setting_value",
+            )
+        return value
 
 
 #: Exactly DEMOCRACY.md §7.4. Adding a key here without adding it to that table
@@ -95,6 +109,11 @@ SPECS: dict[str, SettingSpec] = {
         SettingSpec("ballot_window_days", "int",
                     "How long a ballot stays open. In Demo 1 the director closes it by hand, so "
                     "this is displayed but does not fire.", "DEMOCRACY.md §10.3"),
+        SettingSpec("cycle_open_rule", "text",
+                    "The calendar rule for when a community's ballot is expected to open. In "
+                    "Demo 1 the director opens it by hand, so this only decides the dates shown "
+                    "as \"expected\".", "DEMOCRACY.md §10.1",
+                    choices=("first_sunday_of_month",)),
         SettingSpec("ballot_pass_rule", "text",
                     "How a ballot item passes. `simple_majority` means more yes than no, with "
                     "at least the quorum voting.", "DEMOCRACY.md §10.4"),
