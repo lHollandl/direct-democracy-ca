@@ -3497,3 +3497,22 @@ applied to an empty database; seed `--apply`; full suite green (259 passed,
 
 **Document changes flagged:**
 - None beyond the three items' own verbatim wording.
+
+## 2026-09-20 — Session 6 (Claude Code audit — change-01, run 1)
+
+Full audit of `change/01-site-shell` at `a5ff19c`, written to
+`audits/change-01-audit-1.md`. Foundation was audited in full (the diff
+touches `settings_env.py` and `auth.py`); Iteration on every touched file and
+every document section the briefs named. Counts: **CRITICAL 0 · HIGH 1 ·
+MEDIUM 2 · LOW 0 · NOTE 2**. Verdict: **FIX REQUIRED**. Both always-`CRITICAL`
+traps reproduced clean in my own full-cycle walkthrough (prepare through
+publish, plus an independent SHA-256 hash round-trip). The `HIGH` is a
+reproduced open-redirect vulnerability in `frontend/src/lib/nextPath.ts`'s
+`next`-parameter guard (a backslash bypass the brief's own three test cases
+don't cover). The two `MEDIUM`s are a residual "Direct Democracy Cali"
+spelling A1's own proof grep couldn't see (kebab-case, no space — in
+`frontend/package.json`'s name and the data-export filename), and an
+unsupported AI-capability claim ("summarizes discussion") on the new
+`/explained` page. The director's named question — San Jose's "0 eligible
+jurors" — is answered with a live reproduction as correct, documented
+behavior, not a bug. Findings live in the report, not here.
