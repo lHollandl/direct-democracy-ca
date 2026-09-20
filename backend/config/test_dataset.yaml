@@ -39,6 +39,10 @@ accounts:
   - {key: t14, name: "[TEST] James Okafor",     city: Fremont, county: Alameda}
   - {key: t15, name: "[TEST] Hannah Weiss",     city: Fremont, county: Alameda}
   - {key: t16, name: "[TEST] Raj Patel",        city: Fremont, county: Alameda}
+  # ---- Unincorporated Alameda County (Castro Valley is a real unincorporated community) ----
+  # city: ~  means "Unincorporated — no city": the account belongs to its county and California only (change/02).
+  - {key: t17, name: "[TEST] Carla Mendes",     city: ~, county: Alameda}
+  - {key: t18, name: "[TEST] Ben Whitfield",    city: ~, county: Alameda}
 
 posts:
   # =========================== San Jose (city) ===========================
@@ -452,3 +456,23 @@ posts:
     solutions:
       - text: Move every DMV transaction that does not legally require a photo or a test online, and publish average wait times for each office every month.
         up: 6
+
+  # ============ Unincorporated residents (county and state only) ============
+  - key: p41
+    author: t17
+    file_under: {county: "Illegal Dumping"}
+    problem: In unincorporated Castro Valley there is no city public works department to call. Dumped mattresses on our road sit for weeks because nobody is sure whether it is the county's job or the sanitary district's.
+    solutions:
+      - text: Give unincorporated residents one county phone number and web form for dumping, road, and sidewalk problems, and publish how long each report took to close.
+        up: 5
+    comments:
+      - {target: solution, by: t18, text: "One number would help. I have been transferred between three agencies for the same pile of trash."}
+
+  - key: p42
+    author: t18
+    file_under: {state: ai}
+    problem: People in unincorporated communities have no city council, so decisions about our streets and zoning are made by a county board where we are a tiny share of one supervisor's district.
+    solutions:
+      - text: Require counties to set up elected municipal advisory councils for any unincorporated community above a set population, and require the board of supervisors to respond in writing to their recommendations.
+        up: 7
+        down: 1
