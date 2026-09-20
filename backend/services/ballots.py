@@ -19,7 +19,7 @@ from backend.models import Cycle, User
 from backend.repositories import cycles as cycles_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
-from backend.services import community as community_service
+from backend.services import communities as community_service
 from backend.services import rules
 
 log = logging.getLogger(__name__)

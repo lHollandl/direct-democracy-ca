@@ -76,20 +76,26 @@ async def resolve(session: AsyncSession, level: str, entity_id: int) -> Communit
 
 
 async def home_communities(session: AsyncSession, user: User) -> list[Community]:
-    """Every user belongs to exactly three: their city, their county, and
-    California (DEMOCRACY.md §2.3)."""
-    city = await geo_repo.get_city(session, user.city_id)
+    """The one function that answers "which communities is this user a
+    member of" (DEMOCRACY.md §2.3). A user with a home city belongs to
+    three: their city, their county, and California. An unincorporated
+    resident (`user.city_id` is NULL) belongs to two: their county and
+    California. Nothing else derives membership."""
     county = await geo_repo.get_county(session, user.county_id)
-    if city is None or county is None:
-        raise NotFound("This account's home city or county is missing.", code="home_missing")
+    if county is None:
+        raise NotFound("This account's home county is missing.", code="home_missing")
     state = await geo_repo.get_state(session, county.state_id)
     if state is None:
         raise NotFound("This account's home state is missing.", code="home_missing")
-    return [
-        Community("city", city.id, city.name),
-        Community("county", county.id, county.name),
-        Community("state", state.id, state.name),
-    ]
+    communities = []
+    if user.city_id is not None:
+        city = await geo_repo.get_city(session, user.city_id)
+        if city is None:
+            raise NotFound("This account's home city is missing.", code="home_missing")
+        communities.append(Community("city", city.id, city.name))
+    communities.append(Community("county", county.id, county.name))
+    communities.append(Community("state", state.id, state.name))
+    return communities
 
 
 async def is_member(session: AsyncSession, user: User, level: str, entity_id: int) -> bool:

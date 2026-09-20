@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from backend.deps import SessionDep
-from backend.services import community as community_service
+from backend.services import communities as community_service
 from backend.services import geography as geography_service
 
 router = APIRouter(tags=["geography"])

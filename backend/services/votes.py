@@ -22,7 +22,7 @@ from backend.repositories import comments as comments_repo
 from backend.repositories import solutions as solutions_repo
 from backend.repositories import umbrellas as umbrellas_repo
 from backend.repositories import votes as votes_repo
-from backend.services import community as community_service
+from backend.services import communities as community_service
 from backend.services import rules
 from backend.services import settings as settings_service
 

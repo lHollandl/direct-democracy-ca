@@ -272,7 +272,7 @@ async def make_user(
     *,
     email: str,
     display_name: str,
-    city_id: int = 1,
+    city_id: int | None = 1,
     county_id: int = 1,
     verify: bool = True,
     admin: bool = False,

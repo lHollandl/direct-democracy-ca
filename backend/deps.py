@@ -18,7 +18,7 @@ from backend.errors import Forbidden, Unauthorized
 from backend.models import User
 from backend.repositories import users as users_repo
 from backend.services import auth as auth_service
-from backend.services import community as community_service
+from backend.services import communities as community_service
 from backend.services import security
 
 log = logging.getLogger(__name__)

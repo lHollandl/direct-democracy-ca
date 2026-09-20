@@ -100,7 +100,7 @@ async def gather(session: AsyncSession, user_id: int) -> dict:
     if user is None:
         raise NotFound("That account no longer exists.", code="user_not_found")
     display = await users_repo.display_settings(session, user_id)
-    city = await geo_repo.get_city(session, user.city_id)
+    city = await geo_repo.get_city(session, user.city_id) if user.city_id is not None else None
     county = await geo_repo.get_county(session, user.county_id)
     state = await geo_repo.get_state(session, county.state_id) if county else None
 
