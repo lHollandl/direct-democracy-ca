@@ -2,12 +2,12 @@
 # Written by the planning session 2026-09-19 (change/01); the director may edit freely.
 #
 # Loaded by   backend/scripts/load_test_data.py    (refuses unless ALLOW_TEST_DATA=true)
-# Removed by  backend/scripts/remove_test_data.py  (same guard)
+# Removed by  rebuilding the database from empty. There is no remover: Law 6 allows no deletion of a hashed row.
 #
 # HOW TEST DATA IS IDENTIFIED — three marks, all required:
 #   1. every test account's email is <key>@test.example.com  (TEST_DATA_EMAIL_DOMAIN; signup refuses this domain)
 #   2. every test account's display name and real name start with "[TEST] "
-#   3. everything a test account authored is test data; the remover deletes by author
+#   3. everything a test account authored is test data
 #
 # VOTING RULE (so this file stays short and the result is deterministic):
 #   up: N    -> the first N test accounts, in key order, that are members of that community,
