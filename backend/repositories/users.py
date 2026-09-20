@@ -77,6 +77,20 @@ async def set_display_mode(session: AsyncSession, user_id: int, mode: str) -> Us
     return row
 
 
+async def update_profile(session: AsyncSession, user_id: int, **fields) -> User:
+    """`PATCH /me/profile` — any of `real_name`, `display_name`, `gender`,
+    `political_party` (ARCHITECTURE.md §6). Date of birth is never here."""
+    await session.execute(update(User).where(User.id == user_id).values(**fields))
+    await session.flush()
+    return await get(session, user_id)
+
+
+async def update_email(session: AsyncSession, user_id: int, *, email: str) -> None:
+    """The email address changes only when the confirmation token is used
+    (DATABASE.md §3.13)."""
+    await session.execute(update(User).where(User.id == user_id).values(email=email))
+
+
 async def touch_last_active(session: AsyncSession, user_id: int) -> None:
     await session.execute(
         update(User).where(User.id == user_id).values(last_active_at=datetime.now(timezone.utc))

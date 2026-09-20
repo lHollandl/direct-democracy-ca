@@ -22,7 +22,9 @@ from backend.config.settings_env import get_env_settings, repo_root
 from backend.errors import Forbidden, Gone, NotFound
 from backend.models import DataExport, User
 from backend.repositories import data_exports as data_exports_repo
+from backend.repositories import email_changes as email_changes_repo
 from backend.repositories import geography as geo_repo
+from backend.repositories import home_changes as home_changes_repo
 from backend.repositories import users as users_repo
 
 log = logging.getLogger(__name__)
@@ -137,6 +139,20 @@ async def gather(session: AsyncSession, user_id: int) -> dict:
                 "accepted_at": a.accepted_at,
             }
             for a in await users_repo.terms_acceptances(session, user_id)
+        ],
+        "home_changes": [
+            {
+                "from_county_id": c.from_county_id,
+                "from_city_id": c.from_city_id,
+                "to_county_id": c.to_county_id,
+                "to_city_id": c.to_city_id,
+                "changed_at": c.changed_at,
+            }
+            for c in await home_changes_repo.for_user(session, user_id)
+        ],
+        "pending_email_changes": [
+            {"new_email": c.new_email, "expires_at": c.expires_at}
+            for c in await email_changes_repo.pending_for_user(session, user_id)
         ],
         "note_on_hashes": (
             "Content fingerprints (hashes) are public cryptographic proofs, not "

@@ -30,6 +30,58 @@ async def set_display(body: DisplayIn, user: CurrentUser, session: SessionDep) -
     return DisplayOut(**result)
 
 
+class ProfileIn(BaseModel):
+    real_name: str | None = Field(default=None, min_length=2, max_length=120)
+    display_name: str | None = Field(default=None, min_length=2, max_length=40)
+    gender: str | None = None
+    political_party: str | None = None
+
+
+class ProfileOut(BaseModel):
+    real_name: str
+    display_name: str
+    gender: str
+    political_party: str
+
+
+@router.patch("/profile", response_model=ProfileOut)
+async def update_profile(body: ProfileIn, user: CurrentUser, session: SessionDep) -> ProfileOut:
+    updated = await account_service.update_profile(
+        session,
+        user,
+        real_name=body.real_name,
+        display_name=body.display_name,
+        gender=body.gender,
+        political_party=body.political_party,
+    )
+    return ProfileOut(
+        real_name=updated.real_name,
+        display_name=updated.display_name,
+        gender=updated.gender,
+        political_party=updated.political_party,
+    )
+
+
+class EmailChangeIn(BaseModel):
+    new_email: str
+    password: str
+
+
+@router.post("/email", response_model=Message)
+async def request_email_change(
+    body: EmailChangeIn, user: CurrentUser, session: SessionDep
+) -> Message:
+    await account_service.request_email_change(
+        session, user, new_email=body.new_email, password=body.password
+    )
+    return Message(
+        message=(
+            "Check the new address for a confirmation link. We also sent a "
+            "notice to your current address."
+        )
+    )
+
+
 class ExportOut(BaseModel):
     id: int
     status: str

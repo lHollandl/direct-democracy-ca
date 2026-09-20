@@ -11,6 +11,7 @@ from backend.config.settings_env import get_env_settings
 from backend.deps import CurrentUser, SessionDep
 from backend.errors import Unauthorized
 from backend.routers.common import Message
+from backend.services import account as account_service
 from backend.services import auth as auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -94,6 +95,17 @@ class TokenIn(BaseModel):
 async def verify_email(body: TokenIn, session: SessionDep) -> Message:
     await auth_service.verify_email(session, body.token)
     return Message(message="Email confirmed. You can now post, vote and comment.")
+
+
+@router.post("/confirm-email-change", response_model=Message)
+async def confirm_email_change(body: TokenIn, session: SessionDep) -> Message:
+    await account_service.confirm_email_change(session, body.token)
+    return Message(
+        message=(
+            "Your sign-in email is changed. You have been signed out "
+            "everywhere else for your security."
+        )
+    )
 
 
 class LoginIn(BaseModel):
