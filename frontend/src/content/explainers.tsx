@@ -14,6 +14,39 @@ import { useLoader } from "@/components/useLoader";
 
 export type SettingsMap = Record<string, number | string>;
 
+/**
+ * DEMOCRACY.md §10.1 — the words for when a ballot is expected to open, one
+ * per `cycle_open_rule` value. Every surface that says when a ballot is
+ * expected reads this map, keyed by the live setting, instead of typing the
+ * schedule into copy (CLAUDE.md Law 8) — so a second rule can never leave a
+ * stale sentence on the page. Must have one entry for every key of
+ * `backend/services/rules.py::CYCLE_OPEN_RULES`
+ * (`backend/tests/test_layering.py` reads this file as text and enforces
+ * that the two stay in sync).
+ */
+export const CYCLE_RULE_WORDS: Record<string, string> = {
+  first_sunday_of_month: "the first Sunday of each month",
+};
+
+const UNKNOWN_CYCLE_RULE_TEXT = "on the schedule published in Settings";
+
+/** Plain-text form, for places that can't render a link (an SVG `<desc>`, a diagram label). */
+export function cycleRuleWords(rule: number | string | undefined): string {
+  if (rule === undefined) return UNKNOWN_CYCLE_RULE_TEXT;
+  return CYCLE_RULE_WORDS[String(rule)] ?? UNKNOWN_CYCLE_RULE_TEXT;
+}
+
+/** JSX form, for visible prose — an unknown rule links to Settings rather than guessing. */
+export function CycleRuleWords({ settings }: { settings: SettingsMap }) {
+  const words = CYCLE_RULE_WORDS[String(settings.cycle_open_rule)];
+  if (words) return <>{words}</>;
+  return (
+    <>
+      on the schedule published in <Link href="/settings">Settings</Link>
+    </>
+  );
+}
+
 export function useSettingsMap(): SettingsMap | null {
   const { data } = useLoader<SettingsMap>(async () => {
     const body = await get<{ settings: { key: string; value: number | string }[] }>(
@@ -80,8 +113,8 @@ export function BallotExplainer({ settings }: { settings: SettingsMap }) {
         <Link href="/summaries/hashes">summary fingerprints</Link>).
       </p>
       <p>
-        A ballot is expected to open on the first Sunday of each month and
-        stay open {plural(settings.ballot_window_days, "day")}. During the
+        A ballot is expected to open on <CycleRuleWords settings={settings} />{" "}
+        and stay open {plural(settings.ballot_window_days, "day")}. During the
         demo, ballots are opened and closed by the administrator, so dates
         are expectations, not guarantees.
       </p>

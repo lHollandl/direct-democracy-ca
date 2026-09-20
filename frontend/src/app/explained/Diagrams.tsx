@@ -9,7 +9,7 @@
  * (never a typed-in day count), placed against an illustrative 30-day month.
  */
 
-import type { SettingsMap } from "@/content/explainers";
+import { cycleRuleWords, type SettingsMap } from "@/content/explainers";
 
 const ARROW_MARKER = (
   <defs>
@@ -146,7 +146,7 @@ export function aMonthSteps(settings: SettingsMap) {
     },
     {
       label: "Ballot open",
-      text: `The ballot is expected to open on the first Sunday of the month and stay open ${ballotWindowDays} day${ballotWindowDays === 1 ? "" : "s"}.`,
+      text: `The ballot is expected to open on ${cycleRuleWords(settings.cycle_open_rule)} and stay open ${ballotWindowDays} day${ballotWindowDays === 1 ? "" : "s"}.`,
     },
     {
       label: "Result published",
@@ -178,10 +178,10 @@ export function AMonthDiagram({ settings }: { settings: SettingsMap }) {
       <title id="month-diagram-title">A month</title>
       <desc id="month-diagram-desc">
         The workshop runs across the whole month. A jury draw is expected a
-        few days before the ballot is expected to open on the first Sunday
-        of the month; the ballot stays open for its window, and the result
-        is published when it closes. The full text follows this diagram as
-        an ordered list.
+        few days before the ballot is expected to open on{" "}
+        {cycleRuleWords(settings.cycle_open_rule)}; the ballot stays open for
+        its window, and the result is published when it closes. The full
+        text follows this diagram as an ordered list.
       </desc>
       {ARROW_MARKER}
       {/* Workshop: spans the whole month */}

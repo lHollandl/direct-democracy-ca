@@ -24,6 +24,7 @@ CLIENTS_DIR = repo_root() / "backend" / "clients"
 SEED_PY = repo_root() / "backend" / "seed.py"
 FRONTEND_SRC_DIR = repo_root() / "frontend" / "src"
 API_TS_PATH = FRONTEND_SRC_DIR / "lib" / "api.ts"
+EXPLAINERS_TSX_PATH = FRONTEND_SRC_DIR / "content" / "explainers.tsx"
 
 #: Routers may call services only — never a repository, a client module, or a
 #: job (job scheduling is the responsibility of the service that owns the
@@ -476,3 +477,26 @@ def test_no_endpoint_calls_more_than_one_service_function_or_does_threshold_arit
             continue
         violations.extend(_router_endpoint_violations(path))
     assert not violations, "Layering violations in backend/routers/:\n" + "\n".join(violations)
+
+
+def test_cycle_rule_words_map_covers_every_cycle_open_rule():
+    """change/01 fix run 2, FX-08 (audit ambiguity 1): DEMOCRACY.md §10.1's
+    rhythm copy must be keyed off the live `cycle_open_rule` setting, never a
+    typed-in phrase (CLAUDE.md Law 8), so a second rule can never leave a
+    stale sentence on `/explained` or anywhere else that says when a ballot
+    is expected. `frontend/src/content/explainers.tsx::CYCLE_RULE_WORDS`
+    holds the words, one per rule; this reads that file as text (no
+    TypeScript toolchain in the backend's test run) and requires every key of
+    `backend/services/rules.py::CYCLE_OPEN_RULES` to appear as a key in it."""
+    from backend.services.rules import CYCLE_OPEN_RULES
+
+    source = EXPLAINERS_TSX_PATH.read_text(encoding="utf-8")
+    start = source.index("CYCLE_RULE_WORDS: Record<string, string> = {")
+    end = source.index("};", start)
+    body = source[start:end]
+    missing = [rule for rule in CYCLE_OPEN_RULES if f'"{rule}"' not in body and f"{rule}:" not in body]
+    assert not missing, (
+        "frontend/src/content/explainers.tsx::CYCLE_RULE_WORDS is missing an "
+        f"entry for: {missing} — every backend/services/rules.py::CYCLE_OPEN_RULES "
+        "value needs a phrase here or the rhythm copy goes stale (CLAUDE.md Law 8)."
+    )

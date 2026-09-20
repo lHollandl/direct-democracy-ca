@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { Explainer, Loading, PageHeader, Section } from "@/components/ui";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
-import { BallotExplainer, JuryExplainer, useSettingsMap } from "@/content/explainers";
+import {
+  BallotExplainer,
+  CycleRuleWords,
+  JuryExplainer,
+  useSettingsMap,
+} from "@/content/explainers";
 import { AMonthDiagram, PATH_STEPS, PathOfAProblemDiagram, aMonthSteps } from "./Diagrams";
 
 export default function ExplainedPage() {
@@ -82,10 +87,15 @@ export default function ExplainedPage() {
 
         <Section title="Two clocks" description="DEMOCRACY.md §10.1 — the rhythm.">
           <p className="text-sm">
-            The workshop never closes. The ballot is expected on a schedule:
-            the first Sunday of each calendar month. During this demo, every
-            transition is still a director control, so these are always
-            shown as <strong>expected</strong> dates, not guarantees.
+            The workshop never closes. The ballot is expected to open on{" "}
+            {settings ? (
+              <CycleRuleWords settings={settings} />
+            ) : (
+              "a schedule"
+            )}
+            . During this demo, every transition is still a director
+            control, so these are always shown as{" "}
+            <strong>expected</strong> dates, not guarantees.
           </p>
           {settings ? (
             <>
