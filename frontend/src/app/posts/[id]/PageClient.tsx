@@ -102,7 +102,7 @@ export default function PostPage() {
           <Loading what="this post" />
         ) : (
           <>
-        <BackLink href="/feed">Back to the feed</BackLink>
+        <BackLink href="/home">Back to Home</BackLink>
         {message ? <div className="mt-3"><Notice kind="good">{message}</Notice></div> : null}
         {error ? <div className="mt-3"><Notice kind="bad">{error}</Notice></div> : null}
 

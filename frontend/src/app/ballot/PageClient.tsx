@@ -100,7 +100,7 @@ export default function BallotPage() {
         {list.length === 0 ? (
           <Empty>
             No ballot has been prepared in your communities yet. Work on
-            solutions in the <Link href="/feed">workshop</Link> and they will get
+            solutions in the <Link href="/home">workshop</Link> and they will get
             there.
           </Empty>
         ) : (
