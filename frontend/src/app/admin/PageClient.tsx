@@ -7,9 +7,10 @@
  */
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
 import { get, post } from "@/lib/api";
-import { useSession } from "@/components/Session";
+import { useRequireAuth } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
 import { Badge, Loading, Notice, PageHeader, Section } from "@/components/ui";
 import { FieldError, useFormError } from "@/components/useFormError";
@@ -30,7 +31,9 @@ const NEXT_STEP: Record<string, { action: string; label: string } | null> = {
 
 export default function AdminPage() {
   useDocumentTitle("Administrator controls");
-  const { me, loading } = useSession();
+  const pathname = usePathname();
+  const auth = useRequireAuth();
+  const me = auth.status === "authed" ? auth.me : null;
   const [message, setMessage] = useState<string | null>(null);
   const { error, fieldErrors, alertRef, clear, fail, fieldProps } = useFormError();
   const settingFormRef = useRef<HTMLFormElement>(null);
@@ -83,8 +86,15 @@ export default function AdminPage() {
   }
 
   let body: ReactNode;
-  if (loading) {
+  if (auth.status === "loading" || auth.status === "redirecting") {
     body = <Loading what="the administrator page" />;
+  } else if (auth.status === "expired") {
+    body = (
+      <Notice kind="bad">
+        You have been signed out.{" "}
+        <Link href={`/login?next=${encodeURIComponent(pathname)}`}>Sign in again.</Link>
+      </Notice>
+    );
   } else if (!me?.is_admin) {
     body = (
       <Notice>
