@@ -172,11 +172,12 @@ map against the code, not the document against itself. Specific traps:
 
 ## 6. The Report
 
-Written to `audits/demo-NN-audit-K.md` (K increments per audit of the
-same trial). Structure:
+Written to `audits/change-NN-audit-K.md` (or `audits/demo-N-audit-K.md`
+for a full audit at a demo tag); K increments per audit of the same
+change. Structure:
 
 ```
-# Audit — demo-NN, run K, YYYY-MM-DD
+# Audit — change-NN, run K, YYYY-MM-DD
 
 ## Summary
 One paragraph. Counts by severity. Verdict: CLEAN / FIX REQUIRED.
