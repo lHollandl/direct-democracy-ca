@@ -134,7 +134,10 @@ class Loader:
     def email_for(self, key: str) -> str:
         return f"{key}@{self.env.TEST_DATA_EMAIL_DOMAIN}"
 
-    def load_account(self, key: str, name: str, city: str, county: str) -> dict:
+    def load_account(self, key: str, name: str, city: str | None, county: str) -> dict:
+        """`city: ~` in the dataset (YAML null) means "Unincorporated — no
+        city" (DEMOCRACY.md §2.3, change/02): the account's `city_id` is
+        `None`, and no city lookup is attempted."""
         email = self.email_for(key)
         password = self.env.TEST_DATA_PASSWORD
 
@@ -173,7 +176,7 @@ class Loader:
                 "gender": GENDER,
                 "political_party": POLITICAL_PARTY,
                 "county_id": self.county_id(county),
-                "city_id": self.city_id(county, city),
+                "city_id": self.city_id(county, city) if city is not None else None,
                 "terms_version": self.terms_version,
                 "agreed_to_terms": True,
             },
