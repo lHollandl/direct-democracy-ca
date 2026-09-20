@@ -362,8 +362,11 @@ Terms, and Cookies, so every transparency page stays one click away
 
 **Signing in returns you to where you were.** A page that needs a
 session sends the visitor to `/login?next=<path>`; after sign-in the
-site goes to `next` when it is a same-site path (begins with a single
-`/`), otherwise to `/home`. When a session ends while a page is open,
+site goes to `next` only when the browser's own URL parser
+resolves it to this site's origin (a path beginning with a single `/`,
+with no backslash and no control character — a browser reads `/\` as
+`//`); otherwise to `/home`. The guard is
+`frontend/src/lib/nextPath.ts::safeNextPath`. When a session ends while a page is open,
 the page says "You have been signed out. Sign in again." with that link;
 it never shows a signed-in page to a signed-out visitor.
 
