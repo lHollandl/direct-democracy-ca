@@ -308,12 +308,21 @@ async def test_a_display_name_cannot_be_taken_twice(client):
     assert response.json()["error"] == "display_name_taken"
 
 
-async def test_ip_hash_is_salted_and_the_secret_is_required(client):
+async def test_ip_hash_is_salted_and_the_secret_is_required(client, monkeypatch):
     """FIX-47 (LOW, audit demo-01 run 5): an unsalted SHA-256 of an IPv4
     address is reversible by enumeration in seconds. `hash_ip` now salts
     with IP_HASH_SECRET (DATABASE.md §3.5), and startup refuses to run
-    without it, the same way it already refuses without JWT_SECRET."""
+    without it, the same way it already refuses without JWT_SECRET.
+
+    C2-11(a) (audit change-01-2 LOW): `_env_file=None` only turns off the
+    `.env` source — pydantic-settings still reads `os.environ`, so a shell
+    with these keys exported (e.g. after `set -a; . ./.env; set +a`) let
+    this construction succeed instead of raising. The process environment
+    is cleared for the duration of the check so the result cannot depend on
+    the calling shell.
+    """
     import hashlib
+    import os
 
     from pydantic import ValidationError
 
@@ -333,6 +342,7 @@ async def test_ip_hash_is_salted_and_the_secret_is_required(client):
         for k, v in get_env_settings().model_dump().items()
         if k != "IP_HASH_SECRET"
     }
+    monkeypatch.setattr(os, "environ", {})
     with pytest.raises(ValidationError, match="IP_HASH_SECRET"):
         Settings(_env_file=None, **kwargs)
 
