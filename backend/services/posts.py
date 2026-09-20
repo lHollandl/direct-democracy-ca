@@ -25,6 +25,7 @@ from backend.repositories import umbrellas as umbrellas_repo
 from backend.services import ai_log
 from backend.services import community as community_service
 from backend.services import hashing
+from backend.services import settings as settings_service
 from backend.services import solutions as solutions_service
 from backend.services.display import author_display, author_displays
 
@@ -340,6 +341,8 @@ async def view(session: AsyncSession, post: Post) -> dict:
     for solution in solutions:
         solutions_by_umbrella.setdefault(solution.umbrella_id, []).append(solution.id)
 
+    retry_minutes = int(await settings_service.get(session, "label_retry_minutes"))
+
     community_views = []
     for row in communities:
         resolved = await community_service.resolve(
@@ -347,17 +350,31 @@ async def view(session: AsyncSession, post: Post) -> dict:
         )
         label = labels.get((row.community_level, row.community_entity_id))
         umbrella = umbrellas.get(row.umbrella_id) if row.umbrella_id else None
+        main_category_name = (
+            categories[row.main_category_id].name
+            if row.main_category_id in categories
+            else None
+        )
+        has_active_umbrella = bool(
+            await umbrellas_repo.for_community(
+                session, row.community_level, row.community_entity_id
+            )
+        )
         community_views.append(
             {
                 "community": resolved.as_dict(),
                 "umbrella_id": row.umbrella_id,
                 "umbrella_name": umbrella.name if umbrella else None,
-                "main_category": (
-                    categories[row.main_category_id].name
-                    if row.main_category_id in categories
-                    else None
+                "main_category": main_category_name,
+                "label_status": _label_status_words(
+                    post.label_status,
+                    row.umbrella_id,
+                    community_label=resolved.label,
+                    main_category_name=main_category_name,
+                    retry_minutes=retry_minutes,
+                    has_active_umbrella=has_active_umbrella,
                 ),
-                "label_status": _label_status_words(post.label_status, row.umbrella_id),
+                "has_active_umbrella": has_active_umbrella,
                 "label_outcome": label.outcome if label else None,
                 "label_shown_as": _label_words(label),
                 "confidence": float(label.confidence) if label and label.confidence else None,
@@ -394,15 +411,38 @@ async def view(session: AsyncSession, post: Post) -> dict:
     }
 
 
-def _label_status_words(status: str, umbrella_id: int | None) -> str:
+def _label_status_words(
+    status: str,
+    umbrella_id: int | None,
+    *,
+    community_label: str,
+    main_category_name: str | None,
+    retry_minutes: int,
+    has_active_umbrella: bool,
+) -> str:
+    """DEMOCRACY.md §4.1 — the three honest filing states, plus the
+    no-umbrellas-in-this-community case. They never share a sentence
+    (CLAUDE.md §2, transparency about weakness)."""
     if umbrella_id is not None:
         return "Filed"
-    return {
-        "pending": "Being filed",
-        "unlabeled": "Waiting to be filed — the platform will try again shortly",
-        "needs_review": "No umbrella in this community covers this yet",
-        "labeled": "Filed",
-    }.get(status, status)
+    if status == "pending":
+        return "Being filed — the AI is reading this now"
+    if status == "unlabeled":
+        return (
+            "Not filed yet — the AI could not be reached. The platform tries "
+            f"again every {retry_minutes} minutes"
+        )
+    if status == "needs_review":
+        if not has_active_umbrella:
+            return (
+                f"There are no umbrellas in {community_label} yet. Proposing "
+                "a new umbrella is planned."
+            )
+        return (
+            f"Not filed — no umbrella in {community_label} covers this yet. "
+            f"It is saved under {main_category_name}."
+        )
+    return status
 
 
 def _label_words(label) -> str | None:

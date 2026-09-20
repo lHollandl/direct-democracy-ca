@@ -7,6 +7,7 @@ import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
 import { AiInfluence, Empty, Loading, Notice, PageHeader } from "@/components/ui";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
+import { useSettingsMap } from "@/content/explainers";
 import {
   BallotPanel,
   JuryPanel,
@@ -58,12 +59,23 @@ const SORTS: [string, string][] = [
   ["most_comments", "Most comments"],
 ];
 
-const FILING: Record<string, string> = {
-  pending: "Being filed",
-  unlabeled: "Waiting to be filed",
-  needs_review: "No umbrella covers this yet",
-  labeled: "Filed",
-};
+/**
+ * DEMOCRACY.md §4.1 — the three honest filing states, each its own sentence
+ * (CLAUDE.md §2). This is the compact, aggregate wording for a feed card
+ * spanning all of a post's communities; the per-community detail — with the
+ * community and main-category names — is on the post's own page.
+ */
+function filingWords(status: string, labelRetryMinutes: number | null): string {
+  if (status === "pending") return "Being filed — the AI is reading this now";
+  if (status === "unlabeled") {
+    return labelRetryMinutes !== null
+      ? `Not filed yet — the AI could not be reached. The platform tries again every ${labelRetryMinutes} minutes`
+      : "Not filed yet — the AI could not be reached. The platform tries again shortly";
+  }
+  if (status === "needs_review") return "Not filed — no umbrella covers this yet in one of its communities";
+  if (status === "labeled") return "Filed";
+  return status;
+}
 
 const SHOW_BALLOT_KEY = "ddca.home.showBallot";
 
@@ -91,6 +103,8 @@ function useShowBallotSwitch(): [boolean, (value: boolean) => void] {
 export default function HomePage() {
   useDocumentTitle("Home");
   const { me, loading: sessionLoading } = useSession();
+  const settings = useSettingsMap();
+  const labelRetryMinutes = settings ? Number(settings.label_retry_minutes) : null;
   const [showBallot, setShowBallot] = useShowBallotSwitch();
 
   const [community, setCommunity] = useState("");
@@ -282,7 +296,7 @@ export default function HomePage() {
                       <p className="mt-1 text-sm">{item.problem_text}</p>
                       <p className="mt-2 text-xs text-[var(--muted)]">
                         {item.author} · {new Date(item.created_at).toLocaleDateString()} ·{" "}
-                        {FILING[item.label_status] ?? item.label_status}
+                        {filingWords(item.label_status, labelRetryMinutes)}
                       </p>
                       <p className="mt-1 text-sm font-medium">
                         {item.vote_count} vote{item.vote_count === 1 ? "" : "s"} ·{" "}
