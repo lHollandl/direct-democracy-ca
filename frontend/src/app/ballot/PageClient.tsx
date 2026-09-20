@@ -5,8 +5,9 @@ import { useState, type ReactNode } from "react";
 import { ApiError, get, put } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { useLoader } from "@/components/useLoader";
-import { Badge, Empty, Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { Badge, Empty, Explainer, Loading, Notice, PageHeader, Section } from "@/components/ui";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
+import { BallotExplainer, useSettingsMap } from "@/content/explainers";
 
 type BallotItem = {
   ballot_item_id: number;
@@ -50,6 +51,7 @@ const STATE_WORDS: Record<string, string> = {
 export default function BallotPage() {
   useDocumentTitle("The ballot");
   const { me, loading } = useSession();
+  const settings = useSettingsMap();
   const [error, setError] = useState<string | null>(null);
   const { data: ballots, reload } = useLoader<Ballot[]>(async () => {
     if (!me) return [];
@@ -178,7 +180,14 @@ export default function BallotPage() {
         }
       />
       <div className={`mx-auto px-4 py-8 ${me && ballots ? "max-w-3xl" : "max-w-md"}`}>
-        {body}
+        <Explainer title="How the ballot works">
+          {settings ? (
+            <BallotExplainer settings={settings} />
+          ) : (
+            <Loading what="the explanation" />
+          )}
+        </Explainer>
+        <div className="mt-4">{body}</div>
       </div>
     </>
   );
