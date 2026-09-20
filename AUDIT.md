@@ -27,13 +27,21 @@ the trial read-only except for `audits/`, where it writes its report.
 
 | Trigger | Scope |
 |---|---|
-| After any Foundation build run, before the PR to `main` | Foundation audit, full |
-| After any Iteration build run, before the director uses the demo | Iteration audit, full |
+| After a change run the director has tested and accepted, before its PR to `main` | **Change audit:** every file the run touched and every document section its brief named. Any Foundation file in the diff → Foundation audit, full. A diff that strays outside what the brief named → full pass on that half |
+| At each demo tag | Both halves, full |
 | Before declaring a keeper | Both halves, full, plus the keeper checklist (§7) |
 | After a fix run | Re-audit of the previously reported items only, then a full pass if the fix run touched more than the reported items |
 
-A Foundation PR is not merged until its audit report has zero
-`CRITICAL` and zero `HIGH` findings.
+The director tests a change before it is audited; the sandbox and its
+disposable database make that safe. Nothing reaches `main` untested or
+unaudited: no pull request to `main` is merged until its audit report
+has zero `CRITICAL` and zero `HIGH` findings.
+
+Because the auditor has no browser, every change brief lists the
+browser-only checks the director performs by hand (session survives a
+reload; sign-in returns to the page; each new page renders), and the
+audit report records that list as "director-verified" or "not yet
+verified".
 
 ---
 

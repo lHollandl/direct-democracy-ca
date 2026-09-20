@@ -124,7 +124,7 @@ async def signup(
     )
     await email_client.send(
         to=user.email,
-        subject="Confirm your email address — Direct Democracy Cali",
+        subject="Confirm your email address — Direct Democracy CA",
         text_body=(
             f"Welcome, {user.display_name}.\n\n"
             "Confirm your email address to start posting, voting and commenting:\n\n"
@@ -282,7 +282,7 @@ async def forgot_password(session: AsyncSession, email: str) -> str | None:
     )
     await email_client.send(
         to=user.email,
-        subject="Reset your password — Direct Democracy Cali",
+        subject="Reset your password — Direct Democracy CA",
         text_body=(
             f"Someone asked to reset the password for this account.\n\n"
             f"{_frontend_origin()}/reset-password?token={token}\n\n"

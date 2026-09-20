@@ -179,10 +179,17 @@ category choice:
 - **Propose a new umbrella** — parked. Demo 1 does not show this option.
 
 A post is saved immediately. Labeling runs in the background; until it
-completes the post shows "being filed" and appears in no umbrella. If
-labeling fails, the post is marked `unlabeled` and retried by a
-background job every `label_retry_minutes` (Demo 1: 10) until it
-succeeds.
+completes the post shows "Being filed — the AI is reading this now" and
+appears in no umbrella. If labeling fails, the post is marked
+`unlabeled`, shows "Not filed yet — the AI could not be reached. The
+platform tries again every N minutes" (N = `label_retry_minutes`, Demo
+1: 10), and is retried by a background job on that interval until it
+succeeds. A `needs_review` post-community shows "Not filed — no umbrella
+in <community> covers this yet. It is saved under <main category>."
+When that community has no active umbrella at all, the "Is that the
+right place?" control is replaced by "There are no umbrellas in
+<community> yet. Proposing a new umbrella is planned." The three states
+never share a sentence (CLAUDE §2, transparency about weakness).
 
 The author may correct an AI label at any time from the post. Every
 correction is recorded on the label row (§9.2).
@@ -432,6 +439,7 @@ the values that were in force for that cycle.
 | `jury_no_repeat_cycles` | §8.1 | 0 |
 | `jury_review_days` | §8.3 | 2 (manual in Demo 1) |
 | `ballot_window_days` | §10.3 | 7 (manual in Demo 1) |
+| `cycle_open_rule` | §10.1 — the calendar rule for when a community's ballot is expected to open | `first_sunday_of_month` (manual in Demo 1) |
 | `ballot_pass_rule` | §10.4 | `simple_majority` |
 | `ballot_quorum_min` | §10.4 | 1 |
 | `comment_max_depth` | §6 | 3 |
@@ -667,6 +675,21 @@ director control. The timers (`jury_review_days`,
 `ballot_window_days`) exist as settings and are displayed as "would
 close on …" but do not fire.
 
+**The rhythm.** A community's ballot is expected to open on the dates
+given by `cycle_open_rule`. One rule exists: `first_sunday_of_month` —
+the first Sunday of each calendar month, at the start of the day,
+Pacific time (`America/Los_Angeles`). From it the platform computes two
+dates per community and shows them on Home (§12.2): **next ballot
+expected** — the first rule date on or after today on which the
+community has not already opened a cycle; and **next jury draw
+expected** — that date minus `jury_review_days`. They are expectations
+and are always displayed with the word "expected": while transitions
+are director controls nothing fires on these dates, and the page says
+"During the demo, ballots are opened by the administrator." The
+computation is `backend/services/rules.py::next_cycle_dates`, with its
+plain-English explanation beside it. A value other than a known rule is
+refused when the setting is changed.
+
 Exactly one cycle per community is in a non-`published` state at a
 time. Preparing a new cycle requires the previous one to be `published`.
 
@@ -814,16 +837,68 @@ not hashed; the web page is canonical.
 
 ---
 
-## 12. The Feed
+## 12. Home
 
-**Demo 1:** `/feed` shows posts from the user's home communities,
-newest first, with a filter by community and by main category. That is
-the entire ordering rule, and it is stated on the page: "Newest first.
-No ranking." Version `feed-v0`.
+### 12.1 The feed
 
-The smart feed is parked (PROJECT.md). When it is designed, the
-plain-English explanation lives in the same file as the ranking code
-(Law 9) and the version increments.
+`/home` lists posts. **Scope:** by default the viewer's home
+communities; the community filter narrows to one of them or widens to
+"All of California" (users may read any community, §2.3); a signed-out
+visitor sees all. The main-category filter is unchanged.
+
+**Search.** `q` (2–100 characters) keeps only posts whose problem text,
+or any of whose solution texts, match, using PostgreSQL full-text search
+(`websearch_to_tsquery('english', q)`). Search filters; it never orders.
+No AI is involved.
+
+**Sort** — chosen by the user; the default is `newest`:
+
+| Sort | Order |
+|---|---|
+| `newest` | `created_at` descending |
+| `oldest` | `created_at` ascending |
+| `most_votes` | votes(post) descending, then newest. votes(post) = the number of `votes` rows, up and down alike, whose target is a solution with that `post_id` |
+| `most_comments` | comments(post) descending, then newest. comments(post) = the number of comments, not removed, whose target is one of those solutions |
+
+Every card shows both counts, so the order can be checked by eye. The
+page states the rule in force in one sentence (for example: "Most votes
+first — the number of up and down votes on each post's solutions.
+Nothing else affects the order."). There is no blended score, no
+recency decay, and nothing personal beyond the viewer's own filter and
+sort choices (CLAUDE §3). Version `feed-v1`; the explanation for each
+sort lives beside the code in `backend/services/rules.py` (Law 9).
+
+### 12.2 Ballot and jury on Home
+
+Above the feed, a signed-in user sees two panels, each with one line per
+home community, from `GET /cycles/mine`:
+
+- **Ballot.** Cycle `open`: "Open — expected to close <opened_at +
+  ballot_window_days>". Otherwise: "Next ballot expected <date>" (§10.1)
+  and, when one exists, "Last ballot closed <date>". A button opens
+  `/ballot`.
+- **Jury.** "Last jury drawn <date>" or "No jury has been drawn yet";
+  "Next draw expected <date>"; and the viewer's own status in the
+  current cycle — not drawn, drawn and awaiting a reply (with the
+  reply-by date), seated, declined, or no response. Shown only to the
+  viewer; juror identities stay non-public (§8.5). A button opens
+  `/jury`.
+
+`/ballot` and `/jury` each carry a button, "How the ballot works" and
+"How the jury works", that opens a plain-language explanation of what
+the feature is, why it exists, and how it runs. Every number in those
+explanations is read from the public settings at display time, never
+typed into the text (Law 8).
+
+**Ballot items on Home.** While a home community's ballot is open, its
+items appear in a block pinned above the posts, "On your ballot now",
+each with its frozen text and the same yes/no control as `/ballot`. The
+block is pinned, never interleaved with posts, so the feed keeps exactly
+one ordering rule. A switch, "Show ballot items here", is on by default,
+belongs to the user, and is remembered in the browser; account-level
+storage of Home preferences is a later change.
+
+The smart feed is parked (PROJECT.md).
 
 ---
 
@@ -869,9 +944,9 @@ this document satisfies it.
 | §2 every rule public | §7.4 settings page; §11.2 item 4 |
 | §2 transparency about weakness | §11.2 item 1 verification sentence |
 | §3 equal vote weight | §10.3 one vote per member; verification recorded, never weighted |
-| §3 identical ranking | §3.3 item 4 ordering; §12 feed-v0 |
+| §3 identical ranking | §3.3 item 4 ordering; §12.1 feed-v1 — four sorts, each a plain count or a date, identical for every viewer who chooses it |
 | §4 downvotes never hide | §3.3 item 4; §6 |
-| §4 minimum visibility for minority views | Met trivially in Demo 1: nothing ranks anything out of sight (§3.3 item 4 shows every solution; §12 feed-v0 has no ranking). The visibility rule and its §7.4 setting are owed the day any ranking feed exists (PROJECT.md parking lot, Small Voice) |
+| §4 minimum visibility for minority views | The default view of Home is newest-first, which ranks nothing out of sight, and §3.3 item 4 shows every solution. `most_votes` and `most_comments` are views a user chooses for themselves and leaves with one click; they count up and down votes alike, so a downvoted post is not pushed down by its downvotes. The visibility rule and its §7.4 setting are owed the day the platform — rather than the user — chooses any ranking (PROJECT.md parking lot, Small Voice). Director's reading, 2026-09-19 |
 | §6 nothing personal in the permanent record | §11.1; §11.2 item 2; §8.5 |
 | §5 AI never decides | §3.2 umbrellas; §5.4 humans confirm; §9.4 humans reject |
 | §5 every AI action logged | §9.2 |

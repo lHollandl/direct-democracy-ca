@@ -23,7 +23,7 @@ export default function SiteNav() {
     >
       <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
         <Link href="/" className="font-bold text-[var(--foreground)] no-underline">
-          Direct Democracy Cali
+          Direct Democracy CA
         </Link>
         <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           {LINKS.map((link) => (

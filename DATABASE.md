@@ -53,7 +53,7 @@
 | Half | Tables | Migration practice |
 |---|---|---|
 | **Foundation** | `users`, `user_display_settings`, `refresh_tokens`, `email_verifications`, `password_resets`, `terms_versions`, `terms_acceptances`, `states`, `counties`, `cities`, `officials`, `settings`, `admin_actions`, `ai_actions`, `data_exports` | Alembic chain `foundation/`. Immutable once applied. |
-| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `comment_revisions`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Regenerated fresh per demo until the keeper. |
+| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `comment_revisions`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Until the keeper, regenerated as a single initial migration whenever a change alters the Iteration schema; the database is rebuilt from empty. |
 
 Two Alembic branches in one `alembic/versions/` directory, labeled
 `foundation` and `iteration`, so `alembic upgrade foundation@head` and
@@ -286,6 +286,8 @@ Index on the community pair.
 | `created_at` | | |
 | `deleted_at` | | soft; no endpoint sets it in Demo 1 |
 
+GIN index on to_tsvector('english', problem_text) — Home search (DEMOCRACY §12.1).
+
 No column of `posts` is updated after insert except `label_status`.
 A post is inserted in the same transaction as its `post_solutions`
 rows, and the service refuses a post with zero solution texts (Law 1).
@@ -305,6 +307,8 @@ staging record from which workshop solutions are created (DEMOCRACY
 | `ai_contribution_percentage` | smallint NOT NULL DEFAULT 0 | |
 | `content_hash` | char(64) NOT NULL | canonical JSON `{post_id, position, text, created_at}` |
 | `created_at` | | |
+
+GIN index on to_tsvector('english', text) — Home search (DEMOCRACY §12.1).
 
 Unique `(post_id, position)`. Immutable.
 
