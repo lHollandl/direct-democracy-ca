@@ -3648,3 +3648,28 @@ process environment — after which the suite reproduced the audit's own
 1. Reach Ollama at the address SANDBOX.md §5 records; load the test data; confirm the ten `file_under: ai` posts are labeled, and paste each one's umbrella (carried over from Session 2 — audit 1 ran without Ollama).
 2. Fix run 2 reports the backend suite as "257 passed, 2 deselected". Which two tests, why are they deselected, and do they pass when selected in a clean shell? A test that is skipped to make a suite green is a finding.
 3. Fix run 2 saw two tests fail when `ALLOW_TEST_DATA=true` and the `.env` values were exported in the shell. Should the suite be isolated from the process environment? Severity is the auditor's call.
+
+## 2026-09-20 — Session 8 (Claude Code audit — change-01, run 2)
+
+Re-audit of `change/01-site-shell` at `c5e9dc5`, written to
+`audits/change-01-audit-2.md`. The diff since audit-1 (`a5ff19c...HEAD`)
+stays inside the files audit-1's findings named, so per AUDIT.md §2 the
+re-audit is the audit; no full unscoped pass was run, with the scoping
+judgment call (one Foundation file touched, `backend/routers/me.py`,
+named by FX-06 itself) recorded under Document ambiguities. Counts:
+**CRITICAL 0 · HIGH 0 · MEDIUM 0 · LOW 1 · NOTE 2**. Verdict: **CLEAN**.
+FX-05 through FX-09 were each independently re-verified against the
+verbatim brief text and re-tested, with FX-05 additionally probed with
+19 adversarial inputs beyond the brief's own list (no bypass found). Both
+always-CRITICAL traps were reproduced clean in my own full-cycle
+walkthrough against freshly loaded test data and real Ollama, including
+an independent SHA-256 hash round-trip and an independent replay of a
+jury draw from its logged pool and bytes, plus four hand-derived
+`threshold()` cases, all matching. All three of the planning session's
+named questions are answered in the report: the ten `file_under: ai`
+posts and their umbrellas (question 1); the two deselected tests are a
+documented, intentional `-m live` opt-in and both pass when selected
+against real Ollama (question 2); and the one LOW finding — a leaked
+shell environment can defeat `test_ip_hash_is_salted_and_the_secret_is_
+required`'s `_env_file=None` assumption, reproduced directly (question
+3). Findings live in the report, not here.
