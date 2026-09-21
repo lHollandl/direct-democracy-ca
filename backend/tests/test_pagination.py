@@ -59,6 +59,7 @@ LIST_ENDPOINTS = {
     "/feed",
     "/umbrellas",
     "/communities/{level}/{entity_id}/cycles",
+    "/posts/mine",
     "/settings/history",
     "/solutions/{solution_id}/amendments",
     "/summaries/hashes",

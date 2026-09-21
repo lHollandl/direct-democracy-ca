@@ -679,6 +679,64 @@ async def request_relabel_as_admin(session: AsyncSession, *, post: Post, admin: 
     )
 
 
+async def mine(
+    session: AsyncSession, *, author: User, cursor: int | None, limit: int
+) -> dict:
+    """`GET /posts/mine` (ARCHITECTURE.md §6) — the caller's own posts,
+    newest first, each with its communities' filing words and links."""
+    rows, next_cursor = await posts_repo.for_author_page(
+        session, author.id, cursor=cursor, limit=limit
+    )
+    retry_minutes = int(await settings_service.get(session, "label_retry_minutes"))
+
+    items = []
+    for row in rows:
+        community_rows = await posts_repo.communities(session, row.id)
+        categories = await umbrellas_repo.categories_by_ids(
+            session, [c.main_category_id for c in community_rows if c.main_category_id]
+        )
+        community_views = []
+        for c in community_rows:
+            resolved = await community_service.resolve(
+                session, c.community_level, c.community_entity_id
+            )
+            main_category_name = (
+                categories[c.main_category_id].name
+                if c.main_category_id in categories
+                else None
+            )
+            has_active_umbrella = bool(
+                await umbrellas_repo.for_community(
+                    session, c.community_level, c.community_entity_id
+                )
+            )
+            community_views.append(
+                {
+                    "community": resolved.as_dict(),
+                    "umbrella_id": c.umbrella_id,
+                    "label_status": _label_status_words(
+                        row.label_status,
+                        c.umbrella_id,
+                        community_label=resolved.label,
+                        main_category_name=main_category_name,
+                        retry_minutes=retry_minutes,
+                        has_active_umbrella=has_active_umbrella,
+                    ),
+                    "link": f"/umbrellas/{c.umbrella_id}" if c.umbrella_id else f"/posts/{row.id}",
+                }
+            )
+        items.append(
+            {
+                "id": row.id,
+                "title": derive_title(row.problem_text),
+                "created_at": row.created_at,
+                "label_status": row.label_status,
+                "communities": community_views,
+            }
+        )
+    return {"items": items, "next_cursor": next_cursor}
+
+
 async def require_post(session: AsyncSession, post_id: int) -> Post:
     post = await posts_repo.get(session, post_id)
     if post is None or post.deleted_at is not None:

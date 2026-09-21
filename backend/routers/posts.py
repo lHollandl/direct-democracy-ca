@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 from pydantic import BaseModel, Field, field_validator
 
-from backend.deps import SessionDep, VerifiedUser
-from backend.routers.common import Message
+from backend.deps import CurrentUser, SessionDep, VerifiedUser
+from backend.routers.common import CursorParam, DEFAULT_LIMIT, LimitParam, Message
 from backend.services import labeling as labels_service
 from backend.services import posts as posts_service
 
@@ -112,6 +112,17 @@ async def label_preview(
         communities=[(c.level, c.entity_id) for c in body.communities],
     )
     return LabelPreviewOut(**result)
+
+
+@router.get("/mine")
+async def my_posts(
+    user: CurrentUser,
+    session: SessionDep,
+    cursor: CursorParam = None,
+    limit: LimitParam = DEFAULT_LIMIT,
+) -> dict:
+    """Declared before `/{post_id}` so `mine` is never read as a post id."""
+    return await posts_service.mine(session, author=user, cursor=cursor, limit=limit)
 
 
 @router.get("/{post_id}")

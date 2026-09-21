@@ -16,6 +16,7 @@ from backend.tests.conftest import make_umbrella, make_user
 #: (method, path, body) for every endpoint that requires a signed-in caller.
 SIGNED_IN_ONLY = [
     ("GET", "/auth/me", None),
+    ("GET", "/posts/mine", None),
     ("PATCH", "/me/display", {"public_name_mode": "anonymous"}),
     ("POST", "/me/resend-verification", None),
     ("POST", "/me/export", None),

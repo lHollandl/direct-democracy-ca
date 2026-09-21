@@ -46,6 +46,21 @@ type HomeStatus = {
   refused_now_reason: string | null;
 };
 
+type MyPostCommunity = {
+  community: { level: string; entity_id: number; name: string; label: string };
+  umbrella_id: number | null;
+  label_status: string;
+  link: string;
+};
+
+type MyPost = {
+  id: number;
+  title: string;
+  created_at: string;
+  label_status: string;
+  communities: MyPostCommunity[];
+};
+
 export default function MePage() {
   useDocumentTitle("Your account");
   const router = useRouter();
@@ -71,6 +86,32 @@ export default function MePage() {
   const [cities, setCities] = useState<City[]>([]);
   const [homeCountyId, setHomeCountyId] = useState("");
   const homeFormRef = useRef<HTMLFormElement>(null);
+
+  const [myPosts, setMyPosts] = useState<MyPost[]>([]);
+  const [myPostsCursor, setMyPostsCursor] = useState<number | null>(null);
+  const [myPostsLoaded, setMyPostsLoaded] = useState(false);
+  const [myPostsLoading, setMyPostsLoading] = useState(false);
+
+  async function loadMyPosts(cursor: number | null, replace: boolean) {
+    setMyPostsLoading(true);
+    try {
+      const body = await get<{ items: MyPost[]; next_cursor: number | null }>(
+        `/posts/mine${cursor ? `?cursor=${cursor}` : ""}`,
+      );
+      setMyPosts((previous) => (replace ? body.items : [...previous, ...body.items]));
+      setMyPostsCursor(body.next_cursor);
+    } catch {
+      // The rest of the account page still works even if this section can't load.
+    } finally {
+      setMyPostsLoading(false);
+      setMyPostsLoaded(true);
+    }
+  }
+
+  useEffect(() => {
+    if (!me) return;
+    void loadMyPosts(null, true);
+  }, [me]);
 
   useEffect(() => {
     if (!me) return;
@@ -213,6 +254,53 @@ export default function MePage() {
               </li>
             ))}
           </ul>
+        </Section>
+
+        <Section
+          title="Your posts"
+          description="Every problem you have written down, newest first, and where each one has been filed."
+        >
+          {!myPostsLoaded ? (
+            <Loading what="your posts" />
+          ) : myPosts.length === 0 ? (
+            <p className="text-sm text-[var(--muted)]">
+              You have not written down a problem yet.{" "}
+              <Link href="/posts/new">Write your first one</Link>.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {myPosts.map((item) => (
+                <li key={item.id} className="rounded-lg border border-[var(--line)] p-3">
+                  <Link href={`/posts/${item.id}`} className="font-medium">
+                    {item.title}
+                  </Link>
+                  <ul className="mt-1 space-y-1 text-sm text-[var(--muted)]">
+                    {item.communities.map((c) => (
+                      <li key={`${c.community.level}:${c.community.entity_id}`}>
+                        {c.community.label}: {c.label_status}
+                        {c.umbrella_id !== null ? (
+                          <>
+                            {" — "}
+                            <Link href={c.link}>View in the workshop</Link>
+                          </>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+          {myPostsCursor !== null ? (
+            <button
+              type="button"
+              className="btn mt-3"
+              onClick={() => void loadMyPosts(myPostsCursor, false)}
+              disabled={myPostsLoading}
+            >
+              {myPostsLoading ? "Loading…" : "Load more"}
+            </button>
+          ) : null}
         </Section>
 
         <Section

@@ -74,6 +74,20 @@ async def communities(session: AsyncSession, post_id: int) -> list[PostCommunity
     )
 
 
+async def for_author_page(
+    session: AsyncSession, author_id: int, *, cursor: int | None, limit: int
+) -> tuple[list[Post], int | None]:
+    """`GET /posts/mine` (ARCHITECTURE.md §6) — the caller's own posts, newest
+    first. Standard keyset pagination on `id`, like `for_community_page`."""
+    stmt = select(Post).where(Post.author_id == author_id, Post.deleted_at.is_(None))
+    if cursor is not None:
+        stmt = stmt.where(Post.id < cursor)
+    stmt = stmt.order_by(Post.id.desc()).limit(limit)
+    rows = list((await session.execute(stmt)).scalars().all())
+    next_cursor = rows[-1].id if len(rows) == limit else None
+    return rows, next_cursor
+
+
 async def community(
     session: AsyncSession, post_id: int, level: str, entity_id: int
 ) -> PostCommunity | None:
