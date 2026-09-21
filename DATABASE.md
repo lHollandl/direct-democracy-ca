@@ -52,8 +52,8 @@
 
 | Half | Tables | Migration practice |
 |---|---|---|
-| **Foundation** | `users`, `user_display_settings`, `refresh_tokens`, `email_verifications`, `password_resets`, `terms_versions`, `terms_acceptances`, `states`, `counties`, `cities`, `officials`, `settings`, `admin_actions`, `ai_actions`, `data_exports` | Alembic chain `foundation/`. Immutable once applied. |
-| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `comment_revisions`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries` | Alembic chain `iteration/`. Until the keeper, regenerated as a single initial migration whenever a change alters the Iteration schema; the database is rebuilt from empty. |
+| **Foundation** | `users`, `user_display_settings`, `refresh_tokens`, `email_verifications`, `password_resets`, `terms_versions`, `terms_acceptances`, `states`, `counties`, `cities`, `officials`, `settings`, `admin_actions`, `ai_actions`, `data_exports`, `user_home_changes`, `email_change_requests` | Alembic chain `foundation/`. Immutable once applied. |
+| **Iteration** | `main_categories` (config-mirrored), `umbrellas`, `posts`, `post_solutions`, `post_communities`, `labels`, `solutions`, `solution_versions`, `amendments`, `amendment_similarity`, `amendment_similarity_votes`, `comments`, `comment_revisions`, `votes`, `umbrella_references`, `reference_feedback`, `cycles`, `ballot_items`, `ballot_votes`, `juries`, `jurors`, `jury_holdbacks`, `summaries`, `label_previews` | Alembic chain `iteration/`. Until the keeper, regenerated as a single initial migration whenever a change alters the Iteration schema; the database is rebuilt from empty. |
 
 Two Alembic branches in one `alembic/versions/` directory, labeled
 `foundation` and `iteration`, so `alembic upgrade foundation@head` and

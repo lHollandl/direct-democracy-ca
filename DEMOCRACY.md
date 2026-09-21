@@ -203,16 +203,22 @@ category choice:
   (default). When the author has written the problem and at least one
   solution and chosen their communities, they continue to "Where it
   goes" and the labeler runs at once on the draft (§9.1). For each
-  chosen community the form shows the suggested umbrella — or "none of
-  these fit" — and the author keeps it, changes it to another active
-  umbrella, or chooses "None of these fit". Only then can they post.
-  Editing the problem text or the communities afterwards marks the
-  suggestion out of date, and it runs again. A community left at "none
-  of these fit" is saved under the main category and is `needs_review`.
-- **Choose myself** — the author skips the suggestion and browses the
+  chosen community the form shows the suggested umbrella under that
+  umbrella's own main category — or says the AI found none that fits —
+  with two buttons: **Choose myself**, which opens that community's
+  active umbrellas, and **None of these fit**. Posting without touching
+  either keeps the suggestion; there is no "keep" button, because
+  posting is the decision. After a change, "Use the AI's suggestion"
+  undoes it. Editing the problem text or the communities afterwards
+  marks the suggestion out of date, and it runs again. A community left
+  at "none of these fit" is saved under the main category and is
+  `needs_review`; "propose a new umbrella" will sit at this button when
+  it is built.
+- **Choose myself, without a suggestion** — offered only when the AI
+  cannot be reached or the hourly limit is spent: the author browses the
   active umbrellas for their communities. Recorded as `author_selected`.
-- **Post now, file later** — offered only when the AI cannot be reached:
-  the post is saved and the background labeler files it when the AI is
+- **Post now, file later** — offered in the same two cases only: the
+  post is saved and the background labeler files it when the AI is
   back, exactly as before this change.
 - **Propose a new umbrella** — planned as its own change; it will sit
   beside "None of these fit".

@@ -106,6 +106,7 @@ Docker Compose with `--env-file`. There is no separate `infra/.env` or
 | `CORS_ORIGINS` | default http://localhost:3000,http://127.0.0.1:3000 |
 | `NEXT_PUBLIC_API_BASE_URL` | the address the **browser** uses for the API. It must share its host name with `PUBLIC_BASE_URL` (both `localhost`, or both the same domain): the refresh cookie is `SameSite=Strict`, and a browser on `localhost:3000` calling `127.0.0.1:8000` is cross-site, so the cookie is never sent and every page load signs the user out (found by the director, 2026-09-19). When unset, the browser uses the page's own host name with port 8000 |
 | `ALLOW_TEST_DATA` (`false`) | `true` only in a demo environment. Enables `backend/scripts/load_test_data.py` and lets signup accept `TEST_DATA_EMAIL_DOMAIN`; when `false` the loader refuses to run and signup refuses that domain, so test accounts and real users never share a database. There is no remover: Law 6 allows no deletion of a hashed row, test data included. Test data is cleared by rebuilding the database from empty (DATABASE §2), which is possible only until the keeper — and a keeper database never has `ALLOW_TEST_DATA=true` |
+| `VERIFY_RESEND_MINUTES` (`5`) | the least time between two verification emails to one account |
 | `TEST_DATA_EMAIL_DOMAIN` (`test.example.com`), `TEST_DATA_PASSWORD` | the reserved domain that marks a test account; the one password the loader gives every test account |
 | `IP_HASH_SECRET` | random 32+ bytes; salts `terms_acceptances.ip_hash` (DATABASE §3.5) |
 | `PUBLIC_BASE_URL` | the address the frontend is reached at (Demo 1: `http://localhost:3000`); used wherever a link must work outside the site — the `mailto:` body, the PDF footer, the summary's verify text |
@@ -124,10 +125,23 @@ the key name in the error.
   creates the user, a `terms_acceptances` row, and an email
   verification token; sends the verification email; returns 201 with
   no tokens. The account can log in but every write endpoint returns
-  403 `email_not_verified` until the link is used — **except the three
-  that act only on the caller's own account**: `PATCH /me/display`,
-  `POST /me/export`, `DELETE /me`. A person's rights over their own data
+  403 `email_not_verified` until the link is used — **except those that
+  act only on the caller's own account**:
+  `PATCH /me/display`, `PATCH /me/profile`, `POST /me/email`,
+  `POST /me/resend-verification`, `POST /me/export`, `DELETE /me` — a
+  mistyped signup address can never receive its link, so correcting it
+  cannot require one. A person's rights over their own data
   (CLAUDE §6) never depend on our verification email having worked.
+
+  **Demo mail.** Only when `EMAIL_BACKEND=console` **and**
+  `ALLOW_TEST_DATA=true`, the responses of signup, resend-verification,
+  and email-change carry a `demo_link`, and the page shows "Demo mode — no
+  email was sent. Confirm here." In every other configuration the field is
+  absent. A confirmation link handed to whoever asked for it would let
+  anyone confirm an address they do not own, so this must be unreachable
+  on a real site: a test asserts the field's absence for each of the three
+  other combinations of the two settings, and the link is never written
+  to a log line beyond the console email itself.
 - Login returns a 30-minute access JWT (`sub`, `exp`, `iat`, `jti`) and
   an opaque refresh token (random 32 bytes, base64url), stored hashed.
 - The refresh token travels only in an `httpOnly`, `SameSite=Strict`
@@ -199,6 +213,7 @@ endpoint. Nothing embeds an unbounded list.
 | `PATCH /me/display` | `public_name_mode` |
 | `PATCH /me/profile` | any of `real_name`, `display_name` (unique among live users), `gender`, `political_party`. Date of birth is never editable |
 | `POST /me/email` | `new_email`, `password`. Sends a confirmation link to the new address and a notice to the old one; nothing changes until `POST /auth/confirm-email-change` (token) — which also revokes every other refresh token |
+| `POST /me/resend-verification` | auth, unverified accounts only. Voids older unused tokens, issues a new one, sends the email; at most one per `VERIFY_RESEND_MINUTES` (429 with the wait in plain words); 409 if already verified |
 | `GET /me/home` | current home, the date the next change is allowed, and any reason a change is refused now |
 | `POST /me/home` | `county_id`, `city_id` or null. DEMOCRACY §2.3 rules 1–3; one transaction: `users` row and `user_home_changes` row |
 | `POST /me/export` → `GET /me/export/{id}` | async export |
@@ -216,9 +231,10 @@ officials list), `GET /communities/{level}/{id}/officials`.
 ### Posts and labels (I)
 | | |
 |---|---|
-| `POST /posts/label-preview` | auth, verified. `problem_text`, `communities[]`, validated as for a post. Rate-limited by `label_preview_max_per_hour` (429, plain message). Writes `label_previews`, then the `ai_actions` row, then calls the model; returns `preview_id`, main category, per community the suggested umbrella or null with confidence, and each community's active umbrellas for the chooser. AI unreachable → 503 with the three choices the form offers. One service call: `labels_service.preview` |
+| `POST /posts/label-preview` | auth, verified. `problem_text`, `communities[]`, validated as for a post. Rate-limited by `label_preview_max_per_hour` (429, plain message). Writes `label_previews`, then the `ai_actions` row, then calls the model; returns `preview_id`, main category, per community the suggested umbrella or null with confidence, and each community's active umbrellas for the chooser. AI unreachable → 503 with the three choices the form offers. One service call: `labels_service.preview` Two commits by design: the `ai_actions` row is committed before the model is called, so it survives a failed call (Law 7) — the one exception to one transaction per service call. |
 | `POST /posts` | problem, solutions[] (≥1), communities[], `category_choice`, per community `umbrella_id` or null, and with `preview` a `preview_id` and `main_category_id`. `preview`: the preview must be the caller's, unconsumed, and its `input_hash` must match the submitted text and communities (409 "Your text changed — run the suggestion again" otherwise); label rows are written with the preview's `ai_action_id` and outcome `confirmed_by_author` or `corrected_by_author` per community; the action's human outcome is set once; solutions are created in the same transaction. `ai`: as before, background. One transaction |
 | `GET /posts/{id}` | includes each community's label status and, once filed, links to the created solutions |
+| `GET /posts/mine?cursor=` | auth. The caller's own posts, newest first, each with its communities' filing words and links; standard pagination. Declared before `/posts/{id}` |
 | *(no `PATCH`/`DELETE /posts`)* | posts are immutable in Demo 1 (DEMOCRACY §4.1) |
 | `GET /feed?scope=&community=&category=&q=&sort=&cursor=` | DEMOCRACY §12.1. `scope=all` widens a signed-in viewer to every community; `q` 2–100 chars; `sort` ∈ `newest` (default), `oldest`, `most_votes`, `most_comments`. Each item carries `vote_count` and `comment_count`. `cursor` is opaque: keyset on (`created_at`, `id`) for the date sorts and on (count, `id`) for the count sorts. Response includes `ranking: "feed-v1"`, the `sort` in force, and its `explanation` |
 | `POST /posts/{id}/label/confirm`, `.../label/correct` | author only |
@@ -342,11 +358,11 @@ Next.js App Router, TypeScript, Tailwind. `frontend/src/app/` routes:
 | Route | Page |
 |---|---|
 | `/signup`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password` | Foundation |
-| `/me` — the account page: profile (name, display name, gender, party), email change, home change with the DEMOCRACY §2.3 warning and the next-allowed date, display settings, export, delete; `/confirm-email-change` (consumes the token); `/legal/privacy`, `/legal/terms`, `/legal/cookies` | Foundation |
+| `/me` — the account page: profile (name, display name, gender, party), email change, home change with the DEMOCRACY §2.3 warning and the next-allowed date, display settings, "Your posts" (an Iteration section, as on `/admin`), export, delete; `/confirm-email-change` (consumes the token); `/legal/privacy`, `/legal/terms`, `/legal/cookies` | Foundation |
 | `/settings` (public), `/ai/actions` (public), `/admin/log` (public), `/admin` (settings change only) | Foundation — the transparency pages ship with the tables they display; the cycle controls on `/admin` are Iteration |
 | `/home` | DEMOCRACY §12: the ballot and jury panels, ballot items pinned, then feed-v1 with search, sort, community and category filters. `/feed` redirects here |
 | `/explained` | "Direct Democracy Explained" — how the platform works, in plain terms with diagrams; public |
-| `/posts/new` | DEMOCRACY §4.1; one page, four steps: problem, solutions, communities, "Where it goes" — the AI's suggestion on the draft, kept or changed by the author before posting |
+| `/posts/new` | DEMOCRACY §4.1; one page, four steps: problem, solutions, communities, "Where it goes" — the AI's suggestion on the draft, kept or changed by the author before posting. An unverified author is told at step 1, with "Send me a new link", not at step 4. |
 | `/umbrellas/[id]` | the umbrella page, DEMOCRACY §3.3 |
 | `/solutions/[id]` | full solution with versions, amendments, discussion |
 | `/ballot` | current cycle for each home community |
