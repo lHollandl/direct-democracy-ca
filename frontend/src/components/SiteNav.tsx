@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/components/Session";
+import { UnverifiedEmailNotice } from "@/components/UnverifiedEmailNotice";
 
 const LINKS = [
   { href: "/explained", label: "Direct Democracy Explained" },
@@ -63,8 +64,7 @@ export default function SiteNav() {
       </div>
       {me && !me.email_verified ? (
         <p className="bg-[var(--accent-soft)] px-4 py-2 text-center text-sm">
-          Confirm your email address before posting, voting or commenting. The
-          link is in the message we sent when you signed up.
+          <UnverifiedEmailNotice />
         </p>
       ) : null}
     </nav>

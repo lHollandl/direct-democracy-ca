@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError, get, post } from "@/lib/api";
 import { useSession } from "@/components/Session";
 import { Loading, Notice, PageHeader, Section } from "@/components/ui";
+import { UnverifiedEmailNotice } from "@/components/UnverifiedEmailNotice";
 import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
 
@@ -261,6 +262,12 @@ export default function NewPostPage() {
         </ol>
 
         <form ref={formRef} onSubmit={submit} noValidate>
+          {step === 1 && !you.email_verified ? (
+            <Notice kind="bad">
+              <UnverifiedEmailNotice />
+            </Notice>
+          ) : null}
+
           {step === 1 ? (
             <Section
               title="1. The problem"
@@ -554,7 +561,12 @@ export default function NewPostPage() {
               </button>
             ) : null}
             {step < 4 ? (
-              <button type="button" className="btn btn-primary" onClick={next}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={next}
+                disabled={!you.email_verified}
+              >
                 Next
               </button>
             ) : (
@@ -567,12 +579,6 @@ export default function NewPostPage() {
               </button>
             )}
           </div>
-          {step === 4 && !you.email_verified ? (
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Confirm your email address first — the link is in the message we
-              sent when you signed up.
-            </p>
-          ) : null}
         </form>
       </>
     );
