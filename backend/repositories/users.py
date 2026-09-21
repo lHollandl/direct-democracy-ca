@@ -176,6 +176,30 @@ async def email_verification_by_hash(
     ).scalar_one_or_none()
 
 
+async def latest_email_verification(
+    session: AsyncSession, user_id: int
+) -> EmailVerification | None:
+    """The most recent verification token sent to this account, used or not —
+    the resend rate limit's clock (ARCHITECTURE.md §6, `VERIFY_RESEND_MINUTES`)."""
+    return (
+        await session.execute(
+            select(EmailVerification)
+            .where(EmailVerification.user_id == user_id)
+            .order_by(EmailVerification.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
+async def void_unused_email_verifications(session: AsyncSession, user_id: int) -> None:
+    """A new resend voids older unused tokens (ARCHITECTURE.md §6)."""
+    await session.execute(
+        update(EmailVerification)
+        .where(EmailVerification.user_id == user_id, EmailVerification.used_at.is_(None))
+        .values(used_at=datetime.now(timezone.utc))
+    )
+
+
 async def add_password_reset(
     session: AsyncSession, *, user_id: int, token_hash: str, expires_at: datetime
 ) -> PasswordReset:

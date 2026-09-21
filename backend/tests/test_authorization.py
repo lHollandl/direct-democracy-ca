@@ -17,6 +17,7 @@ from backend.tests.conftest import make_umbrella, make_user
 SIGNED_IN_ONLY = [
     ("GET", "/auth/me", None),
     ("PATCH", "/me/display", {"public_name_mode": "anonymous"}),
+    ("POST", "/me/resend-verification", None),
     ("POST", "/me/export", None),
     ("GET", "/me/export/1", None),
     ("DELETE", "/me", {"password": "x", "understand_this_cannot_be_undone": True}),
@@ -120,16 +121,18 @@ PUBLIC_WRITE_PATHS = {
 
 #: Every write that needs a signed-in caller but not a verified or admin one
 #: — including the own-account endpoints (`PATCH /me/display`, `PATCH
-#: /me/profile`, `POST /me/email`, `POST /me/home`, `POST /me/export`,
-#: `DELETE /me`) ARCHITECTURE.md §4 exempts from the verified-email gate by
-#: design: a person's rights over their own data cannot depend on our
-#: verification email having arrived (audit demo-01 run 4, document
-#: ambiguity 3) — and a mistyped signup email must be fixable even though it
-#: can never verify.
+#: /me/profile`, `POST /me/email`, `POST /me/resend-verification`, `POST
+#: /me/export`, `DELETE /me`) ARCHITECTURE.md §4 exempts from the
+#: verified-email gate by design: a person's rights over their own data
+#: cannot depend on our verification email having arrived (audit demo-01 run
+#: 4, document ambiguity 3) — and a mistyped signup email must be fixable,
+#: and a new link askable, even though the account can never verify without
+#: one.
 SIGNED_IN_WRITE_PATHS = {
     ("PATCH", "/me/display"),
     ("PATCH", "/me/profile"),
     ("POST", "/me/email"),
+    ("POST", "/me/resend-verification"),
     ("POST", "/me/home"),
     ("POST", "/me/export"),
     ("DELETE", "/me"),
@@ -229,7 +232,14 @@ async def test_an_unverified_account_is_refused_every_write(client):
         client, email="unverified@example.com", display_name="Unverified", verify=False
     )
     for method, path, body in SIGNED_IN_ONLY:
-        if method == "GET" or path in ("/me/export", "/me/export/1", "/me", "/auth/me", "/me/display"):
+        if method == "GET" or path in (
+            "/me/export",
+            "/me/export/1",
+            "/me",
+            "/auth/me",
+            "/me/display",
+            "/me/resend-verification",
+        ):
             continue
         response = await client.request(method, path, headers=user["headers"], json=body)
         assert response.status_code in (403, 404, 409, 422), f"{method} {path}"

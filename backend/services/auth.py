@@ -14,7 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.clients import email as email_client
 from backend.clients import redis as redis_client
 from backend.config.settings_env import get_env_settings
-from backend.errors import Conflict, Forbidden, NotFound, Unauthorized, ValidationFailed
+from backend.errors import (
+    Conflict,
+    Forbidden,
+    NotFound,
+    RateLimited,
+    Unauthorized,
+    ValidationFailed,
+)
 from backend.models import User
 from backend.repositories import geography as geo_repo
 from backend.repositories import users as users_repo
@@ -154,7 +161,8 @@ async def verify_email(session: AsyncSession, token: str) -> User:
     now = datetime.now(timezone.utc)
     if row is None or row.used_at is not None or row.expires_at < now:
         raise ValidationFailed(
-            "That confirmation link is no longer valid. Ask for a new one from the sign-in page.",
+            "That confirmation link is no longer valid. Sign in and choose "
+            "\"Send me a new link.\"",
             code="verification_invalid",
         )
     row.used_at = now
@@ -347,6 +355,52 @@ async def me_view(session: AsyncSession, user: User) -> dict:
         "is_admin": user.is_admin,
         "home_communities": [c.as_dict() for c in communities],
     }
+
+
+async def resend_verification(session: AsyncSession, user: User) -> str | None:
+    """`POST /me/resend-verification` (ARCHITECTURE.md §6) — one of the
+    endpoints exempt from the verified-email gate, since a mistyped signup
+    address can never receive its link. Voids older unused tokens and issues
+    a new one, at most one every `VERIFY_RESEND_MINUTES`."""
+    if user.email_verified_at is not None:
+        raise Conflict(
+            "Your email address is already confirmed.", code="already_verified"
+        )
+    env = get_env_settings()
+    latest = await users_repo.latest_email_verification(session, user.id)
+    if latest is not None:
+        wait_until = latest.created_at + timedelta(minutes=env.VERIFY_RESEND_MINUTES)
+        now = datetime.now(timezone.utc)
+        if now < wait_until:
+            retry_after = max(int((wait_until - now).total_seconds()), 1)
+            raise RateLimited(
+                "Please wait a few minutes before asking for another link — "
+                f"at most one every {env.VERIFY_RESEND_MINUTES} minutes.",
+                retry_after,
+            )
+
+    await users_repo.void_unused_email_verifications(session, user.id)
+    token = security.new_opaque_token()
+    await users_repo.add_email_verification(
+        session,
+        user_id=user.id,
+        token_hash=security.token_fingerprint(token),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=env.EMAIL_VERIFY_HOURS),
+    )
+    verify_link = f"{_frontend_origin()}/verify-email?token={token}"
+    await email_client.send(
+        to=user.email,
+        subject="Confirm your email address — Direct Democracy CA",
+        text_body=(
+            "Here is a new confirmation link for your Direct Democracy CA "
+            "account:\n\n"
+            f"{verify_link}\n\n"
+            f"The link works for {env.EMAIL_VERIFY_HOURS} hours. If you did "
+            "not ask for this, ignore this message.\n"
+        ),
+    )
+    log.info("verification_resent", extra={"user_id": user.id})
+    return env.demo_link(verify_link)
 
 
 async def require_verified(user: User) -> None:

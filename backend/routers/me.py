@@ -12,9 +12,26 @@ from backend.deps import CurrentUser, SessionDep
 from backend.errors import NotFound
 from backend.routers.common import Message
 from backend.services import account as account_service
+from backend.services import auth as auth_service
 from backend.services import export as export_service
 
 router = APIRouter(prefix="/me", tags=["me"])
+
+
+class ResendVerificationOut(BaseModel):
+    message: str
+    #: ARCHITECTURE.md §4 "Demo mail" — present only when `EMAIL_BACKEND=console`
+    #: and `ALLOW_TEST_DATA=true`.
+    demo_link: str | None = None
+
+
+@router.post("/resend-verification", response_model=ResendVerificationOut)
+async def resend_verification(user: CurrentUser, session: SessionDep) -> ResendVerificationOut:
+    demo_link = await auth_service.resend_verification(session, user)
+    return ResendVerificationOut(
+        message="A new confirmation link is on its way to your email address.",
+        demo_link=demo_link,
+    )
 
 
 class DisplayIn(BaseModel):

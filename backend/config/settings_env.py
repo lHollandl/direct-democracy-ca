@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_DAYS: int = 14
     EMAIL_VERIFY_HOURS: int = 24
     PASSWORD_RESET_MINUTES: int = 30
+    # The least time between two verification emails to one account
+    # (ARCHITECTURE.md §3; change/02 fix-1, FX-03).
+    VERIFY_RESEND_MINUTES: int = 5
     # How long a person has to collect the data export they asked for
     # (DATABASE.md §3.11) — a user-rights window (CLAUDE.md §6), not a
     # democratic rule, so it is configuration rather than a settings-table
@@ -138,6 +141,16 @@ class Settings(BaseSettings):
         """`PUBLIC_BASE_URL` plus a site-relative path, e.g. `/summaries/...`
         (DEMOCRACY.md §11.5)."""
         return f"{self.PUBLIC_BASE_URL.rstrip('/')}{path}"
+
+    def demo_link(self, link: str) -> str | None:
+        """ARCHITECTURE.md §4 "Demo mail" — a confirmation link is ever
+        handed back to whoever asked for it only when `EMAIL_BACKEND` is
+        `console` **and** `ALLOW_TEST_DATA` is true, so a demo environment
+        can be tested with no terminal. A real site never sets both, so this
+        must be unreachable there."""
+        if self.EMAIL_BACKEND == "console" and self.ALLOW_TEST_DATA:
+            return link
+        return None
 
 
 @lru_cache(maxsize=1)
