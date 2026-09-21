@@ -4024,3 +4024,202 @@ backend log; on New post — nothing pre-selected, Federal greyed out, the
 suggestion appears on reaching step 4, Keep / Change / None of these fit
 each work, editing the text marks it out of date; stop Ollama's route and
 see the two fallbacks; the whole form by keyboard and at phone width.
+
+---
+
+## 2026-09-20 — Session 5 (Claude.ai planning session — change/02 review; director's test)
+
+**Completed:**
+- Reviewed the change/02 build entry: C2-01…C2-13 built as specified; 287 tests; build decisions 1–8 adopted (notably: own-account edits do not require a verified email; the draft-suggestion action row is committed before the model call so it survives a failure — now documented in ARCHITECTURE §6).
+- The director tested change/02 in the build sandbox after a host power loss (sandbox and database survived). Fix brief `briefs/change-02-fix-1.md`.
+
+**Decisions made (director):**
+1. **The labeling model is `llama3.1:8b`.** On the C2-12 evidence: one poor fit against three, far fewer stray answers, the same speed.
+2. **Step 4 has no Keep button** — posting without a change is keeping. "Change" and "Choose myself" are one button. "None of these fit" stays beside it and, for now, saves the post under its main category; what it opens is decided with propose-a-new-umbrella.
+3. **Demo mail:** in a demo environment the page shows the confirmation link itself, so testing needs no terminal. Rejected: an administrator button that confirms an email — a verified address is part of what makes a vote count, and no administrator should be able to mint one.
+4. The account page lists the user's own posts.
+5. Keyboard behaviour of native controls stays standard (Space, arrows); the planning session's check wording ("Tab and Enter only") was wrong, not the form.
+
+**Issues encountered:**
+- The site told users to "ask for a new verification link" and had no way to ask. Found when the power cut destroyed the log holding the director's link. FX-03.
+- An unverified author could fill in all four steps before being refused, and was then offered the AI-unreachable fallbacks, which could not work. FX-01, FX-02.
+- The form printed the AI's main category above a suggested umbrella belonging to a different category; stored data was already correct.
+- The build flagged two document gaps outside its authority (DATABASE §2 table lists; ARCHITECTURE §4 "the three"). Corrected here.
+
+**Director verified in the browser (2026-09-20, sandbox `ddc-change-02`):** unincorporated signup shows two communities; New post has nothing pre-selected, Federal greyed out, the suggestion appears on reaching step 4, change and none-of-these-fit work, editing marks it out of date; with Ollama stopped the two fallbacks appear; on the account page a display-name change shows on an earlier post, the home change shows its warning and next-allowed date, and the email change completes from its link; the forms work by keyboard (Tab, Space, arrows, Enter on buttons) and at phone width.
+
+---
+
+## 2026-09-21 — Session 6 (Claude Code build session — change/02-who-and-where, fix run 1)
+
+Built per `briefs/change-02-fix-1.md`, unattended in a Docker Sandbox on
+branch `change/02-who-and-where`. Part A first (one commit), then FX-01
+through FX-06 one commit each, then FX-07's evidence. Both halves:
+Foundation (FX-03, FX-04) under full rigor; Iteration (FX-01, FX-05) and
+FX-02 spanning both.
+
+**Completed:**
+- **Part A — documents.** DEMOCRACY §4.1's three category-choice bullets,
+  DATABASE §2's two table lists (`user_home_changes`,
+  `email_change_requests`; `label_previews`), ARCHITECTURE §3's
+  `VERIFY_RESEND_MINUTES` row, §4's own-account exemption list and new
+  "Demo mail" paragraph, §6's `POST /me/resend-verification` and
+  `GET /posts/mine` rows and the label-preview two-commits sentence, and
+  §9's `/me` and `/posts/new` rows — all applied verbatim, no other line of
+  a protected document touched.
+- **FX-01** (`frontend/src/app/posts/new/PageClient.tsx`). The Keep control
+  is gone: an untouched community has no entry in the decisions map at all,
+  and posting sends the suggested umbrella as-is. Per community the form
+  shows "Suggested: <category> › <umbrella>", two buttons (**Choose
+  myself**, **None of these fit**), the current choice always spelled out
+  ("Filed under … — the AI's suggestion" / "— your choice" / "None of these
+  fit — saved under <category>"), and "Use the AI's suggestion" once a
+  decision exists. The page-level "Choose myself instead" is removed; Post
+  is enabled as soon as a suggestion arrives.
+- **FX-02** New `frontend/src/components/UnverifiedEmailNotice.tsx`, used by
+  both the site banner and step 1 of `/posts/new`, which now also disables
+  Next. The step-4-only text is gone.
+- **FX-03** `POST /me/resend-verification` (`services/auth.py::resend_verification`,
+  `repositories/users.py::latest_email_verification` /
+  `void_unused_email_verifications`). Exempt from the verified-email gate
+  like the other own-account endpoints.
+- **FX-04** `Settings.demo_link()` in `backend/config/settings_env.py` is the
+  single place the two-setting check lives; signup, resend-verification and
+  email-change each return its result.
+- **FX-05** `GET /posts/mine` (`posts_service.mine`,
+  `posts_repo.for_author_page`) and the "Your posts" section on `/me`.
+- **FX-06** `.env.example` `OLLAMA_MODEL=llama3.1:8b`.
+
+**Decisions made (not pre-resolved by the brief):**
+1. **The suggested umbrella's category is served, not looked up client-side.**
+   The brief asks the form to show the umbrella's *own* main category. The
+   first implementation read it from `GET /umbrellas?community=`, but that
+   endpoint paginates at 25 by specification, so in a community with more
+   umbrellas than that the suggestion's category could silently come back
+   missing. The preview response now carries `umbrella_main_category` per
+   community, and `main_category` on each `active_umbrellas` entry, so the
+   form can never print a category that disagrees with the umbrella beside
+   it. `POST /posts`'s contract is untouched, as the brief requires;
+   `POST /posts/label-preview`'s response gains two fields.
+2. **`VERIFY_RESEND_MINUTES` is configuration, not a settings-table value.**
+   It follows `EMAIL_VERIFY_HOURS` and `PASSWORD_RESET_MINUTES`: it decides
+   nothing democratic (Law 8), only how often our own mail goes out, and
+   ARCHITECTURE §3 is where the brief put it.
+3. **Signup's first token starts the resend clock.** `resend_verification`
+   measures from the most recent `email_verifications` row whether or not it
+   was used, so the very first resend request after signup is refused with
+   429 — a person who just received a link is not owed a second one
+   immediately. Recorded because it surprised the first test written
+   against it.
+4. **The pure decision module returns "keep" for an untouched community with
+   no suggestion too.** `resolvedChoice(null, undefined)` is `"none"`, not
+   `"keep"`: when the AI found nothing, the honest words on screen are
+   "None of these fit — saved under <category>", which is also exactly what
+   is posted.
+
+**Issues encountered:**
+- **The fallbacks were offered on any failure, including 403.** `runPreview`'s
+  catch treated every non-429 error as "the AI could not be reached", so an
+  unverified author's 403 produced "Choose myself, without a suggestion" and
+  "Post now, file later" — neither of which could ever have worked, since
+  `POST /posts` refuses the same account. The catch now switches on status:
+  429 → rate-limited, 503 → unavailable (both with fallbacks), anything else
+  → a new `refused` state that shows the server's own plain message and no
+  buttons. Verified live: an unverified caller gets 403 `email_not_verified`.
+- **The walkthrough's "kept" and "none" cases were keeping and overriding
+  nothing.** Both drafts were worded so the county labeler had no match, so
+  every case came back `umbrella_id: null` — the "kept" post kept a null and
+  the "none of these fit" post *agreed* with a null (`confirmed_by_author`,
+  not `corrected_by_author`), and the FX-01 category line printed
+  "None > None". Both drafts are now worded from a real county umbrella's own
+  statement, so the labeler has something to suggest and each case is a
+  genuine one. Rerun from an empty database: kept →
+  `confirmed_by_author` under "Public Transit › Bus and Light Rail
+  Frequency"; changed → `corrected_by_author`; none → `corrected_by_author`,
+  "saved under Environmental Issues".
+- **Changing `target_umbrella` to a county umbrella broke step (e).** The
+  full-cycle section prepares a *city* ballot, so its solution has to live in
+  a city umbrella; with the shared variable repointed at the county the
+  cycle prepared with zero items and the script died on an empty ballot.
+  Split into `target_umbrella` (county, for the drafts) and `city_umbrella`
+  (for the cycle).
+- **`test_resend_refuses_a_second_request_inside_the_wait` had to be
+  inverted.** Decision 3 above means the *first* resend after signup is
+  already refused, so the test now asserts that, then back-dates the token
+  and asserts the allowed-then-refused pair. A `_clear_resend_wait` helper
+  does the back-dating for the tests that are not about the rate limit.
+- **No browser in the sandbox**, the same carried-forward limitation
+  TODO.md's Technical Debt list already names. FX-01's and FX-02's
+  interactive states are proved by the extracted pure module's `npm test`
+  cases, `tsc`/`eslint`/`next build` clean, and the walkthrough's real API
+  responses; the rendered interaction is for the director's browser checks
+  below, as for every prior change.
+- `npx eslint src/` reports 4 pre-existing errors in
+  `src/app/home/PageClient.tsx`, `src/app/layout.tsx` and
+  `src/components/Session.tsx`. Confirmed identical on HEAD before these
+  commits (stashed and re-run); none are in a file this run touched, and
+  none are introduced here.
+
+**Notes:**
+- No schema change was needed and none was made; both migration chains are
+  untouched, as is `audits/`.
+- Nothing was built toward what "None of these fit" opens next, and no
+  administrator power to confirm an email was added (the director rejected
+  it). Native-control keyboard behaviour is untouched.
+- `test_authorization.py` and `test_pagination.py`'s route-completeness
+  checks were **extended** for `POST /me/resend-verification` and
+  `GET /posts/mine`, not narrowed; the unverified-writes test skips the
+  resend endpoint because it is exempt by specification.
+
+**Evidence (FX-07):**
+- Clean-shell full backend suite (no `.env` sourced into the process
+  environment), `ALLOW_TEST_DATA=false`: **303 passed, 2 deselected** (the
+  `-m live` opt-in tests). Baseline before any change was 287, as the brief
+  expected. `npm test`: **22/22** (15 pre-existing + 7 new
+  `postPreview.test.ts` cases).
+- `npm run build`: compiled clean, TypeScript clean, **25 routes**.
+  `npx tsc --noEmit`: clean.
+- `verify_schema.py`: **NO DRIFT** — ORM vs. live, ORM vs. scratch-from-
+  migrations, scratch vs. live (41 tables identical), Foundation/Iteration
+  split (17/24, no overlap), every foreign key indexed. No schema change was
+  expected and none appeared.
+- `backend/scripts/walkthrough_change02.py`, full run, **exit 0**, against a
+  freshly migrated and seeded empty database and **real Ollama on
+  `llama3.1:8b`** at the host LAN address SANDBOX.md §5 records: an
+  unincorporated signup with two communities; the three FX-01 cases above;
+  a home change (Santa Clara → Alameda, first free, next allowed 90 days
+  out); an email change end to end, confirmed **from the response's own
+  `demo_link`, with no terminal**; one full cycle (prepare → jury_review
+  with a 0-eligible-pool note → open → vote → close → publish) whose
+  summary's `verify` endpoint reports `"match": true`.
+- Live checks against the running server for the endpoints the walkthrough
+  does not cover: signup's `demo_link` present; resend refused 429 inside
+  the wait and 409 once verified; the unverified preview refused **403
+  `email_not_verified`** (not 503, so no fallbacks); `GET /posts/mine`
+  returning the caller's two posts newest-first, paginating with a
+  `next_cursor` at `limit=1`, and returning `[]` to a different account.
+- `reconcile.py --dry-run`: `corrected: false`; `net_score_drift`,
+  `dominance_changes`, `orphan_communities` and `hash_mismatches` all empty.
+- `git status`: clean after each commit; nothing outside the files each
+  commit named. `.env` is gitignored and was never committed.
+- Final handoff: database rebuilt from empty (both migration chains,
+  `seed --apply`, no test data), `ALLOW_TEST_DATA=false`, the server stopped.
+
+**Document changes flagged (not edited — outside Part A's authorization):**
+1. DEMOCRACY.md §9.2's AI-action-log table still reads
+   `` | `model` | e.g. `ollama:llama3.2` — the string, so swaps are data | ``.
+   FX-06 asks that no document name a model, but that line is not in Part A
+   and Part A is this run's only authorization to edit a protected document,
+   so it is left as the director wrote it. If the intent is that no document
+   name one, the illustrative value wants replacing with something like
+   `` e.g. `ollama:<model>` ``. (`git grep -n 'llama3'` otherwise finds only
+   `.env.example`, `archive/` — explicitly non-authoritative — and the
+   historical record in `HISTORY.md`, `audits/`, `briefs/` and `TODO.md`,
+   none of which are edited retroactively.)
+
+**Director to verify** (browser-only checks, from the brief): step 4 shows
+Suggested plus the two buttons and posts without a Keep; "Use the AI's
+suggestion" undoes a change; the category line matches the umbrella; sign up
+and confirm from the on-page demo box with no terminal; "Send me a new link"
+works and refuses a second click within five minutes; the account page lists
+your posts; an unverified account is stopped at step 1.

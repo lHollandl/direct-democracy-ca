@@ -144,8 +144,15 @@ def main() -> int:
     admin_login = client.post("/auth/login", json={"email": "c02-admin@example.com", "password": PASSWORD})
     admin["headers"] = {"Authorization": f"Bearer {admin_login.json()['access_token']}"}
 
-    umbrellas = client.get(f"/umbrellas?community=city:{city_id}").json()["umbrellas"]
-    target_umbrella = umbrellas[0]
+    # The post below goes to the county, so the draft has to be about a
+    # *county* umbrella for the labeler to have a real match to suggest —
+    # otherwise the "kept" case would only ever keep a null (change/02
+    # fix-1: the suggestion line and its category are what FX-01 is about).
+    county_umbrella_list = client.get(f"/umbrellas?community=county:{county_id}").json()["umbrellas"]
+    target_umbrella = county_umbrella_list[0]
+    # The cycle in step (e) runs in the city, so its solution needs a city
+    # umbrella — a county one would leave that ballot with nothing to prepare.
+    city_umbrella = client.get(f"/umbrellas?community=city:{city_id}").json()["umbrellas"][0]
 
     resident, log_offset = signup(
         client, email="c02-uninc@example.com", name="[EVIDENCE] Unincorporated Resident",
@@ -155,7 +162,7 @@ def main() -> int:
     assert len(me["home_communities"]) == 2, "an unincorporated resident belongs to two communities"
 
     problem_text = (
-        f"{target_umbrella['name']} keeps coming up on my street and nobody from the city "
+        f"{target_umbrella['statement']} This keeps coming up across the county and nobody "
         "has done anything about it in the six months I have lived here."
     )
     preview = show(
@@ -244,7 +251,14 @@ def main() -> int:
 
     # --------------------------------------------------------------- (b.2)
     section("A third post: 'none of these fit' — saved under the main category")
-    problem_text_3 = "A third problem report, deliberately answered with none of these fit for the evidence."
+    # Worded from a real umbrella's own statement so the labeler has
+    # something to suggest, and answering "none of these fit" is a genuine
+    # override rather than agreement with a null.
+    other_umbrella = county_umbrella_list[-1]
+    problem_text_3 = (
+        f"{other_umbrella['statement']} A third problem report, deliberately answered "
+        "with none of these fit for the evidence."
+    )
     preview_3 = show(
         "POST /posts/label-preview  (draft 3)",
         client.post(
@@ -252,6 +266,10 @@ def main() -> int:
             headers=resident["headers"],
             json={"problem_text": problem_text_3, "communities": [{"level": "county", "entity_id": county_id}]},
         ),
+    )
+    print(
+        "  the AI suggested: "
+        f"{preview_3['communities'][0]['umbrella_name']} — the author answers 'none of these fit'"
     )
     posted_3 = show(
         "POST /posts  (none of these fit)",
@@ -323,7 +341,7 @@ def main() -> int:
     solution_created = show(
         "POST /umbrellas/{id}/solutions",
         client.post(
-            f"/umbrellas/{target_umbrella['id']}/solutions",
+            f"/umbrellas/{city_umbrella['id']}/solutions",
             headers=voter["headers"],
             json={"text": "A dominant, qualified solution for the change/02 evidence cycle."},
         ),

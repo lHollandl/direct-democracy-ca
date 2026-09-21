@@ -13,8 +13,8 @@
 
 ## Current Status Snapshot
 
-*As of 2026-09-21, branch `change/02-who-and-where`: change/02 built;
-awaiting the director's test, then a change audit. `change/01-site-shell`
+*As of 2026-09-21, branch `change/02-who-and-where`: change/02 fix run 1
+done; director's look, then full Foundation audit. `change/01-site-shell`
 was merged to `main` 2026-09-20 (PR #6, squash `a85ccee`) after audit run 2
 came back CLEAN (CRITICAL 0 · HIGH 0 · MEDIUM 0 · LOW 1); branch deleted.
 change/02 — unincorporated residents, account editing, the home-change rule,
@@ -22,7 +22,13 @@ and the AI's suggestion on the draft before posting — is built per
 `briefs/change-02.md`; see "Change 02" below for C2-01 through C2-13 and
 HISTORY.md's latest entry for full evidence. It is the first change to
 touch the Foundation schema since Demo 1 (an appended migration; the first
-Foundation migration is untouched). Demo 1 was built on `demo/01`:
+Foundation migration is untouched). Fix run 1 (FX-01 through FX-07,
+`briefs/change-02-fix-1.md`) then applied what the director found using the
+change: step 4 redesigned with no Keep control, an unverified author
+stopped at step 1 with a working "Send me a new link", demo mail so a demo
+environment needs no terminal, "Your posts" on the account page, and
+`llama3.1:8b` as the labeling model. No schema change was needed.
+Demo 1 was built on `demo/01`:
 both halves, front to back,
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
@@ -621,6 +627,37 @@ Director Decision #9.
   round-trip; `npm run build` (25 routes); `npm audit --audit-level=high`
   (0); `pip-audit` (0 in project dependencies; 12 against the sandbox's own
   `pip` tooling, unrelated to this repo); `git status` clean
+
+### change/02 fix run 1 (`briefs/change-02-fix-1.md`)
+
+- [x] **FX-01** Step 4 as the director redesigned it: no Keep control
+  (posting untouched is keeping); per community the suggestion under its own
+  umbrella's main category, two buttons (Choose myself, None of these fit),
+  the current choice always in words, "Use the AI's suggestion" to undo;
+  the page-level "Choose myself instead" removed; Post enabled as soon as a
+  suggestion arrives; the two fallbacks only on 503/429, never 403. The
+  decision-to-payload mapping is a pure module (`frontend/src/lib/postPreview.ts`)
+  with `npm test` cases. `POST /posts`'s contract is unchanged
+- [x] **FX-02** An unverified author is told at step 1 of `/posts/new`, with
+  "Send me a new link", and Continue is disabled; the same
+  `UnverifiedEmailNotice` component backs the site banner
+- [x] **FX-03** `POST /me/resend-verification`: voids older unused tokens,
+  issues a new one, `VERIFY_RESEND_MINUTES` rate limit (429), 409 when
+  already verified; `services/auth.py`'s stale "ask for a new one from the
+  sign-in page" message now names the control that exists
+- [x] **FX-04** Demo mail: `demo_link` on signup, resend-verification and
+  email-change **only** when `EMAIL_BACKEND=console` and
+  `ALLOW_TEST_DATA=true`; absent in the other three combinations for all
+  three endpoints; never in a log record but the console email (caplog)
+- [x] **FX-05** `GET /posts/mine` and the "Your posts" section on `/me`,
+  between "Your communities" and "Your profile"
+- [x] **FX-06** The labeling model is `llama3.1:8b` (director's decision on
+  the C2-12 evidence); no test or script names a model literal
+- [x] **FX-07** Evidence: clean-shell full suite (303 passed, 2 deselected),
+  `npm test` (22/22), `npm run build` (25 routes), `verify_schema.py` NO
+  DRIFT (no schema change was needed), `walkthrough_change02.py` end to end
+  against real Ollama on the new model (exit 0, hash round-trip `match:
+  true`), `reconcile.py --dry-run` clean, `git status` clean
 
 ---
 
