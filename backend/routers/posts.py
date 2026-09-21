@@ -89,6 +89,9 @@ class LabelPreviewCommunityOut(BaseModel):
     entity_id: int
     umbrella_id: int | None
     umbrella_name: str | None
+    #: The suggested umbrella's own main category, which may differ from the
+    #: model's overall `main_category` guess (change/02 fix-1, FX-01).
+    umbrella_main_category: str | None
     active_umbrellas: list[dict]
 
 

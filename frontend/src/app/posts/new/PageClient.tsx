@@ -9,6 +9,13 @@ import { Loading, Notice, PageHeader, Section } from "@/components/ui";
 import { UnverifiedEmailNotice } from "@/components/UnverifiedEmailNotice";
 import { FieldError, useFormError } from "@/components/useFormError";
 import { useDocumentTitle } from "@/components/useDocumentTitle";
+import {
+  buildPreviewCommunitiesPayload,
+  communityKey,
+  resolvedChoice,
+  resolvedUmbrellaId,
+  type PreviewDecision,
+} from "@/lib/postPreview";
 
 type Umbrella = { id: number; name: string; statement: string };
 
@@ -17,7 +24,10 @@ type PreviewCommunity = {
   entity_id: number;
   umbrella_id: number | null;
   umbrella_name: string | null;
-  active_umbrellas: Umbrella[];
+  //: The suggested umbrella's *own* main category — never the model's single
+  //: overall guess, which may name a different one (FX-01).
+  umbrella_main_category: string | null;
+  active_umbrellas: (Umbrella & { main_category: string | null })[];
 };
 
 type PreviewResult = {
@@ -28,15 +38,9 @@ type PreviewResult = {
   communities: PreviewCommunity[];
 };
 
-type Decision = { choice: "keep" | "change" | "none"; umbrella_id: number | null };
-
 const STEP_NAMES = ["The problem", "What should be done", "Which communities", "Where it goes"];
 const MIN_PROBLEM = 20;
 const MAX_PROBLEM = 5000;
-
-function communityKey(level: string, entityId: number): string {
-  return `${level}:${entityId}`;
-}
 
 /** DEMOCRACY.md §4.1 — a city by its name, a county as "<name> County", the
  * state as "California". Deliberately not the same string the rest of the
@@ -63,12 +67,12 @@ export default function NewPostPage() {
   const [stepError, setStepError] = useState<string | null>(null);
 
   const [previewStatus, setPreviewStatus] = useState<
-    "idle" | "loading" | "ready" | "unavailable" | "rate_limited"
+    "idle" | "loading" | "ready" | "unavailable" | "rate_limited" | "refused"
   >("idle");
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewSignature, setPreviewSignature] = useState<string | null>(null);
-  const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [decisions, setDecisions] = useState<Record<string, PreviewDecision>>({});
 
   const [fallback, setFallback] = useState<"choose_myself" | "post_now" | null>(null);
   const [fallbackUmbrellas, setFallbackUmbrellas] = useState<Record<string, Umbrella[]>>({});
@@ -97,17 +101,24 @@ export default function NewPostPage() {
       setPreviewStatus("ready");
       setDecisions({});
     } catch (problemRaised) {
-      if (problemRaised instanceof ApiError && problemRaised.status === 429) {
+      const status = problemRaised instanceof ApiError ? problemRaised.status : 503;
+      const message =
+        problemRaised instanceof ApiError
+          ? problemRaised.message
+          : "The AI could not be reached just now.";
+      // Only an unreachable AI (503) or a spent hourly allowance (429) can
+      // be answered by "Choose myself, without a suggestion" or "Post now,
+      // file later" (DEMOCRACY.md §4.1). Anything else — a 403 for an
+      // unverified account above all — must not offer fallbacks that could
+      // never have worked, so it is reported as a plain error.
+      if (status === 429) {
         setPreviewStatus("rate_limited");
-        setPreviewMessage(problemRaised.message);
-      } else {
+      } else if (status === 503) {
         setPreviewStatus("unavailable");
-        setPreviewMessage(
-          problemRaised instanceof ApiError
-            ? problemRaised.message
-            : "The AI could not be reached just now.",
-        );
+      } else {
+        setPreviewStatus("refused");
       }
+      setPreviewMessage(message);
     }
   }
 
@@ -157,17 +168,15 @@ export default function NewPostPage() {
     goTo(step + 1);
   }
 
-  const allDecided =
-    previewStatus === "ready" &&
-    !stale &&
-    preview !== null &&
-    preview.communities.every((c) => decisions[communityKey(c.level, c.entity_id)]);
+  //: A suggestion having arrived is enough to post — there is no "keep"
+  //: step to complete; posting without touching either button keeps it.
+  const previewReady = previewStatus === "ready" && !stale && preview !== null;
 
   const fallbackReady =
     fallback === "post_now" ||
     (fallback === "choose_myself" && chosen.every((key) => fallbackPicked[key]));
 
-  const canSubmit = allDecided || fallbackReady;
+  const canSubmit = previewReady || fallbackReady;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -205,15 +214,7 @@ export default function NewPostPage() {
         payload = {
           problem_text: problem.trim(),
           solutions: cleanedSolutions,
-          communities: preview.communities.map((c) => {
-            const key = communityKey(c.level, c.entity_id);
-            const decision = decisions[key];
-            return {
-              level: c.level,
-              entity_id: c.entity_id,
-              umbrella_id: decision.choice === "none" ? null : decision.umbrella_id,
-            };
-          }),
+          communities: buildPreviewCommunitiesPayload(preview.communities, decisions),
           category_choice: "preview",
           preview_id: preview.preview_id,
           main_category_id: preview.main_category_id,
@@ -397,6 +398,12 @@ export default function NewPostPage() {
                 </div>
               ) : null}
 
+              {previewStatus === "refused" ? (
+                <Notice kind="bad">
+                  {previewMessage ?? "That suggestion could not be made."}
+                </Notice>
+              ) : null}
+
               {(previewStatus === "unavailable" || previewStatus === "rate_limited") && !fallback ? (
                 <div className="space-y-3">
                   <Notice kind="bad">
@@ -416,75 +423,93 @@ export default function NewPostPage() {
 
               {previewStatus === "ready" && !stale && preview && !fallback ? (
                 <div className="space-y-5">
-                  <p className="text-sm text-[var(--muted)]">
-                    Main category: <span className="font-medium text-[var(--fg)]">{preview.main_category}</span>
-                  </p>
                   {preview.communities.map((c) => {
                     const key = communityKey(c.level, c.entity_id);
                     const community = you.home_communities.find(
                       (h) => h.level === c.level && h.entity_id === c.entity_id,
                     );
                     const decision = decisions[key];
+                    const options = c.active_umbrellas;
+                    const choice = resolvedChoice(c.umbrella_id, decision);
+                    const chosenUmbrellaId = resolvedUmbrellaId(c.umbrella_id, decision);
+                    const chosenUmbrellaName =
+                      choice === "keep"
+                        ? c.umbrella_name
+                        : (options.find((u) => u.id === chosenUmbrellaId)?.name ?? null);
                     return (
                       <fieldset key={key} className="rounded-lg border border-[var(--line)] p-3">
                         <legend className="px-1 font-medium">
                           {community ? communityDisplayName(community) : `${c.level} ${c.entity_id}`}
                         </legend>
                         <p className="text-sm text-[var(--muted)]">
-                          {c.umbrella_name
-                            ? <>Suggested: <span className="text-[var(--fg)]">{c.umbrella_name}</span></>
-                            : "The AI found no umbrella here that fits."}
+                          {c.umbrella_name ? (
+                            <>
+                              Suggested:{" "}
+                              {c.umbrella_main_category ? `${c.umbrella_main_category} › ` : ""}
+                              <span className="text-[var(--fg)]">{c.umbrella_name}</span>
+                            </>
+                          ) : (
+                            "The AI found no umbrella here that fits."
+                          )}
                         </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <label className="flex items-center gap-1">
-                            <input
-                              type="radio"
-                              name={`decision-${key}`}
-                              checked={decision?.choice === "keep"}
-                              onChange={() =>
+                        <p className="mt-1 text-sm">
+                          {choice === "keep" ? (
+                            <>
+                              Filed under{" "}
+                              <span className="font-medium">{chosenUmbrellaName}</span> — the
+                              AI&rsquo;s suggestion
+                            </>
+                          ) : choice === "change" ? (
+                            <>
+                              Filed under <span className="font-medium">{chosenUmbrellaName}</span>{" "}
+                              — your choice
+                            </>
+                          ) : (
+                            <>
+                              None of these fit — saved under{" "}
+                              <span className="font-medium">{preview.main_category}</span>
+                            </>
+                          )}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {options.length ? (
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() =>
                                 setDecisions({
                                   ...decisions,
-                                  [key]: { choice: "keep", umbrella_id: c.umbrella_id },
+                                  [key]: { choice: "change", umbrella_id: options[0]?.id ?? null },
                                 })
                               }
-                            />
-                            {c.umbrella_name ? "Keep" : "Keep (none of these fit)"}
-                          </label>
-                          {c.active_umbrellas.length ? (
-                            <label className="flex items-center gap-1">
-                              <input
-                                type="radio"
-                                name={`decision-${key}`}
-                                checked={decision?.choice === "change"}
-                                onChange={() =>
-                                  setDecisions({
-                                    ...decisions,
-                                    [key]: {
-                                      choice: "change",
-                                      umbrella_id: c.active_umbrellas[0]?.id ?? null,
-                                    },
-                                  })
-                                }
-                              />
-                              Change
-                            </label>
+                            >
+                              Choose myself
+                            </button>
                           ) : null}
-                          <label className="flex items-center gap-1">
-                            <input
-                              type="radio"
-                              name={`decision-${key}`}
-                              checked={decision?.choice === "none"}
-                              onChange={() =>
-                                setDecisions({
-                                  ...decisions,
-                                  [key]: { choice: "none", umbrella_id: null },
-                                })
-                              }
-                            />
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() =>
+                              setDecisions({ ...decisions, [key]: { choice: "none", umbrella_id: null } })
+                            }
+                          >
                             None of these fit
-                          </label>
+                          </button>
+                          {decision ? (
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => {
+                                const rest = { ...decisions };
+                                delete rest[key];
+                                setDecisions(rest);
+                              }}
+                            >
+                              Use the AI&rsquo;s suggestion
+                            </button>
+                          ) : null}
                         </div>
-                        {decision?.choice === "change" ? (
+                        {choice === "change" ? (
                           <div className="mt-2">
                             <label htmlFor={`change-${key}`} className="sr-only">
                               Umbrella in {community ? communityDisplayName(community) : c.level}
@@ -492,7 +517,7 @@ export default function NewPostPage() {
                             <select
                               id={`change-${key}`}
                               className="field"
-                              value={decision.umbrella_id ?? ""}
+                              value={chosenUmbrellaId ?? ""}
                               onChange={(e) =>
                                 setDecisions({
                                   ...decisions,
@@ -500,7 +525,7 @@ export default function NewPostPage() {
                                 })
                               }
                             >
-                              {c.active_umbrellas.map((u) => (
+                              {options.map((u) => (
                                 <option key={u.id} value={u.id}>{u.name}</option>
                               ))}
                             </select>
@@ -509,9 +534,6 @@ export default function NewPostPage() {
                       </fieldset>
                     );
                   })}
-                  <button type="button" className="btn" onClick={() => setFallback("choose_myself")}>
-                    Choose myself instead
-                  </button>
                 </div>
               ) : null}
 

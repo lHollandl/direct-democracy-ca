@@ -48,6 +48,37 @@ async def test_a_suggestion_is_logged_before_it_is_shown(client):
     assert row["human_outcome"] == "unreviewed"
 
 
+async def test_the_suggested_umbrella_carries_its_own_main_category(client):
+    """FX-01 (change/02 fix-1): the form showed the model's single overall
+    `main_category` guess above an umbrella that could belong to a different
+    one. Each umbrella now reports its own category, so the two can never
+    disagree on screen."""
+    umbrella = await make_umbrella(
+        name="Bus Frequency",
+        statement="Buses come too rarely to rely on.",
+        category_slug="public_transit",
+    )
+    author = await make_user(client, email="category@example.com", display_name="CategoryAuthor")
+    # The model names a category that is not the suggested umbrella's own.
+    ollama_client.get_ollama().responses["labeler.md"] = labeler_answer(
+        main_category="Public Safety", umbrella_id=umbrella, level="city", entity_id=1
+    )
+    response = await client.post(
+        "/posts/label-preview",
+        headers=author["headers"],
+        json={"problem_text": PROBLEM_TEXT, "communities": [{"level": "city", "entity_id": 1}]},
+    )
+    assert response.status_code == 200, response.text
+    community = response.json()["communities"][0]
+    assert community["umbrella_id"] == umbrella
+    assert community["umbrella_main_category"] == "Public Transit", (
+        "the suggestion's category must be the umbrella's own, not the model's guess"
+    )
+    assert response.json()["main_category"] == "Public Safety"
+    listed = next(u for u in community["active_umbrellas"] if u["id"] == umbrella)
+    assert listed["main_category"] == "Public Transit"
+
+
 async def test_the_action_row_exists_even_when_the_model_call_then_fails(client):
     umbrella, author = await _author(client)
     ollama_client.get_ollama().fail_with = ExternalServiceDown("down", code="ollama_unavailable")

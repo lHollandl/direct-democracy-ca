@@ -326,6 +326,19 @@ async def preview(
         confidence = None
     choices, duplicates = _read_choices(parsed, umbrella_index)
 
+    # Every umbrella carries its own main category, so the form can show a
+    # suggestion under the category it actually belongs to rather than under
+    # the model's single overall guess, which may name a different one
+    # (change/02 fix-1, FX-01).
+    category_by_id = await umbrellas_repo.categories_by_ids(
+        session,
+        [u.main_category_id for candidates in umbrella_index.values() for u in candidates.values()],
+    )
+
+    def _category_name(umbrella) -> str | None:
+        row = category_by_id.get(umbrella.main_category_id)
+        return row.name if row else None
+
     per_community = []
     for level, entity_id in communities:
         key = (level, entity_id)
@@ -338,8 +351,14 @@ async def preview(
                 "entity_id": entity_id,
                 "umbrella_id": umbrella.id if umbrella else None,
                 "umbrella_name": umbrella.name if umbrella else None,
+                "umbrella_main_category": _category_name(umbrella) if umbrella else None,
                 "active_umbrellas": [
-                    {"id": u.id, "name": u.name, "statement": u.statement}
+                    {
+                        "id": u.id,
+                        "name": u.name,
+                        "statement": u.statement,
+                        "main_category": _category_name(u),
+                    }
                     for u in sorted(candidates.values(), key=lambda u: u.name)
                 ],
             }

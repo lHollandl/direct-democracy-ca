@@ -2,9 +2,10 @@
 the API", against a live server and real Ollama:
 
   (a) an unincorporated signup, a label-preview suggestion, and a post that
-      keeps every suggestion (`category_choice=preview`, all confirmed);
-  (b) a second post whose author changes one community's umbrella and
-      answers "none of these fit" for another;
+      keeps every suggestion (`category_choice=preview`, all confirmed) —
+      by posting it untouched, since posting is the decision (FX-01);
+  (b) a second post whose author changes the suggested umbrella, and a
+      third that answers "none of these fit";
   (c) a home change (free, first one) and a ballot vote refused because the
       voter moved into the community after that ballot was prepared;
   (d) an email change end to end — request, confirm, old address stops
@@ -166,8 +167,19 @@ def main() -> int:
         ),
     )
 
+    # FX-01: the suggestion carries the umbrella's *own* main category, which
+    # may differ from the model's single overall guess.
+    suggested = preview["communities"][0]
+    print(
+        f"  FX-01 suggestion line: "
+        f"{suggested['umbrella_main_category']} > {suggested['umbrella_name']} "
+        f"(model's overall category guess: {preview['main_category']})"
+    )
+
+    # FX-01: posting an untouched suggestion is keeping it — the payload just
+    # carries the suggested umbrella, and there is no "keep" step to complete.
     posted = show(
-        "POST /posts  (category_choice=preview, kept)",
+        "POST /posts  (preview untouched = kept)",
         client.post(
             "/posts",
             headers=resident["headers"],
@@ -178,7 +190,7 @@ def main() -> int:
                     {
                         "level": "county",
                         "entity_id": county_id,
-                        "umbrella_id": preview["communities"][0]["umbrella_id"],
+                        "umbrella_id": suggested["umbrella_id"],
                     }
                 ],
                 "category_choice": "preview",
@@ -187,10 +199,15 @@ def main() -> int:
             },
         ),
     )
-    show("GET /posts/{id}  (solutions exist immediately)", client.get(f"/posts/{posted['id']}"))
+    kept_view = show(
+        "GET /posts/{id}  (solutions exist immediately)", client.get(f"/posts/{posted['id']}")
+    )
+    assert kept_view["communities"][0]["label_outcome"] == "confirmed_by_author", (
+        "an untouched suggestion must post as confirmed_by_author"
+    )
 
     # ---------------------------------------------------------------- (b)
-    section("A second post: one community changed, one 'none of these fit'")
+    section("A second post: the author changes the suggested umbrella")
     other_umbrellas = client.get(f"/umbrellas?community=county:{county_id}").json()["umbrellas"]
     problem_text_2 = "A second, unrelated problem report for the change/02 evidence walkthrough to file."
     preview_2 = show(
@@ -206,7 +223,7 @@ def main() -> int:
         other_umbrellas[0]["id"] if other_umbrellas else None,
     )
     posted_2 = show(
-        "POST /posts  (one changed, one none-of-these-fit)",
+        "POST /posts  (changed)",
         client.post(
             "/posts",
             headers=resident["headers"],
@@ -220,7 +237,41 @@ def main() -> int:
             },
         ),
     )
-    show("GET /posts/{id}  (post 2)", client.get(f"/posts/{posted_2['id']}"))
+    changed_view = show("GET /posts/{id}  (post 2)", client.get(f"/posts/{posted_2['id']}"))
+    assert changed_view["communities"][0]["label_outcome"] == "corrected_by_author", (
+        "a changed suggestion must post as corrected_by_author"
+    )
+
+    # --------------------------------------------------------------- (b.2)
+    section("A third post: 'none of these fit' — saved under the main category")
+    problem_text_3 = "A third problem report, deliberately answered with none of these fit for the evidence."
+    preview_3 = show(
+        "POST /posts/label-preview  (draft 3)",
+        client.post(
+            "/posts/label-preview",
+            headers=resident["headers"],
+            json={"problem_text": problem_text_3, "communities": [{"level": "county", "entity_id": county_id}]},
+        ),
+    )
+    posted_3 = show(
+        "POST /posts  (none of these fit)",
+        client.post(
+            "/posts",
+            headers=resident["headers"],
+            json={
+                "problem_text": problem_text_3,
+                "solutions": ["A solution text for the third evidence post."],
+                "communities": [{"level": "county", "entity_id": county_id, "umbrella_id": None}],
+                "category_choice": "preview",
+                "preview_id": preview_3["preview_id"],
+                "main_category_id": preview_3["main_category_id"],
+            },
+        ),
+    )
+    none_view = show("GET /posts/{id}  (post 3)", client.get(f"/posts/{posted_3['id']}"))
+    none_community = none_view["communities"][0]
+    assert none_community["umbrella_id"] is None, "none of these fit files no umbrella"
+    print(f"  none-of-these-fit filing words: {none_community['label_status']}")
 
     # ---------------------------------------------------------------- (c)
     section("A home change, then a ballot vote refused for having moved in after prepare")
