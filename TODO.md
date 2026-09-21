@@ -13,8 +13,16 @@
 
 ## Current Status Snapshot
 
-*As of 2026-09-20, branch `change/01-site-shell`: change/01 built; awaiting
-the director's test, then a change audit. Demo 1 was built on `demo/01`:
+*As of 2026-09-21, branch `change/02-who-and-where`: change/02 built;
+awaiting the director's test, then a change audit. `change/01-site-shell`
+was merged to `main` 2026-09-20 (PR #6, squash `a85ccee`) after audit run 2
+came back CLEAN (CRITICAL 0 · HIGH 0 · MEDIUM 0 · LOW 1); branch deleted.
+change/02 — unincorporated residents, account editing, the home-change rule,
+and the AI's suggestion on the draft before posting — is built per
+`briefs/change-02.md`; see "Change 02" below for C2-01 through C2-13 and
+HISTORY.md's latest entry for full evidence. It is the first change to
+touch the Foundation schema since Demo 1 (an appended migration; the first
+Foundation migration is untouched). Demo 1 was built on `demo/01`:
 both halves, front to back,
 from an empty database. The full cycle runs — signup through a published,
 verifiable results document — and the test suite and the manual walkthrough are
@@ -46,7 +54,7 @@ first page of the lists they show, with a `next_cursor`, per ARCHITECTURE
 §6's now-explicit rule. Full evidence in HISTORY.md's latest build entry.
 `demo/01` merged to `main` 2026-09-19 and tagged `demo-1`; work proceeds by
 `change/NN` branches. Phase 0 remains complete except the optional search
-provider. change/01 fix run 2 done; re-audit next.*
+provider.*
 
 | Layer | Half | Status | Notes |
 |---|---|---|---|
@@ -558,15 +566,61 @@ director's test, then a change audit before its PR to `main`.
 
 ## Change 02 — who you are and where you post
 
-Not started. Queued from the director's Demo 1 use notes (HISTORY.md,
-Session 2).
+Built on `change/02-who-and-where` from `briefs/change-02.md`. Awaiting the
+director's test, then a change audit before its PR to `main`. Closes
+Director Decision #9.
 
-- [ ] Unincorporated option at signup: "Unincorporated — no city"; county and state communities only (closes Director Decision #9)
-- [ ] Account page edits: name, email (with re-confirmation), party, gender
-- [ ] Home city/county change: once per a public number of days (default 90); never lets a user vote in a ballot already under way
-- [ ] Post form: no city pre-selected, no "(city)" suffix, no city box for unincorporated users
-- [ ] Federal governance level: a greyed-out "planned" checkbox on the post form
-- [ ] AI label suggestion on the post form (suggest, accept or change, submit); background labeling stays as the fallback
+- [x] **C2-01** Schema: `users.city_id` nullable (appended Foundation
+  migration `b3f270601b35`, never editing `25035d5b7ff5`); `user_home_changes`,
+  `email_change_requests` (Foundation); `label_previews`, `posts.category_choice`
+  gains `preview` (regenerated Iteration migration); `home_change_cooldown_days`
+  and `label_preview_max_per_hour` seeded. Proof: upgrade from empty and from
+  the old Foundation head with a user in it; `verify_schema.py`; downgrade
+- [x] **C2-02** One source for "your communities":
+  `backend/services/communities.py::home_communities` (module renamed from
+  `community.py`); every membership check funnels through it or `is_member`/
+  `require_member`; active-user counts and the jury pool use the same
+  nullable-`city_id`-safe SQL clause. Proof: `git grep -n 'city_id'` walked and
+  explained; `test_communities.py` walks an unincorporated user through
+  post → vote → comment → ballot in county and state, refused in any city
+- [x] **C2-03** Signup: county first, then that county's cities with
+  "Unincorporated — no city" first; backend accepts `city_id: null`
+- [x] **C2-04** Profile and email: `PATCH /me/profile`, `POST /me/email`,
+  `POST /auth/confirm-email-change`; a rename shows on an existing post and
+  changes no hash; anonymization deletes both new tables' rows; export
+  includes them
+- [x] **C2-05** Changing home: `account_service.change_home` (DEMOCRACY §2.3
+  rules 1–3), `GET/POST /me/home`; ballot eligibility (§10.3) in
+  `ballots.py::_eligible`, one-sentence refusal
+- [x] **C2-06** The account page (`/me`): profile, email change, home change
+  with the §2.3 warning and next-allowed date, display settings, export,
+  delete
+- [x] **C2-07** Labeler prompt states "none" is a correct answer, not a
+  fallback (version 4 → 5)
+- [x] **C2-08** Suggestion on a draft: `POST /posts/label-preview`,
+  `POST /posts` `category_choice=preview`; `label_previews` → `ai_actions` →
+  model call, survives a failed call; rate limited from settings; refuses
+  another user's, a consumed, or a stale preview
+- [x] **C2-09** `/posts/new` rebuilt as a four-step form: problem, solutions,
+  communities (nothing pre-selected, Federal disabled), "Where it goes" (the
+  suggestion runs on reaching the step; Keep/Change/None of these fit;
+  Choose myself; Post now file later when the AI is unreachable);
+  preview-born labels on `/ai/actions` and the post page
+- [x] **C2-10** Test data: `test_dataset.yaml`'s two unincorporated residents
+  and two posts load cleanly; `load_test_data.py` handles `city: ~`
+- [x] **C2-11** Housekeeping: (a) the environment-leakage test clears
+  `os.environ`; (b) `next.config.ts` disables `agentRules`, both files
+  gitignored; (c) `.env.example` `BUILD_LABEL=change-02`; (d) the
+  `/tmp/uvicorn.log` debt entry now names `load_test_data.py` too
+- [x] **C2-12** Labeler comparison (evidence only, HISTORY.md): `llama3.2`
+  vs `llama3.1:8b` on the same 11 `file_under: ai` test posts
+- [x] **C2-13** Evidence: full suite (287 passed, 2 deselected) and `npm test`
+  (15/15) in a clean shell; `verify_schema.py` clean; seed `--dry-run` zero
+  pending; test data loaded with both models; `walkthrough_change02.py`
+  end to end through the API; `reconcile.py --dry-run` clean; hash
+  round-trip; `npm run build` (25 routes); `npm audit --audit-level=high`
+  (0); `pip-audit` (0 in project dependencies; 12 against the sandbox's own
+  `pip` tooling, unrelated to this repo); `git status` clean
 
 ---
 
@@ -600,7 +654,8 @@ Questions the documents flag; Demo 1 proceeds with the stated default.
 
 Resolved 2026-09-13 (see HISTORY): #6 keep home city/county — now CLAUDE §6.
 Resolved 2026-09-19 (see HISTORY, Session 2): #9 — "Unincorporated — no
-city" at signup; county and state communities only; builds in change/02.
+city" at signup; county and state communities only; built in change/02
+(2026-09-21), awaiting the director's test and a change audit before merge.
 
 ---
 

@@ -3673,3 +3673,354 @@ against real Ollama (question 2); and the one LOW finding — a leaked
 shell environment can defeat `test_ip_hash_is_salted_and_the_secret_is_
 required`'s `_env_file=None` assumption, reproduced directly (question
 3). Findings live in the report, not here.
+
+## 2026-09-20 — Session 4 (Claude.ai planning session — change/01 merged; change/02 designed)
+
+**Completed:**
+- `audits/change-01-audit-2.md`: CRITICAL 0 · HIGH 0 · MEDIUM 0 · LOW 1 — CLEAN; all seven browser checks director-verified. `change/01-site-shell` merged to `main` by PR #6 (squash, `a85ccee`); branch deleted. First full cycle of the change method: build, director's test, two fix runs, two audits, merge, in two days.
+- change/02 designed with the director; brief `briefs/change-02.md`; two unincorporated test residents and two posts added to `test_dataset.yaml`.
+
+**Decisions made (director unless marked):**
+1. **The AI labels the draft before it is posted** (director chose this over post-then-label): the suggestion runs as soon as the author reaches "Where it goes"; the author keeps, changes, or answers "none of these fit", then posts. Planning session's design for Law 7: each suggestion is a public AI action with subject `label_preview`; only a hash of the draft is kept, never its text; an abandoned draft leaves "a suggestion was made and not used". No Foundation table changes for this — `label_previews` is an Iteration table. A public hourly limit per user guards the GPU.
+2. "None of these fit" is a first-class answer for the AI and the author; the post waits under its main category. Propose-a-new-umbrella (change/03) will sit beside it. Prompted by audit 2's note that the small model forces bad fits.
+3. Moving during a ballot sits that ballot out in both the old and the new community; California and an unchanged county are unaffected. A juror finishes service before moving. The first home change is free; the cooldown (90 days, a setting) runs after it.
+4. Email changes take effect only when the new address is confirmed; the old address is notified; a password is required. Real name is editable until identity verification exists; date of birth never.
+5. Unincorporated residents have `city_id` NULL and two communities (closes the design of Director Decision #9).
+6. AUDIT.md §2: a Foundation file named by a finding does not by itself widen a re-audit (answers audit 2's document ambiguity 1).
+7. Evidence only: `llama3.2` and `llama3.1:8b` label the same test posts side by side; the director chooses the default afterwards.
+
+**Issues encountered:**
+- Audit 2 NOTE: with no fitting umbrella the 3B labeler picks the nearest poor one (street lights → "Pedestrian Safety Near Schools"). Decisions 2 and 7 respond.
+- Next.js 16 generates `frontend/CLAUDE.md` on `next dev`; Claude Code reads any `CLAUDE.md` as instructions. C2-11(b) turns it off.
+
+## 2026-09-21 — Session 5 (Claude Code build — change/02-who-and-where)
+
+Full build of `briefs/change-02.md`, C2-01 through C2-13, one commit per
+item (`change/02 documents` for Part A; `C2-NN: ...` for each Part B item).
+Pre-checks: branch `change/02-who-and-where` at `5fe8bc7` ("change/02
+brief"); `.env` built from `.env.example` with generated `JWT_SECRET`/
+`IP_HASH_SECRET`/Postgres password, `OLLAMA_BASE_URL=http://192.168.1.165:11434`
+(SANDBOX.md §5's recorded address — reachable, `llama3.2`, `llama3.1:8b`,
+and `nomic-embed-text` all listed); Docker Compose up; both migration
+chains from empty; seed; full backend suite (256 passed, 2 deselected, one
+expected failure from `BUILD_LABEL=change-02` against a test's then-still-
+hardcoded `"demo-01"`, fixed by C2-11(c)'s collateral) and `npm test`
+(15/15) green in a clean shell before any change, per Step 0.
+
+**Completed:**
+- **Part A**: DEMOCRACY.md §2.3, §4.1, §7.4, §9.1, §10.3, §14; DATABASE.md
+  §3.1, §3.10, §3.11, §4.3, plus new §3.12/§3.13/§4.19; ARCHITECTURE.md §6
+  (auth/account, posts/labels), §9 (`/me`, `/posts/new`); AUDIT.md §2 —
+  every anchor found and applied verbatim; no anchor misses.
+- **C2-01**: appended Foundation migration `b3f270601b35` (`users.city_id`
+  nullable, `user_home_changes`, `email_change_requests`); Iteration
+  migration `b4b4da0b6e54` regenerated in place (`label_previews`,
+  `posts_category_choice_enum` gains `preview`) per DATABASE.md §6's
+  practice; both settings seeded. Proof: migrations from empty; a scratch
+  database upgraded from the old Foundation head with a user row already in
+  it (survived unchanged, both new tables appeared, `city_id` became
+  nullable); `verify_schema.py` clean (41 tables, 17 Foundation/24
+  Iteration); downgrade of the new migration restores the old schema
+  exactly (tested in the same scratch database).
+- **C2-02**: `backend/services/community.py` renamed to `communities.py`
+  (the brief's own director-approved DEMOCRACY wording names the exact
+  path); `home_communities` returns two or three `Community` objects
+  depending on `user.city_id`. The `git grep -n 'city_id' backend/ --
+  ':!backend/tests' ':!backend/alembic'` proof (28 hits) is entirely: the
+  model column and its indexes; `communities.py`/`export.py`'s own null
+  checks; `auth.py` signup validation; `routers/auth.py`'s DTO;
+  `geography.py`'s unrelated city lookups; and `repositories/users.py::
+  _community_clause`, the one SQL-level exception — used by active-user
+  counts and the jury draw pool, where `User.city_id == entity_id` already
+  excludes NULL correctly (SQL NULL never equals anything) without needing
+  a per-user service call. `test_communities.py` walks an unincorporated
+  resident through post → vote → comment → ballot in both county and state
+  (two full ballot cycles), then proves a city post, a city comment, and a
+  city vote are all refused `not_a_member`.
+- **C2-03**: `SignupIn.city_id` optional; `auth_service.signup` validates
+  county unconditionally and city only when given; frontend adds
+  "Unincorporated — no city" as the first city option once the city list
+  loads, and rewrites the helper paragraph for two vs. three communities.
+- **C2-04**: `PATCH /me/profile` (real_name, display_name, gender,
+  political_party — never date of birth); `POST /me/email` +
+  `POST /auth/confirm-email-change` (new `email_change_requests` repo);
+  both new repos (`home_changes.py`, `email_changes.py`); anonymization now
+  also deletes every row in both new tables; export gains `home_changes`
+  and `pending_email_changes`. Test proves a display-name rename shows on
+  an already-posted post's `author` field while `content_hash` stays byte-
+  identical. `/auth/me` gained `gender`/`political_party` (needed to
+  prefill the new profile form; not in the brief's own MeOut list, but
+  required for C2-06 to have anything to prefill — recorded here as a
+  necessary addition, not a document change).
+- **C2-05**: `account_service.change_home` (rules 1–3 exactly);
+  `services/ballots.py::_eligible` computes membership start from
+  `user_home_changes` (a move within the same county correctly leaves
+  county membership dated to signup — the first version of
+  `earliest_membership_start` had a bug here, caught by the mid-county-move
+  test, fixed by checking `from_X_id != to_X_id` before treating a row as
+  changing that level). `GET/POST /me/home`.
+- **C2-06**: `/me` gained Your profile, Change your email, and Change your
+  home community sections, in that order, between Your communities and
+  Your verification level; the home panel always states the three §2.3
+  consequences and, when a change is currently refused, replaces the form
+  with the reason instead of showing a form that will just 409.
+- **C2-07**: `ai/prompts/labeler.md` version 4 → 5; new hash
+  `e9c557e5d7f4ba7e716c8c58e4f3c13a8a10ed053efa3f47907757309aceba26`; the
+  "no umbrella fits" paragraph now leads with "`null` is a correct answer,
+  not a fallback" and explicitly tells the model not to pick the closest-
+  sounding umbrella. Parser already accepted `null`; no code change.
+- **C2-08**: `labels_service.preview` (`backend/services/labeling.py::
+  preview`, imported under that alias in `routers/posts.py` to match the
+  brief's own cited call site) inserts `label_previews`, then the
+  `ai_actions` row (`output={"status": "pending"}`), then commits —
+  deliberately, a documented exception to one-transaction-per-service-call,
+  because a request that goes on to fail and return 503 would otherwise
+  roll back the very row Law 7 needs to survive that failure — then calls
+  the model and stores `result` in a second commit. `POST /posts`'s
+  `preview` path validates the preview is the caller's, unconsumed, and
+  hash-matches the submitted text/communities; label rows point at the
+  preview's `ai_action_id` with `confirmed_by_author`/`corrected_by_author`
+  per community (including "none of these fit" counting as `corrected`
+  when the AI had suggested something); the action's `human_outcome` is
+  set once, `confirmed` only if every community was kept. Ten tests cover:
+  the action row logged before its result; the row surviving a simulated
+  Ollama outage (asserted directly against the database, not just the
+  response); no draft text in the database or in `caplog` (a marker
+  string, `caplog.at_level(DEBUG)`); the settings-driven rate limit (429);
+  another user's/a consumed/a stale preview all refused with distinct
+  codes; solutions existing immediately (no `settle_jobs`); a mixed
+  changed/none-of-these-fit post; `category_choice=ai` unchanged.
+- **C2-09**: `/posts/new` rebuilt as a four-step wizard in one file
+  (nothing pre-selected; step 3 names cities by name, counties as
+  "<name> County", state "California", the unincorporated note, and a
+  disabled "Federal — planned, not yet available" checkbox with
+  `aria-disabled`, never submitted). Reaching step 4 fires
+  `POST /posts/label-preview` once (`role="status"` "The AI is reading
+  your draft…"); each community gets a Keep/Change/None-of-these-fit
+  radio group (Change reveals a `<select>` of the community's own active
+  umbrellas, already returned by the preview — no second fetch); editing
+  problem text or communities after a preview is fetched is detected by
+  comparing a signature of both, and shown as "out of date" with a refresh
+  button rather than silently resubmitted; a 429 or 503 from the preview
+  call offers "Choose myself" (the old author-selected picker) or "Post
+  now, file later" (`category_choice=ai`); Post stays disabled until every
+  community has an explicit decision. `posts.py::_label_words` now takes
+  the post's `category_choice` and answers "AI-suggested, kept/changed by
+  author" for the preview path (both the post page and the umbrella's
+  problem-reports listing); `/ai/actions` reads "Suggestion on a draft —
+  not posted" for an unreviewed `label_preview` action.
+- **C2-10**: `load_test_data.py::load_account` crashed on `city: ~`
+  (`city_id(county, None)` tried a dict lookup with key `None`) — fixed to
+  pass `city_id=None` straight through when the dataset says so. Verified
+  against real Ollama from an empty database (see C2-12): both unincorporated
+  test accounts signed up and `t17`'s `/auth/me` showed exactly two
+  communities; the shipped two extra posts (p41, p42) filed correctly.
+- **C2-11**: (a) `test_ip_hash_is_salted_and_the_secret_is_required` now
+  `monkeypatch.setattr(os, "environ", {})` before constructing the probe
+  `Settings`, so `_env_file=None` is no longer defeated by a shell that has
+  `.env` exported — reproduced the audit's exact failure first (`set -a; .
+  ./.env; set +a` then the old test failed), then confirmed the fix holds
+  under the same conditions. (b) `next.config.ts` sets `agentRules: false`
+  (Next.js 16's own config key for this exact behavior); confirmed by
+  running `next dev` for 15s under the new config and finding neither file
+  written; both gitignored. (c) `.env.example`'s `BUILD_LABEL` → `change-02`
+  — which broke `test_transparency.py`'s one test hardcoding `"demo-01"`,
+  fixed to read `get_env_settings().BUILD_LABEL` instead (Law 10: a build
+  label is configuration, never a literal, including in a test's own
+  assertion). (d) the `/tmp/uvicorn.log` debt entry now names
+  `load_test_data.py` alongside `walkthrough_extended.py`.
+- **C2-12**: see the table below.
+- **C2-13**: see Evidence below. `backend/scripts/walkthrough_change02.py`
+  added (committed, matching `walkthrough_extended.py`'s precedent) —
+  exercises (a)–(e) of the brief's evidence list against a live server and
+  real Ollama from an empty database.
+
+**Decisions made (where the documents and brief were silent):**
+1. `backend/services/community.py` renamed to `communities.py` rather than
+   adding a second file, since DEMOCRACY.md §2.3 (Part A, director-approved)
+   names `backend/services/communities.py::home_communities` exactly, and
+   the module already held far more than that one function.
+2. The `labels_outcome_enum` was not given new values for the preview
+   flow (Part A's DATABASE.md edit touched only `posts.category_choice`).
+   The existing `confirmed_by_author`/`corrected_by_author` are reused;
+   the preview-flavored wording ("AI-suggested, kept/changed by author")
+   is chosen at render time from `post.category_choice`, not stored.
+3. `PATCH /me/profile` and `POST /me/email` use `CurrentUser`, not
+   `VerifiedUser` — matching the three existing own-account exemptions
+   (ARCHITECTURE.md §4) rather than adding a fourth and fifth exception
+   category. Reason: a mistyped signup email can never receive a
+   verification link, so fixing it cannot itself require verification.
+   ARCHITECTURE.md §4's prose ("except the three") is now stale at five;
+   flagged below, not edited (outside Part A).
+4. The "joined after prepare" ballot refusal (DEMOCRACY.md §10.3 rule 3)
+   gets its own error code, `joined_after_prepare`, distinct from
+   `not_a_member` — the brief asks for "a refusal told why in one
+   sentence," not a shared code, and the two cases are genuinely different
+   for a client to handle.
+5. `label_preview_max_per_hour`'s 429 reuses the existing `RateLimited`
+   exception (already used by the per-minute write limiter), matching
+   ARCHITECTURE.md's own "(429, plain message)".
+6. `user_home_changes.from_county_id`/`to_county_id` are NOT NULL (a county
+   is always present); only the city columns are nullable — DEMOCRACY.md's
+   own wording ("the county is unaffected by a move within it") only makes
+   sense if county is always recorded.
+7. C2-11(a)'s brief line "remove the debt item fixed by C2-11(a)" — no
+   TODO.md Technical Debt bullet existed for the audit change-01-2 LOW
+   finding; it lived only in `audits/change-01-audit-2.md` and HISTORY.md's
+   own Session 8/3 entries. Nothing to remove; recorded here rather than
+   silently skipped.
+8. The account page's new sections are ordered profile, email, home,
+   *then* the existing display/export/delete sections — ARCHITECTURE.md §9
+   lists them in that order ("profile ..., email change, home change ...,
+   display settings, export, delete") and the page now matches it exactly.
+
+**Issues encountered:**
+- `_read_choices`'s duplicate/unlisted-community handling and the prompt-
+  variable-building code were duplicated between `label_post` and the new
+  `preview`; both were extracted into shared `_prompt_variables`/
+  `_read_choices` helpers in `labeling.py` rather than copy-pasted, so the
+  two paths cannot drift apart on how they read a model answer.
+- The sandbox has no browser and (this session) no working jsdom-based
+  render harness reachable in the time available: `next/navigation`'s
+  `useRouter` resolves through a package-export/TS-source path that a
+  custom ESM `resolve()` hook could not reliably intercept ahead of `tsx`'s
+  own loader (ESM vs. the CJS path Next's own module took were not the
+  same hook). Attempted, then abandoned in favor of what the sandbox can
+  actually produce: `tsc`/`eslint`/`next build` clean (25 routes, 0
+  problems introduced), server-rendered HTML for `/posts/new` and `/me`'s
+  unauthenticated shell (h1, title, and the signup page's unconditional
+  "Unincorporated" helper text all present in the served HTML with no
+  client JS run), and the interactive states — the stepped suggestion
+  review, the pre-filled profile form — proved through
+  `backend/scripts/walkthrough_change02.py`'s real API responses plus the
+  component source read against DEMOCRACY.md §4.1's governance-levels
+  paragraph. This is the same carried-forward limitation TODO.md's
+  Technical Debt list already names ("No browser can be installed in the
+  sandbox"); C2-06/C2-09's own interactive-state proof is deferred to the
+  director's browser checks below, as for every prior change.
+- The rate limiter (`RATE_LIMIT_WRITE_PER_MINUTE`, IP-keyed for
+  unauthenticated writes) caps how many accounts a single test can sign up
+  through the real HTTP client: `make_user` costs three IP-bucket writes
+  (signup, verify, login), so `test_communities.py`'s first draft (4
+  voters per community) hit 429 by its second community; cut to 1 voter
+  per community once the threshold formula (`min(ceil(pct·N), minimum)`,
+  floored at 1) was confirmed to make even 1 net upvote sufficient at this
+  scale.
+
+**C2-12 — labeler comparison** (evidence only; default unchanged,
+`OLLAMA_MODEL=llama3.2` restored in `.env` afterward). From an empty,
+freshly migrated and seeded database, `load_test_data.py --apply` with
+`OLLAMA_MODEL=llama3.2`, then again from another empty database with
+`OLLAMA_MODEL=llama3.1:8b`. Both loads applied without error (18 accounts,
+42 posts, 282–296 votes, 28 comments each). Timing is `job_end.time -
+job_start.time` for `backend/jobs/labeling.py`'s own `job_start`/`job_end`
+log lines (wall-clock for the whole labeling job: the Ollama call plus the
+database writes), matched to each post by `job_id`; the umbrella and
+`repeated_or_unlisted_communities` are read from the resulting `ai_actions`
+row.
+
+| Post | Community | llama3.2 → umbrella | sec | llama3.2 repeated/unlisted | llama3.1:8b → umbrella | sec | 8b repeated/unlisted |
+|---|---|---|---|---|---|---|---|
+| p04 | city | Pedestrian Safety Near Schools | 2.1 | city:1→null | Pedestrian Safety Near Schools | 4.3 | city:408→null |
+| p09 | city | Pedestrian Safety Near Schools | 0.9 | city:1→null | Pedestrian Safety Near Schools | 1.3 | city:408→null |
+| p10 | city | *(none)* | 1.4 | city:3→1, city:4→2, city:2→3, city:1→null (4 stray) | *(none)* | 1.3 | city:408→null |
+| p16 | county | *(none)* | 0.8 | city:12→7 (wrong level) | Wildfire Smoke and Air Quality Response | 1.3 | city:12→null (wrong level, extra) |
+| p17 | county | *(none)* | 0.9 | city:12→null (wrong level) | *(none)* | 0.9 | none |
+| p24 | city | *(none)* | 1.0 | city:9→null, city:8→null (stray) | Traffic Congestion on Commute Corridors | 1.0 | none |
+| p25 | city | Downtown and Small Business Vitality | 1.2 | city:9→8, city:12→7 (stray) | *(none)* | 0.9 | none |
+| p32 | county | Homelessness Services and Shelter Capacity | 1.4 | county:2→null, city:11→12, city:10→null (mixed) | *(none)* | 1.0 | none |
+| p39 | state | *(none)* | 1.2 | state:14/15/16→null (wrong level) | *(none)* | 1.4 | state:1→7 (extra) |
+| p40 | state | *(none)* | 1.6 | 5 stray entries | *(none)* | 1.4 | state:1→15 (extra) |
+| p42 | state | *(none)* | 1.7 | 3 stray entries | *(none)* | 1.3 | state:1→15 (extra) |
+
+Both models answered correctly (2/2) on the two posts (p04, p09) that
+closely match an umbrella's name; both answered `null` correctly on
+several of the harder ones (p10, p17, p39). `llama3.2` found a plausible
+umbrella on p25 and p32 that `llama3.1:8b` did not; `llama3.1:8b` found a
+clearly correct umbrella on p16 (smoke/air quality) that `llama3.2` missed
+entirely, and both p16 and p24 are `llama3.1:8b`'s two strongest and one
+weakest answers respectively — p24 (a park path flooding) was labeled
+"Traffic Congestion on Commute Corridors," which does not fit. `llama3.2`
+strays outside the requested community far more often (answering for an
+unlisted city when only a county or state was requested, on 7 of its 11
+posts vs. 8b's 4) but those strays are already caught and ignored by
+`_read_choices`, so neither model's stray answers ever mis-filed a post.
+No recommendation — the director decides.
+
+**Notes:**
+- `frontend/src/lib/api.ts`, `frontend/src/components/ui.tsx` and every
+  other pre-existing `fetch`-adjacent file are untouched; `test_layering.py`
+  ("frontend calls fetch only from api.ts") still passes.
+- The account-rights test suite (`test_account_profile.py`,
+  `test_home_change.py`, `test_communities.py`, `test_label_preview.py`)
+  is new; `test_authorization.py` and `test_pagination.py`'s route-
+  completeness checks were extended for every new endpoint
+  (`PATCH /me/profile`, `POST /me/email`, `POST /me/home`,
+  `POST /posts/label-preview`, `GET /me/home`) rather than narrowed.
+- `backend/scripts/walkthrough_change02.py` was run three times end to end
+  against real Ollama from an empty database before it passed clean
+  (fixing, in order: the email-change token's log marker string, and
+  `ballot_min_dominant_days` needing to be lowered the same way every
+  other demo/evidence script already does it, as a logged admin setting
+  change with a reason — restored to nothing here since the database was
+  rebuilt from empty afterward, not restored in place).
+- Final handoff: database rebuilt from empty (both migration chains,
+  `seed --apply`, no test data), `ALLOW_TEST_DATA=false`, `OLLAMA_MODEL`
+  back to `llama3.2`.
+
+**Evidence (C2-13):**
+- Clean-shell full backend suite (no `.env` sourced into the process
+  environment; pydantic-settings reads `.env` directly): **287 passed, 2
+  deselected** (the `-m live` opt-in tests). `npm test`: **15/15**.
+- `verify_schema.py`: NO DRIFT — ORM vs. live, ORM vs. scratch-from-
+  migrations, scratch vs. live (41 tables identical), Foundation/Iteration
+  split (17/24, no overlap), every foreign key indexed.
+- `python -m backend.seed --dry-run` on the freshly seeded database: 0
+  pending writes ("Nothing to do").
+- Test data loaded twice from empty (C2-12, above), both against real
+  Ollama; `t17`'s (unincorporated) `/auth/me` independently checked over
+  HTTP: exactly two `home_communities` (county, state).
+- `backend/scripts/walkthrough_change02.py`, full run, exit 0, against a
+  freshly migrated and seeded empty database and real Ollama: unincorporated
+  signup → two communities confirmed; a label-preview suggestion kept in
+  full (`label_outcome: confirmed_by_author`, `label_shown_as: "AI-
+  suggested, kept by author"`, solutions present in the same response); a
+  second post with one community's umbrella changed
+  (`corrected_by_author`, "AI-suggested, changed by author"); a home
+  change (Santa Clara → Alameda, first change free, `next_change_allowed_at`
+  90 days out); an email change end to end (old address still logs in
+  before confirming, 401 after; new address 401 before, 200 after); one
+  full cycle (prepare → jury_review with a 0-eligible-pool note → open →
+  vote → close → publish) with its summary's `verify` endpoint reporting
+  `"match": true`.
+- `reconcile.py --dry-run` after the walkthrough: `corrected: false`, all
+  four drift/orphan/mismatch lists empty.
+- `npm run build`: 25 routes, clean. `npm audit --audit-level=high`: 0
+  vulnerabilities. `pip-audit` (installed for this run,
+  `pip install --break-system-packages pip-audit`): 0 vulnerabilities in
+  this project's dependencies; 12 findings, all against the sandbox's own
+  system `pip` 25.1.1 (packaging tooling, not a project dependency —
+  unrelated to this repository).
+- `git status`: clean after each commit; nothing outside the files each
+  commit named.
+
+**Document changes flagged (not edited — outside Part A's authorization):**
+1. DATABASE.md §2's Foundation/Iteration table lists do not include
+   `user_home_changes`, `email_change_requests` (Foundation), or
+   `label_previews` (Iteration) — Part A's edits to §2 were not
+   authorized, so the new §3.12/§3.13/§4.19 sections exist without a
+   corresponding table-list entry.
+2. ARCHITECTURE.md §4's "except the three that act only on the caller's
+   own account" is now five: `PATCH /me/profile` and `POST /me/email` join
+   `PATCH /me/display`, `POST /me/export`, `DELETE /me` on the same
+   verified-email exemption (Decision 3, above), but the prose still says
+   "three."
+
+**Director to verify** (browser-only checks, from the brief): sign up as
+unincorporated and see two communities on Home; change home on the account
+page (`/me`), read the warning, see the next-allowed date; change display
+name and see it on an old post; change email using the link from the
+backend log; on New post — nothing pre-selected, Federal greyed out, the
+suggestion appears on reaching step 4, Keep / Change / None of these fit
+each work, editing the text marks it out of date; stop Ollama's route and
+see the two fallbacks; the whole form by keyboard and at phone width.
