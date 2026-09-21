@@ -686,11 +686,12 @@ What makes it bite, not only what it is.
   ever reads a redrawn jury's history expecting to find `replaced` rows —
   today, nothing does. **Resolved in fix run 2 (FIX-09):** a redraw now sets
   `superseded_at` on the old row instead of deleting it.
-- **`backend/scripts/walkthrough_extended.py` reads verification tokens from
-  `/tmp/uvicorn.log`**, a fixed path, on the assumption the server's
-  stdout/stderr is redirected there. Bites if the server is ever run with
-  logging configured differently — the script will time out looking for a
-  token that was written somewhere else.
+- **`backend/scripts/walkthrough_extended.py` and `load_test_data.py` read
+  verification tokens from `/tmp/uvicorn.log`**, a fixed path (a
+  `--log-path` default on `load_test_data.py`), on the assumption the
+  server's stdout/stderr is redirected there. Bites if the server is ever
+  run with logging configured differently — the script will time out
+  looking for a token that was written somewhere else.
 - **The labeler does not reliably find a matching umbrella when one post
   goes to two communities with different topics on offer.** FIX-06's
   walkthrough needed the documented author-correction path
