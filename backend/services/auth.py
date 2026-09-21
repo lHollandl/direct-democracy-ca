@@ -55,7 +55,7 @@ async def signup(
     city_id: int | None,
     terms_version: str,
     ip_address: str,
-) -> tuple[User, str]:
+) -> tuple[User, str, str | None]:
     """Create an account and issue an email-verification token.
 
     Returns the user and the raw verification token, which only the email
@@ -139,19 +139,20 @@ async def signup(
         token_hash=security.token_fingerprint(token),
         expires_at=datetime.now(timezone.utc) + timedelta(hours=env.EMAIL_VERIFY_HOURS),
     )
+    verify_link = f"{_frontend_origin()}/verify-email?token={token}"
     await email_client.send(
         to=user.email,
         subject="Confirm your email address — Direct Democracy CA",
         text_body=(
             f"Welcome, {user.display_name}.\n\n"
             "Confirm your email address to start posting, voting and commenting:\n\n"
-            f"{_frontend_origin()}/verify-email?token={token}\n\n"
+            f"{verify_link}\n\n"
             f"The link works for {env.EMAIL_VERIFY_HOURS} hours. "
             "If you did not create this account, ignore this message.\n"
         ),
     )
     log.info("signup", extra={"user_id": user.id})
-    return user, token
+    return user, token, env.demo_link(verify_link)
 
 
 async def verify_email(session: AsyncSession, token: str) -> User:

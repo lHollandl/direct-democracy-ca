@@ -55,6 +55,9 @@ class SignupIn(BaseModel):
 class SignupOut(BaseModel):
     id: int
     message: str
+    #: ARCHITECTURE.md §4 "Demo mail" — present only when `EMAIL_BACKEND=console`
+    #: and `ALLOW_TEST_DATA=true`.
+    demo_link: str | None = None
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=SignupOut)
@@ -64,7 +67,7 @@ async def signup(body: SignupIn, request: Request, session: SessionDep) -> Signu
             "You have to agree to the terms and the privacy policy to join.",
             code="terms_not_accepted",
         )
-    user, _token = await auth_service.signup(
+    user, _token, demo_link = await auth_service.signup(
         session,
         email=str(body.email),
         password=body.password,
@@ -84,6 +87,7 @@ async def signup(body: SignupIn, request: Request, session: SessionDep) -> Signu
             "Account created. Check your email and use the confirmation link "
             "before posting, voting or commenting."
         ),
+        demo_link=demo_link,
     )
 
 

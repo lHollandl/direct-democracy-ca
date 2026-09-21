@@ -216,7 +216,7 @@ async def change_home(
 
 async def request_email_change(
     session: AsyncSession, user: User, *, new_email: str, password: str
-) -> None:
+) -> str | None:
     """`POST /me/email` (ARCHITECTURE.md §6). Nothing changes until the new
     address is confirmed; the old address is told, so an account takeover
     cannot go unnoticed."""
@@ -244,13 +244,14 @@ async def request_email_change(
         token_hash=security.token_fingerprint(token),
         expires_at=datetime.now(timezone.utc) + timedelta(hours=env.EMAIL_VERIFY_HOURS),
     )
+    confirm_link = f"{env.absolute_url('/confirm-email-change')}?token={token}"
     await email_client.send(
         to=new_email,
         subject="Confirm your new email address — Direct Democracy CA",
         text_body=(
             "Confirm this address as the new sign-in email for your Direct "
             "Democracy CA account:\n\n"
-            f"{env.absolute_url('/confirm-email-change')}?token={token}\n\n"
+            f"{confirm_link}\n\n"
             f"The link works for {env.EMAIL_VERIFY_HOURS} hours. If you did "
             "not request this, ignore this message.\n"
         ),
@@ -266,6 +267,7 @@ async def request_email_change(
         ),
     )
     log.info("email_change_requested", extra={"user_id": user.id})
+    return env.demo_link(confirm_link)
 
 
 async def confirm_email_change(session: AsyncSession, token: str) -> User:

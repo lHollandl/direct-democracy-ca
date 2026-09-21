@@ -123,18 +123,26 @@ class EmailChangeIn(BaseModel):
     password: str
 
 
-@router.post("/email", response_model=Message)
+class EmailChangeOut(BaseModel):
+    message: str
+    #: ARCHITECTURE.md §4 "Demo mail" — present only when `EMAIL_BACKEND=console`
+    #: and `ALLOW_TEST_DATA=true`.
+    demo_link: str | None = None
+
+
+@router.post("/email", response_model=EmailChangeOut)
 async def request_email_change(
     body: EmailChangeIn, user: CurrentUser, session: SessionDep
-) -> Message:
-    await account_service.request_email_change(
+) -> EmailChangeOut:
+    demo_link = await account_service.request_email_change(
         session, user, new_email=body.new_email, password=body.password
     )
-    return Message(
+    return EmailChangeOut(
         message=(
             "Check the new address for a confirmation link. We also sent a "
             "notice to your current address."
-        )
+        ),
+        demo_link=demo_link,
     )
 
 
